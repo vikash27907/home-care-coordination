@@ -1,0 +1,19 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section narrow">
+  <h1>Login</h1>
+  <p>Login for approved admin, agent, and nurse accounts.</p>
+  <form method="POST" action="/login" class="form-grid">
+    <label>
+      Email or Phone Number
+      <input name="identifier" type="text" required />
+    </label>
+    <label>
+      Password
+      <input name="password" type="password" required />
+    </label>
+    <button type="submit" class="btn primary">Login</button>
+  </form>
+</section>
+
+<%- include("../partials/footer") %>

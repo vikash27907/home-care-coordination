@@ -1,0 +1,60 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <h1>Nurse Signup Application</h1>
+  <p>Your profile will be created with <strong>Pending</strong> status until admin approval.</p>
+  <form method="POST" action="/nurse-signup" class="form-grid">
+    <label>
+      Full Name
+      <input name="fullName" type="text" required />
+    </label>
+    <label>
+      Email
+      <input name="email" type="email" required />
+    </label>
+    <label>
+      Password
+      <input name="password" type="password" required />
+    </label>
+    <label>
+      Phone Number
+      <input name="phoneNumber" type="text" required />
+    </label>
+    <label>
+      City
+      <input name="city" type="text" required />
+    </label>
+    <label>
+      Experience (Years)
+      <input name="experienceYears" type="number" min="0" max="60" required />
+    </label>
+
+    <fieldset class="full-width">
+      <legend>Skills (multiple selection)</legend>
+      <div class="check-grid">
+        <% skillsOptions.forEach((skill) => { %>
+        <label class="check-item">
+          <input type="checkbox" name="skills" value="<%= skill %>" />
+          <span><%= skill %></span>
+        </label>
+        <% }) %>
+      </div>
+    </fieldset>
+
+    <fieldset class="full-width">
+      <legend>Availability (multiple selection)</legend>
+      <div class="check-grid">
+        <% availabilityOptions.forEach((slot) => { %>
+        <label class="check-item">
+          <input type="checkbox" name="availability" value="<%= slot %>" />
+          <span><%= slot %></span>
+        </label>
+        <% }) %>
+      </div>
+    </fieldset>
+
+    <button type="submit" class="btn primary">Submit Application</button>
+  </form>
+</section>
+
+<%- include("../partials/footer") %>

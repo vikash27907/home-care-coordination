@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= title %> | Home Care Coordination</title>
+    <meta name="theme-color" content="#14532d" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Manrope:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap nav-wrap">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true">&#10084;</span>
+          <span>HomeCare Connect</span>
+        </a>
+        <nav class="top-nav">
+          <% if (!currentUser) { %>
+          <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Home</a>
+          <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
+          <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
+          <a href="/login" class="nav-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
+          <% } %> <% if (currentUser && currentUser.role === 'admin') { %>
+          <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>">Admin Dashboard</a>
+          <a href="/admin/nurses" class="<%= currentPath === '/admin/nurses' ? 'active' : '' %>">Nurses</a>
+          <a href="/admin/patients" class="<%= currentPath === '/admin/patients' ? 'active' : '' %>">Patients</a>
+          <a href="/admin/agents" class="<%= currentPath === '/admin/agents' ? 'active' : '' %>">Agents</a>
+          <form method="POST" action="/logout" class="inline-form">
+            <button type="submit" class="logout-btn">Logout</button>
+          </form>
+          <% } %> <% if (currentUser && currentUser.role === 'agent') { %>
+          <a href="/agent" class="<%= currentPath === '/agent' ? 'active' : '' %>">Agent Dashboard</a>
+          <a href="/agent/patients/new" class="<%= currentPath === '/agent/patients/new' ? 'active' : '' %>"
+            >Add Patient</a
+          >
+          <a href="/agent/nurses/new" class="<%= currentPath === '/agent/nurses/new' ? 'active' : '' %>">Add Nurse</a>
+          <a href="/agent/agents/new" class="<%= currentPath === '/agent/agents/new' ? 'active' : '' %>">Add Agent</a>
+          <form method="POST" action="/logout" class="inline-form">
+            <button type="submit" class="logout-btn">Logout</button>
+          </form>
+          <% } %> <% if (currentUser && currentUser.role === 'nurse') { %>
+          <a href="/nurse/profile" class="<%= currentPath === '/nurse/profile' ? 'active' : '' %>">My Profile</a>
+          <form method="POST" action="/logout" class="inline-form">
+            <button type="submit" class="logout-btn">Logout</button>
+          </form>
+          <% } %>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap main-wrap">
+      <% if (flash) { %>
+      <section class="flash <%= flash.type %>"><%= flash.message %></section>
+      <% } %>

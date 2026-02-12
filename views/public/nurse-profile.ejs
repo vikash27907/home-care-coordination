@@ -1,0 +1,36 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="profile-card public-profile">
+  <% if (nurse.profileImageUrl) { %>
+  <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="nurse-image profile-image" />
+  <% } else { %>
+  <div class="nurse-image nurse-image-fallback profile-image" aria-hidden="true"><%= nurse.fullName.charAt(0) %></div>
+  <% } %>
+
+  <h1><%= nurse.fullName %></h1>
+  <p class="pill"><%= nurse.isAvailable ? 'Available for Requests' : 'Currently Unavailable' %></p>
+
+  <% if (nurse.publicBio) { %>
+  <p class="profile-bio"><%= nurse.publicBio %></p>
+  <% } %>
+
+  <dl>
+    <dt>City</dt>
+    <dd><%= nurse.city %></dd>
+    <dt>Skills</dt>
+    <dd><%= nurse.skills.join(', ') || '-' %></dd>
+    <dt>Availability</dt>
+    <dd><%= nurse.availability.join(', ') || '-' %></dd>
+    <dt>Experience</dt>
+    <dd><%= nurse.experienceYears === null ? 'Not shared' : `${nurse.experienceYears} years` %></dd>
+  </dl>
+
+  <div class="cta-row nurse-actions">
+    <% if (nurse.isAvailable) { %>
+    <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request This Nurse</a>
+    <% } %>
+    <a href="/nurses" class="btn">Back to Directory</a>
+  </div>
+</section>
+
+<%- include("../partials/footer") %>

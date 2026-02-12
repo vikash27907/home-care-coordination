@@ -1,0 +1,6 @@
+node_modules/
+data/store.json
+npm-debug.log*
+.env
+.env.*
+HomeCare/

@@ -1,0 +1,53 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <h1>Patient Care Request</h1>
+  <p>Submit care needs and our admin team will manually coordinate next steps.</p>
+
+  <% if (preferredNurse) { %>
+  <div class="card selected-nurse">
+    <h3>Preferred Nurse Selected</h3>
+    <p><strong><%= preferredNurse.fullName %></strong> (<%= preferredNurse.isAvailable ? 'Available' : 'Not Available' %>)</p>
+    <p>Skills: <%= preferredNurse.skills.join(', ') || '-' %></p>
+  </div>
+  <% } %>
+
+  <form method="POST" action="/request-care" class="form-grid">
+    <input type="hidden" name="preferredNurseId" value="<%= preferredNurse ? preferredNurse.id : '' %>" />
+    <label>
+      Full Name
+      <input name="fullName" type="text" required />
+    </label>
+    <label>
+      Email
+      <input name="email" type="email" required />
+    </label>
+    <label>
+      Phone Number
+      <input name="phoneNumber" type="text" required />
+    </label>
+    <label>
+      City
+      <input name="city" type="text" required />
+    </label>
+    <label class="full-width">
+      Care Requirement
+      <textarea name="careRequirement" rows="4" required></textarea>
+    </label>
+    <label class="full-width">
+      Duration
+      <input name="duration" type="text" placeholder="Example: 2 weeks, 3 months, ongoing" required />
+    </label>
+    <label>
+      Budget Min (INR, Optional)
+      <input name="budgetMin" type="number" min="0" step="0.01" />
+    </label>
+    <label>
+      Budget Max (INR, Optional)
+      <input name="budgetMax" type="number" min="0" step="0.01" />
+    </label>
+    <button type="submit" class="btn primary">Submit Request</button>
+  </form>
+</section>
+
+<%- include("../partials/footer") %>

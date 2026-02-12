@@ -1,0 +1,126 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <h1>Add Nurse</h1>
+  <p>Nurse will be assigned under your account and remain <strong>Pending</strong> until admin approval.</p>
+
+  <% if (referralNurses && referralNurses.length) { %>
+  <div class="hint">
+    Referral codes can be used if an existing nurse referred this new profile.
+  </div>
+  <% } %>
+
+  <form method="POST" action="/agent/nurses/new" class="form-grid">
+    <label>
+      Full Name
+      <input name="fullName" type="text" required />
+    </label>
+    <label>
+      Email
+      <input name="email" type="email" required />
+    </label>
+    <label>
+      Temporary Password
+      <input name="password" type="password" required />
+    </label>
+    <label>
+      Phone Number
+      <input name="phoneNumber" type="text" required />
+    </label>
+    <label>
+      City
+      <input name="city" type="text" required />
+    </label>
+    <label>
+      Experience (Years)
+      <input name="experienceYears" type="number" min="0" max="60" required />
+    </label>
+
+    <label class="full-width">
+      Referral Code (Optional)
+      <input
+        name="referredByCode"
+        type="text"
+        value="<%= prefilledReferralCode || '' %>"
+        placeholder="Example: NABC123"
+      />
+    </label>
+
+    <label class="full-width">
+      Profile Image URL (Optional)
+      <input name="profileImageUrl" type="url" placeholder="https://..." />
+    </label>
+
+    <label class="full-width">
+      Public Bio (Optional)
+      <textarea name="publicBio" rows="4" placeholder="This is visible in public nurse profile."></textarea>
+    </label>
+
+    <fieldset class="full-width">
+      <legend>Skills</legend>
+      <div class="check-grid">
+        <% skillsOptions.forEach((skill) => { %>
+        <label class="check-item">
+          <input type="checkbox" name="skills" value="<%= skill %>" />
+          <span><%= skill %></span>
+        </label>
+        <% }) %>
+      </div>
+    </fieldset>
+
+    <fieldset class="full-width">
+      <legend>Availability</legend>
+      <div class="check-grid">
+        <% availabilityOptions.forEach((slot) => { %>
+        <label class="check-item">
+          <input type="checkbox" name="availability" value="<%= slot %>" />
+          <span><%= slot %></span>
+        </label>
+        <% }) %>
+      </div>
+    </fieldset>
+
+    <fieldset class="full-width">
+      <legend>Public Visibility</legend>
+      <div class="check-grid">
+        <label class="check-item">
+          <input type="checkbox" name="isAvailable" checked />
+          <span>Visible as Available</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" name="publicShowCity" checked />
+          <span>Show City Publicly</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" name="publicShowExperience" checked />
+          <span>Show Experience Publicly</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <button type="submit" class="btn primary">Add Nurse</button>
+  </form>
+
+  <% if (referralNurses && referralNurses.length) { %>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>Nurse</th>
+          <th>Referral Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% referralNurses.forEach((nurse) => { %>
+        <tr>
+          <td><%= nurse.fullName %></td>
+          <td><code><%= nurse.referralCode %></code></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+<%- include("../partials/footer") %>

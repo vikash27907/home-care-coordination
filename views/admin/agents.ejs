@@ -1,0 +1,69 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Agent Management</h1>
+  <p>Approve or reject regional coordinators before they can access agent tools.</p>
+</section>
+
+<form method="GET" action="/admin/agents" class="filter-row">
+  <label>
+    Status Filter
+    <select name="status">
+      <option value="All" <%= statusFilter === 'All' ? 'selected' : '' %>>All</option>
+      <% agentStatuses.forEach((status) => { %>
+      <option value="<%= status %>" <%= statusFilter === status ? 'selected' : '' %>><%= status %></option>
+      <% }) %>
+    </select>
+  </label>
+  <button type="submit" class="btn">Apply</button>
+</form>
+
+<section class="table-shell">
+  <table>
+    <thead>
+      <tr>
+        <th>Agent ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>City / Region</th>
+        <th>Created By</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!agents.length) { %>
+      <tr>
+        <td colspan="9">No agent records found for this filter.</td>
+      </tr>
+      <% } %>
+      <% agents.forEach((agent) => { %>
+      <tr>
+        <td>A-<%= agent.id %></td>
+        <td><%= agent.fullName %></td>
+        <td><%= agent.email %></td>
+        <td><%= agent.phoneNumber %></td>
+        <td><%= agent.region %></td>
+        <td><%= agent.createdByAgentEmail || 'System/Admin' %></td>
+        <td><span class="pill"><%= agent.status %></span></td>
+        <td><%= agent.createdAt.slice(0, 10) %></td>
+        <td>
+          <form method="POST" action="/admin/agents/<%= agent.id %>/update" class="table-form">
+            <input type="hidden" name="statusFilter" value="<%= statusFilter %>" />
+            <select name="status">
+              <% agentStatuses.forEach((status) => { %>
+              <option value="<%= status %>" <%= agent.status === status ? 'selected' : '' %>><%= status %></option>
+              <% }) %>
+            </select>
+            <button type="submit" class="btn small">Save</button>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
+<%- include("../partials/footer") %>

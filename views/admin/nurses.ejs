@@ -1,0 +1,90 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Nurse Management</h1>
+  <p>Filter by status, approve or reject applications, and assign one or more agents.</p>
+</section>
+
+<form method="GET" action="/admin/nurses" class="filter-row">
+  <label>
+    Status Filter
+    <select name="status">
+      <option value="All" <%= statusFilter === 'All' ? 'selected' : '' %>>All</option>
+      <% nurseStatuses.forEach((status) => { %>
+      <option value="<%= status %>" <%= statusFilter === status ? 'selected' : '' %>><%= status %></option>
+      <% }) %>
+    </select>
+  </label>
+  <button type="submit" class="btn">Apply</button>
+</form>
+
+<section class="table-shell">
+  <table>
+    <thead>
+      <tr>
+        <th>Nurse ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>City</th>
+        <th>Skills</th>
+        <th>Availability Slots</th>
+        <th>Experience</th>
+        <th>Status</th>
+        <th>Public Availability</th>
+        <th>Assigned Agents</th>
+        <th>Referral Code</th>
+        <th>Created</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!nurses.length) { %>
+      <tr>
+        <td colspan="14">No nurse records found for this filter.</td>
+      </tr>
+      <% } %>
+      <% nurses.forEach((nurse) => { %>
+      <tr>
+        <td>N-<%= nurse.id %></td>
+        <td><%= nurse.fullName %></td>
+        <td><%= nurse.email %></td>
+        <td><%= nurse.phoneNumber %></td>
+        <td><%= nurse.city %></td>
+        <td><%= nurse.skills.join(', ') || '-' %></td>
+        <td><%= nurse.availability.join(', ') || '-' %></td>
+        <td><%= nurse.experienceYears %> yrs</td>
+        <td><span class="pill"><%= nurse.status %></span></td>
+        <td><%= nurse.isAvailable ? 'Available' : 'Unavailable' %></td>
+        <td><%= (nurse.agentEmails || []).join(', ') || 'Unassigned' %></td>
+        <td><code><%= nurse.referralCode || '-' %></code></td>
+        <td><%= nurse.createdAt.slice(0, 10) %></td>
+        <td>
+          <form method="POST" action="/admin/nurses/<%= nurse.id %>/update" class="table-form">
+            <input type="hidden" name="statusFilter" value="<%= statusFilter %>" />
+            <select name="status">
+              <% nurseStatuses.forEach((status) => { %>
+              <option value="<%= status %>" <%= nurse.status === status ? 'selected' : '' %>><%= status %></option>
+              <% }) %>
+            </select>
+            <label class="check-item">
+              <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %> />
+              <span>Publicly Available</span>
+            </label>
+            <select name="agentEmails" multiple size="4">
+              <% approvedAgents.forEach((agent) => { %>
+              <option value="<%= agent.email %>" <%= (nurse.agentEmails || []).includes(agent.email) ? 'selected' : '' %>>
+                <%= agent.fullName %> (<%= agent.email %>)
+              </option>
+              <% }) %>
+            </select>
+            <button type="submit" class="btn small">Save</button>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
+<%- include("../partials/footer") %>

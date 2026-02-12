@@ -1,0 +1,79 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="hero-shell">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="hero-center reveal" data-reveal>
+    <span class="hero-icon" aria-hidden="true">&#10084;</span>
+    <h1>HomeCare Connect</h1>
+    <p class="hero-subtitle">Care that comes home</p>
+    <p class="hero-copy">
+      Safe, admin-controlled coordination for patients, nurses, and agents. Built for pilot-ready operations with
+      clear manual workflows.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary" href="/request-care">Request Care <span aria-hidden="true">&rarr;</span></a>
+      <a class="btn" href="/nurses">Find Nurses</a>
+      <a class="btn" href="/login">Staff Login</a>
+    </div>
+  </div>
+</section>
+
+<section class="home-band">
+  <div class="mini-stats reveal" data-reveal>
+    <article>
+      <h3>Manual Approvals</h3>
+      <p>Every nurse and agent is approved by admin before access.</p>
+    </article>
+    <article>
+      <h3>Regional Visibility</h3>
+      <p>Agents only view records assigned to their own email.</p>
+    </article>
+    <article>
+      <h3>Pilot Ready</h3>
+      <p>Low-cost setup with structured control from day one.</p>
+    </article>
+  </div>
+</section>
+
+<section class="content-section">
+  <h2 class="reveal" data-reveal>How It Works</h2>
+  <p class="section-lead reveal" data-reveal>Getting quality home care is simple with our streamlined process.</p>
+  <div class="steps-grid">
+    <article class="card reveal" data-reveal>
+      <span class="step-index">1</span>
+      <h3>Submit a request</h3>
+      <p>Patients request care publicly while staff onboarding is handled through approved agents.</p>
+    </article>
+    <article class="card reveal" data-reveal>
+      <span class="step-index">2</span>
+      <h3>We coordinate care</h3>
+      <p>Admin reviews applications, assigns agents, and updates statuses manually for safety and clarity.</p>
+    </article>
+    <article class="card reveal" data-reveal>
+      <span class="step-index">3</span>
+      <h3>Care begins at home</h3>
+      <p>Approved staff and assigned regions move care operations forward with clean role boundaries.</p>
+    </article>
+  </div>
+</section>
+
+<section class="content-section">
+  <h2 class="reveal" data-reveal>Who It's For</h2>
+  <div class="cards-grid">
+    <article class="card reveal" data-reveal>
+      <h3>Patients</h3>
+      <p>Request at-home support with no login needed.</p>
+    </article>
+    <article class="card reveal" data-reveal>
+      <h3>Nurses</h3>
+      <p>Profiles are created by approved agents, reviewed by admin, and shared publicly without contact details.</p>
+    </article>
+    <article class="card reveal" data-reveal>
+      <h3>Agents</h3>
+      <p>Manage regional patients and nurses while staying isolated from other agents' data.</p>
+    </article>
+  </div>
+</section>
+
+<%- include("../partials/footer") %>

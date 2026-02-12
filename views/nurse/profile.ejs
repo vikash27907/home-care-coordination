@@ -1,0 +1,155 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Nurse Profile</h1>
+  <p>Your public profile excludes email and phone by design. Manage what is visible below.</p>
+</section>
+
+<section class="profile-card">
+  <dl>
+    <dt>Nurse ID</dt>
+    <dd>N-<%= nurse.id %></dd>
+    <dt>Full Name</dt>
+    <dd><%= nurse.fullName %></dd>
+    <dt>Email</dt>
+    <dd><%= nurse.email %></dd>
+    <dt>Phone</dt>
+    <dd><%= nurse.phoneNumber %></dd>
+    <dt>City</dt>
+    <dd><%= nurse.city %></dd>
+    <dt>Skills</dt>
+    <dd><%= nurse.skills.join(', ') || '-' %></dd>
+    <dt>Availability Slots</dt>
+    <dd><%= nurse.availability.join(', ') || '-' %></dd>
+    <dt>Experience</dt>
+    <dd><%= nurse.experienceYears %> years</dd>
+    <dt>Status</dt>
+    <dd><span class="pill"><%= nurse.status %></span></dd>
+    <dt>Public Availability</dt>
+    <dd><%= nurse.isAvailable ? 'Available' : 'Unavailable' %></dd>
+    <dt>Assigned Agents</dt>
+    <dd>
+      <% if (!assignedAgents.length) { %>
+      Not assigned
+      <% } %>
+      <% assignedAgents.forEach((agent) => { %>
+      <div><strong><%= agent.name %></strong> - <%= agent.email %> - <%= agent.region %></div>
+      <% }) %>
+    </dd>
+    <dt>Your Referral Code</dt>
+    <dd><code><%= nurse.referralCode %></code></dd>
+    <dt>Referral Link For Agents</dt>
+    <dd><code><%= referralLink %></code></dd>
+    <dt>Referral Earnings</dt>
+    <dd><%= referralTotal.toFixed(2) %></dd>
+  </dl>
+</section>
+
+<section class="content-section">
+  <h2>Public Profile Controls</h2>
+  <form method="POST" action="/nurse/profile/public" class="form-grid">
+    <label class="full-width">
+      Profile Image URL
+      <input name="profileImageUrl" type="url" value="<%= nurse.profileImageUrl || '' %>" placeholder="https://..." />
+    </label>
+    <label class="full-width">
+      Public Bio
+      <textarea name="publicBio" rows="4"><%= nurse.publicBio || '' %></textarea>
+    </label>
+
+    <fieldset class="full-width">
+      <legend>Public Skills</legend>
+      <div class="check-grid">
+        <% ['Elderly Care','Post-Surgery Care','Wound Dressing','Medication Support','Physiotherapy Assistance','Palliative Care'].forEach((skill) => { %>
+        <label class="check-item">
+          <input type="checkbox" name="publicSkills" value="<%= skill %>" <%= (nurse.publicSkills || []).includes(skill) ? 'checked' : '' %> />
+          <span><%= skill %></span>
+        </label>
+        <% }) %>
+      </div>
+      <small>Leave all unchecked to show all your skills.</small>
+    </fieldset>
+
+    <fieldset class="full-width">
+      <legend>Visibility</legend>
+      <div class="check-grid">
+        <label class="check-item">
+          <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %> />
+          <span>Available for public requests</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" name="publicShowCity" <%= nurse.publicShowCity ? 'checked' : '' %> />
+          <span>Show city publicly</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" name="publicShowExperience" <%= nurse.publicShowExperience ? 'checked' : '' %> />
+          <span>Show experience publicly</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <button type="submit" class="btn primary">Save Public Settings</button>
+  </form>
+</section>
+
+<section class="content-section">
+  <h2>Referred Nurses</h2>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>Nurse</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!referredNurses.length) { %>
+        <tr>
+          <td colspan="3">No referrals yet.</td>
+        </tr>
+        <% } %>
+        <% referredNurses.forEach((item) => { %>
+        <tr>
+          <td><%= item.fullName %></td>
+          <td><span class="pill"><%= item.status %></span></td>
+          <td><%= item.createdAt.slice(0, 10) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="content-section">
+  <h2>Referral Commission History</h2>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Referral Commission</th>
+          <th>Percent</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!referralPatients.length) { %>
+        <tr>
+          <td colspan="4">No referral commission records yet.</td>
+        </tr>
+        <% } %>
+        <% referralPatients.forEach((item) => { %>
+        <tr>
+          <td>P-<%= item.id %> | <%= item.fullName %></td>
+          <td><%= typeof item.referralCommissionAmount === 'number' ? item.referralCommissionAmount.toFixed(2) : '0.00' %></td>
+          <td><%= typeof item.referralCommissionPercent === 'number' ? item.referralCommissionPercent.toFixed(2) : '0.00' %>%</td>
+          <td><%= item.createdAt.slice(0, 10) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<%- include("../partials/footer") %>

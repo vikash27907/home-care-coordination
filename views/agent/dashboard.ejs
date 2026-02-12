@@ -1,0 +1,244 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Agent Dashboard</h1>
+  <p>Regional view only: records assigned to <strong><%= currentUser.email %></strong>.</p>
+</section>
+
+<section class="metrics-grid">
+  <article class="metric">
+    <h3>Assigned Patients</h3>
+    <p><%= patients.length %></p>
+  </article>
+  <article class="metric">
+    <h3>Assigned Nurses</h3>
+    <p><%= nurses.length %></p>
+  </article>
+  <article class="metric">
+    <h3>Available Nurses</h3>
+    <p><%= approvedNurses.length %></p>
+  </article>
+</section>
+
+<section class="content-section">
+  <h2>Your Patients and Financials</h2>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>City</th>
+          <th>Requirement</th>
+          <th>Duration</th>
+          <th>Budget</th>
+          <th>Status</th>
+          <th>Preferred Nurse</th>
+          <th>Assigned Nurse</th>
+          <th>Nurse Amount</th>
+          <th>Your Margin</th>
+          <th>Referral Commission</th>
+          <th>Nurse Net</th>
+          <th>Transfer Margin</th>
+          <th>Created</th>
+          <th>Assign + Finance</th>
+          <th>Transfer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!patients.length) { %>
+        <tr>
+          <td colspan="17">No patients assigned yet.</td>
+        </tr>
+        <% } %>
+        <% patients.forEach((patient) => { %>
+        <tr>
+          <td>P-<%= patient.id %></td>
+          <td><%= patient.fullName %></td>
+          <td><%= patient.city %></td>
+          <td><%= patient.careRequirement %></td>
+          <td><%= patient.duration %></td>
+          <td>
+            <% if (typeof patient.budgetMin === 'number' && typeof patient.budgetMax === 'number') { %>
+            <%= patient.budgetMin.toFixed(2) %> - <%= patient.budgetMax.toFixed(2) %>
+            <% } else { %>
+            Open
+            <% } %>
+          </td>
+          <td><span class="pill"><%= patient.status %></span></td>
+          <td><%= patient.preferredNurseName || '-' %></td>
+          <td><%= patient.nurseId ? (nurseIndex[patient.nurseId] || 'Assigned') : 'Unassigned' %></td>
+          <td><%= typeof patient.nurseAmount === 'number' ? patient.nurseAmount.toFixed(2) : '-' %></td>
+          <td>
+            <% if (typeof patient.commissionAmount === 'number' && patient.nurseId) { %>
+            <%= patient.commissionAmount.toFixed(2) %>
+            (<%= patient.commissionType || 'Percent' %>: <%= typeof patient.commissionValue === 'number' ? patient.commissionValue.toFixed(2) : '0.00' %>)
+            <% } else { %>
+            -
+            <% } %>
+          </td>
+          <td>
+            <% if (typeof patient.referralCommissionAmount === 'number' && patient.referrerNurseId) { %>
+            <%= patient.referralCommissionAmount.toFixed(2) %>
+            (<%= typeof patient.referralCommissionPercent === 'number' ? patient.referralCommissionPercent.toFixed(2) : '0.00' %>%)
+            <% if (referralNurseIndex[patient.referrerNurseId]) { %>
+            via <%= referralNurseIndex[patient.referrerNurseId] %>
+            <% } %>
+            <% } else { %>
+            -
+            <% } %>
+          </td>
+          <td><%= typeof patient.nurseNetAmount === 'number' ? patient.nurseNetAmount.toFixed(2) : '-' %></td>
+          <td>
+            <%= typeof patient.transferMarginAmount === 'number' ? patient.transferMarginAmount.toFixed(2) : '0.00' %>
+            (<%= patient.transferMarginType || 'Percent' %>: <%= typeof patient.transferMarginValue === 'number' ? patient.transferMarginValue.toFixed(2) : '0.00' %>)
+          </td>
+          <td><%= patient.createdAt.slice(0, 10) %></td>
+          <td>
+            <form method="POST" action="/agent/patients/<%= patient.id %>/financials" class="table-form">
+              <select name="nurseId">
+                <option value="">Unassigned</option>
+                <% approvedNurses.forEach((nurse) => { %>
+                <option value="<%= nurse.id %>" <%= patient.nurseId === nurse.id ? 'selected' : '' %>>
+                  N-<%= nurse.id %> | <%= nurse.fullName %>
+                </option>
+                <% }) %>
+              </select>
+              <input
+                type="number"
+                name="nurseAmount"
+                min="0"
+                step="0.01"
+                value="<%= typeof patient.nurseAmount === 'number' ? patient.nurseAmount.toFixed(2) : '' %>"
+                placeholder="Nurse amount"
+              />
+              <select name="commissionType">
+                <% commissionTypes.forEach((type) => { %>
+                <option value="<%= type %>" <%= (patient.commissionType || 'Percent') === type ? 'selected' : '' %>>
+                  <%= type %>
+                </option>
+                <% }) %>
+              </select>
+              <input
+                type="number"
+                name="commissionValue"
+                min="0"
+                step="0.01"
+                value="<%= typeof patient.commissionValue === 'number' ? patient.commissionValue.toFixed(2) : '0.00' %>"
+                placeholder="Margin value"
+              />
+              <button type="submit" class="btn small">Save</button>
+            </form>
+          </td>
+          <td>
+            <form method="POST" action="/agent/patients/<%= patient.id %>/transfer" class="table-form">
+              <select name="targetAgentEmail" required>
+                <option value="">Transfer To</option>
+                <% transferTargets.forEach((agent) => { %>
+                <option value="<%= agent.email %>"><%= agent.fullName %> (<%= agent.region %>)</option>
+                <% }) %>
+              </select>
+              <select name="transferMarginType">
+                <% commissionTypes.forEach((type) => { %>
+                <option value="<%= type %>" <%= (patient.transferMarginType || 'Percent') === type ? 'selected' : '' %>>
+                  <%= type %>
+                </option>
+                <% }) %>
+              </select>
+              <input
+                type="number"
+                name="transferMarginValue"
+                min="0"
+                step="0.01"
+                value="<%= typeof patient.transferMarginValue === 'number' ? patient.transferMarginValue.toFixed(2) : '0.00' %>"
+                placeholder="Transfer margin"
+              />
+              <button type="submit" class="btn small">Transfer</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="content-section">
+  <h2>Your Nurses</h2>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>City</th>
+          <th>Status</th>
+          <th>Public Availability</th>
+          <th>Skills</th>
+          <th>Assigned Agents</th>
+          <th>Referral Code</th>
+          <th>Referred By</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!nurses.length) { %>
+        <tr>
+          <td colspan="10">No nurses assigned yet.</td>
+        </tr>
+        <% } %>
+        <% nurses.forEach((nurse) => { %>
+        <tr>
+          <td>N-<%= nurse.id %></td>
+          <td><%= nurse.fullName %></td>
+          <td><%= nurse.city %></td>
+          <td><span class="pill"><%= nurse.status %></span></td>
+          <td><%= nurse.isAvailable ? 'Available' : 'Unavailable' %></td>
+          <td><%= nurse.skills.join(', ') || '-' %></td>
+          <td><%= (nurse.agentEmails || []).join(', ') || '-' %></td>
+          <td><code><%= nurse.referralCode || '-' %></code></td>
+          <td><%= nurse.referredByNurseId ? (referralNurseIndex[nurse.referredByNurseId] || `N-${nurse.referredByNurseId}`) : '-' %></td>
+          <td><%= nurse.createdAt.slice(0, 10) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="content-section">
+  <h2>Agents Added By You</h2>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Region</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!createdAgents.length) { %>
+        <tr>
+          <td colspan="6">No agents created by you yet.</td>
+        </tr>
+        <% } %>
+        <% createdAgents.forEach((agent) => { %>
+        <tr>
+          <td>A-<%= agent.id %></td>
+          <td><%= agent.fullName %></td>
+          <td><%= agent.email %></td>
+          <td><%= agent.region %></td>
+          <td><span class="pill"><%= agent.status %></span></td>
+          <td><%= agent.createdAt.slice(0, 10) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<%- include("../partials/footer") %>

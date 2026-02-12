@@ -1,0 +1,51 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Find Nurses</h1>
+  <p>Only public profile details are shown. Contact details are never public.</p>
+</section>
+
+<form method="GET" action="/nurses" class="filter-row">
+  <label>
+    Visibility
+    <select name="show">
+      <option value="" <%= includeUnavailable ? '' : 'selected' %>>Available Nurses</option>
+      <option value="all" <%= includeUnavailable ? 'selected' : '' %>>All Approved Nurses</option>
+    </select>
+  </label>
+  <button type="submit" class="btn">Apply</button>
+</form>
+
+<section class="nurse-cards-grid">
+  <% if (!nurses.length) { %>
+  <article class="card">
+    <h3>No nurses found</h3>
+    <p>Try changing the visibility filter.</p>
+  </article>
+  <% } %>
+
+  <% nurses.forEach((nurse) => { %>
+  <article class="card nurse-card">
+    <% if (nurse.profileImageUrl) { %>
+    <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="nurse-image" />
+    <% } else { %>
+    <div class="nurse-image nurse-image-fallback" aria-hidden="true"><%= nurse.fullName.charAt(0) %></div>
+    <% } %>
+
+    <h3><%= nurse.fullName %></h3>
+    <p class="pill"><%= nurse.isAvailable ? 'Available' : 'Currently Unavailable' %></p>
+    <p><strong>City:</strong> <%= nurse.city %></p>
+    <p><strong>Skills:</strong> <%= nurse.skills.join(', ') || '-' %></p>
+    <p><strong>Experience:</strong> <%= nurse.experienceYears === null ? 'Not shared' : `${nurse.experienceYears} years` %></p>
+
+    <div class="cta-row nurse-actions">
+      <a href="/nurses/<%= nurse.id %>" class="btn">View Profile</a>
+      <% if (nurse.isAvailable) { %>
+      <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request This Nurse</a>
+      <% } %>
+    </div>
+  </article>
+  <% }) %>
+</section>
+
+<%- include("../partials/footer") %>

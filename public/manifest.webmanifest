@@ -1,0 +1,9 @@
+{
+  "name": "Home Care Coordination",
+  "short_name": "HomeCare",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f7ef",
+  "theme_color": "#14532d",
+  "description": "Pilot-ready nurse home care coordination with role-based dashboards."
+}

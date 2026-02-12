@@ -1,0 +1,116 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Patient Management</h1>
+  <p>Update patient progress and assign approved agents for regional coordination.</p>
+</section>
+
+<form method="GET" action="/admin/patients" class="filter-row">
+  <label>
+    Status Filter
+    <select name="status">
+      <option value="All" <%= statusFilter === 'All' ? 'selected' : '' %>>All</option>
+      <% patientStatuses.forEach((status) => { %>
+      <option value="<%= status %>" <%= statusFilter === status ? 'selected' : '' %>><%= status %></option>
+      <% }) %>
+    </select>
+  </label>
+  <button type="submit" class="btn">Apply</button>
+</form>
+
+<section class="table-shell">
+  <table>
+    <thead>
+      <tr>
+        <th>Patient ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>City</th>
+        <th>Requirement</th>
+        <th>Duration</th>
+        <th>Budget</th>
+        <th>Status</th>
+        <th>Agent</th>
+        <th>Preferred Nurse</th>
+        <th>Nurse</th>
+        <th>Nurse Amount</th>
+        <th>Commission</th>
+        <th>Referral Commission</th>
+        <th>Transfer Margin</th>
+        <th>Nurse Net</th>
+        <th>Created</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!patients.length) { %>
+      <tr>
+        <td colspan="19">No patient records found for this filter.</td>
+      </tr>
+      <% } %>
+      <% patients.forEach((patient) => { %>
+      <tr>
+        <td>P-<%= patient.id %></td>
+        <td><%= patient.fullName %></td>
+        <td><%= patient.email %></td>
+        <td><%= patient.phoneNumber %></td>
+        <td><%= patient.city %></td>
+        <td><%= patient.careRequirement %></td>
+        <td><%= patient.duration %></td>
+        <td>
+          <% if (typeof patient.budgetMin === 'number' && typeof patient.budgetMax === 'number') { %>
+          <%= patient.budgetMin.toFixed(2) %> - <%= patient.budgetMax.toFixed(2) %>
+          <% } else { %>
+          Open
+          <% } %>
+        </td>
+        <td><span class="pill"><%= patient.status %></span></td>
+        <td><%= patient.agentEmail || 'Unassigned' %></td>
+        <td><%= patient.preferredNurseName || '-' %></td>
+        <td><%= patient.nurseId ? (nurseIndex[patient.nurseId] || `N-${patient.nurseId}`) : 'Unassigned' %></td>
+        <td><%= typeof patient.nurseAmount === 'number' ? patient.nurseAmount.toFixed(2) : '-' %></td>
+        <td>
+          <% if (typeof patient.commissionAmount === 'number' && patient.nurseId) { %>
+          <%= patient.commissionAmount.toFixed(2) %>
+          (<%= patient.commissionType || 'Percent' %>: <%= typeof patient.commissionValue === 'number' ? patient.commissionValue.toFixed(2) : '0.00' %>)
+          <% } else { %>
+          -
+          <% } %>
+        </td>
+        <td>
+          <%= typeof patient.referralCommissionAmount === 'number' ? patient.referralCommissionAmount.toFixed(2) : '0.00' %>
+          (<%= typeof patient.referralCommissionPercent === 'number' ? patient.referralCommissionPercent.toFixed(2) : '0.00' %>%)
+        </td>
+        <td>
+          <%= typeof patient.transferMarginAmount === 'number' ? patient.transferMarginAmount.toFixed(2) : '0.00' %>
+          (<%= patient.transferMarginType || 'Percent' %>: <%= typeof patient.transferMarginValue === 'number' ? patient.transferMarginValue.toFixed(2) : '0.00' %>)
+        </td>
+        <td><%= typeof patient.nurseNetAmount === 'number' ? patient.nurseNetAmount.toFixed(2) : '-' %></td>
+        <td><%= patient.createdAt.slice(0, 10) %></td>
+        <td>
+          <form method="POST" action="/admin/patients/<%= patient.id %>/update" class="table-form">
+            <input type="hidden" name="statusFilter" value="<%= statusFilter %>" />
+            <select name="status">
+              <% patientStatuses.forEach((status) => { %>
+              <option value="<%= status %>" <%= patient.status === status ? 'selected' : '' %>><%= status %></option>
+              <% }) %>
+            </select>
+            <select name="agentEmail">
+              <option value="">Unassigned</option>
+              <% approvedAgents.forEach((agent) => { %>
+              <option value="<%= agent.email %>" <%= patient.agentEmail === agent.email ? 'selected' : '' %>>
+                <%= agent.email %>
+              </option>
+              <% }) %>
+            </select>
+            <button type="submit" class="btn small">Save</button>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
+<%- include("../partials/footer") %>
