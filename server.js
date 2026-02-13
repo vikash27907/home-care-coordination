@@ -651,6 +651,7 @@ function seedAdmin() {
 }
 
 function createNurseUnderAgent(req, res, failRedirect) {
+  const creatorAgentEmail = req.currentUser && req.currentUser.role === "agent" ? normalizeEmail(req.currentUser.email) : "";
   const fullName = String(req.body.fullName || "").trim();
   const email = normalizeEmail(req.body.email);
   const password = String(req.body.password || "");
@@ -661,9 +662,9 @@ function createNurseUnderAgent(req, res, failRedirect) {
   const experienceYears = Number.parseInt(req.body.experienceYears, 10);
   const profileImageUrl = String(req.body.profileImageUrl || "").trim();
   const publicBio = String(req.body.publicBio || "").trim();
-  const isAvailable = toBoolean(req.body.isAvailable);
-  const publicShowCity = toBoolean(req.body.publicShowCity);
-  const publicShowExperience = toBoolean(req.body.publicShowExperience);
+  const isAvailable = creatorAgentEmail ? toBoolean(req.body.isAvailable) : true;
+  const publicShowCity = creatorAgentEmail ? toBoolean(req.body.publicShowCity) : true;
+  const publicShowExperience = creatorAgentEmail ? toBoolean(req.body.publicShowExperience) : true;
   const referredByCode = String(req.body.referredByCode || "").trim().toUpperCase();
 
   if (!fullName || !email || !password || !phoneNumber || !city || Number.isNaN(experienceYears)) {
@@ -721,8 +722,8 @@ function createNurseUnderAgent(req, res, failRedirect) {
     availability,
     experienceYears,
     status: "Pending",
-    agentEmail: normalizeEmail(req.currentUser.email),
-    agentEmails: [normalizeEmail(req.currentUser.email)],
+    agentEmail: creatorAgentEmail,
+    agentEmails: creatorAgentEmail ? [creatorAgentEmail] : [],
     profileImageUrl,
     publicBio,
     isAvailable,
@@ -736,8 +737,13 @@ function createNurseUnderAgent(req, res, failRedirect) {
   store.nurses.push(nurse);
 
   writeStore(store);
-  setFlash(req, "success", "Nurse profile created under your account. Admin approval is required before nurse login.");
-  return res.redirect("/agent");
+  if (creatorAgentEmail) {
+    setFlash(req, "success", "Nurse profile created under your account. Admin approval is required before nurse login.");
+    return res.redirect("/agent");
+  }
+
+  setFlash(req, "success", "Nurse signup submitted. Admin approval is required before login.");
+  return res.redirect("/nurse-signup");
 }
 
 function createAgentUnderAgent(req, res, failRedirect) {
@@ -779,6 +785,7 @@ function createAgentUnderAgent(req, res, failRedirect) {
   });
 
   const agentId = nextId(store, "agent");
+  const creatorAgentEmail = req.currentUser && req.currentUser.role === "agent" ? normalizeEmail(req.currentUser.email) : "";
   store.agents.push({
     id: agentId,
     userId,
@@ -787,13 +794,18 @@ function createAgentUnderAgent(req, res, failRedirect) {
     phoneNumber,
     region,
     status: "Pending",
-    createdByAgentEmail: normalizeEmail(req.currentUser.email),
+    createdByAgentEmail: creatorAgentEmail,
     createdAt: now()
   });
 
   writeStore(store);
-  setFlash(req, "success", "Agent account created. Admin approval is required before login.");
-  return res.redirect("/agent");
+  if (creatorAgentEmail) {
+    setFlash(req, "success", "Agent account created. Admin approval is required before login.");
+    return res.redirect("/agent");
+  }
+
+  setFlash(req, "success", "Agent registration submitted. Admin approval is required before login.");
+  return res.redirect("/agent-registration");
 }
 
 seedAdmin();
@@ -802,7 +814,7 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.render("public/home", { title: "Home Care Coordination" });
+  res.render("public/home", { title: "Prisha Home Care" });
 });
 
 app.get("/nurses", (req, res) => {
@@ -930,21 +942,50 @@ app.post("/request-care", (req, res) => {
   return res.redirect("/request-care");
 });
 
-// Public nurse/agent signup is intentionally blocked.
-app.get("/nurse-signup", requireRole("agent"), requireApprovedAgent, (req, res) => {
-  return res.redirect("/agent/nurses/new");
+app.get("/nurse-signup", (req, res) => {
+  if (req.currentUser) {
+    if (req.currentUser.role === "agent") {
+      return res.redirect("/agent/nurses/new");
+    }
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+  return res.render("public/nurse-signup", {
+    title: "Nurse Signup",
+    skillsOptions: SKILLS_OPTIONS,
+    availabilityOptions: AVAILABILITY_OPTIONS
+  });
 });
 
-app.post("/nurse-signup", requireRole("agent"), requireApprovedAgent, (req, res) => {
-  return createNurseUnderAgent(req, res, "/agent/nurses/new");
+app.post("/nurse-signup", (req, res) => {
+  if (req.currentUser) {
+    if (req.currentUser.role === "agent") {
+      return res.redirect("/agent/nurses/new");
+    }
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+  return createNurseUnderAgent(req, res, "/nurse-signup");
 });
 
-app.get("/agent-registration", requireRole("agent"), requireApprovedAgent, (req, res) => {
-  return res.redirect("/agent/agents/new");
+app.get("/agent-registration", (req, res) => {
+  if (req.currentUser) {
+    if (req.currentUser.role === "agent") {
+      return res.redirect("/agent/agents/new");
+    }
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+  return res.render("public/agent-registration", {
+    title: "Agent Registration"
+  });
 });
 
-app.post("/agent-registration", requireRole("agent"), requireApprovedAgent, (req, res) => {
-  return createAgentUnderAgent(req, res, "/agent/agents/new");
+app.post("/agent-registration", (req, res) => {
+  if (req.currentUser) {
+    if (req.currentUser.role === "agent") {
+      return res.redirect("/agent/agents/new");
+    }
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+  return createAgentUnderAgent(req, res, "/agent-registration");
 });
 
 app.get("/login", (req, res) => {
@@ -1539,5 +1580,5 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`Home Care Coordination running on http://localhost:${PORT}`);
+  console.log(`Prisha Home Care running on http://localhost:${PORT}`);
 });

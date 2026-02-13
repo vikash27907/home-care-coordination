@@ -26,3 +26,27 @@ if (revealNodes.length) {
 
   revealNodes.forEach((node) => observer.observe(node));
 }
+
+const heroRotator = document.querySelector("[data-hero-rotator]");
+if (heroRotator) {
+  const items = Array.from(heroRotator.querySelectorAll("[data-rotator-item]"));
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let activeIndex = 0;
+
+  const activateItem = (index) => {
+    items.forEach((item, itemIndex) => {
+      item.classList.toggle("is-active", itemIndex === index);
+    });
+  };
+
+  if (items.length > 0) {
+    activateItem(activeIndex);
+  }
+
+  if (items.length > 1 && !prefersReducedMotion) {
+    window.setInterval(() => {
+      activeIndex = (activeIndex + 1) % items.length;
+      activateItem(activeIndex);
+    }, 4500);
+  }
+}

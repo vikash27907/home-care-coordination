@@ -2,7 +2,7 @@
 
 <section class="form-section">
   <h1>Patient Care Request</h1>
-  <p>Submit care needs and our admin team will manually coordinate next steps.</p>
+  <p>Share your care needs and our coordination team will contact you with the next steps.</p>
 
   <% if (preferredNurse) { %>
   <div class="card selected-nurse">
@@ -48,6 +48,23 @@
     </label>
     <button type="submit" class="btn primary">Submit Request</button>
   </form>
+
+  <aside class="urgent-support">
+    <h2>Need Immediate Assistance?</h2>
+    <p>
+      For emergency or urgent care response, connect with our support team directly on WhatsApp.
+    </p>
+    <div class="support-row">
+      <a
+        class="btn whatsapp"
+        href="https://wa.me/919654829662?text=Hello%20Prisha%20Home%20Care%2C%20I%20need%20immediate%20patient%20care%20support."
+        target="_blank"
+        rel="noopener"
+        >Connect on WhatsApp</a
+      >
+      <span class="support-number">+91 9654829662</span>
+    </div>
+  </aside>
 </section>
 
 <%- include("../partials/footer") %>

@@ -1,9 +1,9 @@
 {
-  "name": "Home Care Coordination",
-  "short_name": "HomeCare",
+  "name": "Prisha Home Care",
+  "short_name": "Prisha Care",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f3f7ef",
-  "theme_color": "#14532d",
-  "description": "Pilot-ready nurse home care coordination with role-based dashboards."
+  "background_color": "#f3f8ff",
+  "theme_color": "#1E88E5",
+  "description": "Professional home nursing and coordinated care services delivered safely and reliably."
 }
