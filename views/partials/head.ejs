@@ -53,7 +53,7 @@
             <button type="submit" class="logout-btn">Logout</button>
           </form>
           <% } %> <% if (currentUser && currentUser.role === 'nurse') { %>
-          <a href="/nurse/dashboard" class="<%= currentPath === '/nurse/dashboard' ? 'active' : '' %>">Dashboard</a>
+          <a href="/nurse/profile" class="<%= currentPath === '/nurse/profile' ? 'active' : '' %>">Profile</a>
           <form method="POST" action="/logout" class="inline-form">
             <button type="submit" class="logout-btn">Logout</button>
           </form>

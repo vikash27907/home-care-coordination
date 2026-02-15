@@ -2,17 +2,52 @@
 
 <%
 // Calculate profile completion percentage
-let profileCompletion = 40; // Base: basic details already provided
+let profileCompletion = 30; // Base: basic details already provided
 if (nurse.skills && nurse.skills.length > 0) profileCompletion += 15;
-if (nurse.availability && nurse.availability.length > 0) profileCompletion += 15;
+if (nurse.availability && nurse.availability.length > 0) profileCompletion += 10;
 if (nurse.experienceYears && nurse.experienceYears > 0) profileCompletion += 10;
-if (nurse.profileImageUrl) profileCompletion += 10;
+if (nurse.profileImagePath || nurse.profileImageUrl) profileCompletion += 10;
 if (nurse.educationLevel) profileCompletion += 10;
+if (nurse.aadharNumber) profileCompletion += 10;
+if (nurse.resumeUrl) profileCompletion += 5;
+
+// Helper to get display Aadhar (last 4 digits)
+function getDisplayAadhar(aadhar) {
+  if (!aadhar || aadhar.length < 4) return '----';
+  return '****-****-' + aadhar.slice(-4);
+}
+
+// Combine skills with custom skills
+const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 %>
 
+<!-- Dashboard Header with Profile Summary -->
 <section class="dashboard-header">
-  <h1>Nurse Profile</h1>
-  <p>Your public profile excludes email and phone by design. Manage what is visible below.</p>
+  <div class="profile-header-container">
+    <div class="profile-avatar-large">
+      <% if (nurse.profileImagePath) { %>
+        <img src="<%= nurse.profileImagePath %>" alt="<%= nurse.fullName %>" />
+      <% } else if (nurse.profileImageUrl) { %>
+        <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %>" />
+      <% } else { %>
+        <div class="avatar-fallback-large"><%= nurse.fullName.charAt(0).toUpperCase() %></div>
+      <% } %>
+    </div>
+    <div class="profile-header-info">
+      <h1><%= nurse.fullName %></h1>
+      <p class="profile-email"><%= nurse.email %></p>
+      <p class="profile-location"><%= nurse.city %><% if (nurse.workCity) { %> • <%= nurse.workCity %><% } %></p>
+      <div class="profile-status">
+        <span class="pill"><%= nurse.status %></span>
+        <span class="availability-badge <%= nurse.isAvailable ? 'available' : 'unavailable' %>">
+          <%= nurse.isAvailable ? 'Available' : 'Unavailable' %>
+        </span>
+      </div>
+    </div>
+    <div class="profile-header-actions">
+      <a href="/nurse/profile/edit" class="btn primary">Update Profile</a>
+    </div>
+  </div>
 </section>
 
 <!-- Profile Completion Indicator -->
@@ -24,342 +59,503 @@ if (nurse.educationLevel) profileCompletion += 10;
   <div class="profile-completion-bar">
     <div class="profile-completion-fill" style="width: <%= profileCompletion %>%"></div>
   </div>
-  <small style="margin-top: 0.5rem; display: block; color: #666;">
-    <% if (profileCompletion < 100) { %>
-    Complete your profile to increase visibility and get more patient requests!
-    <% } else { %>
-    Your profile is complete! ✓
-    <% } %>
-  </small>
 </div>
 
-<section class="profile-card">
-  <dl>
-    <dt>Nurse ID</dt>
-    <dd>N-<%= nurse.id %></dd>
-    <dt>Full Name</dt>
-    <dd><%= nurse.fullName %></dd>
-    <dt>Email</dt>
-    <dd><%= nurse.email %></dd>
-    <dt>Phone</dt>
-    <dd><%= nurse.phoneNumber %></dd>
-    <dt>City</dt>
-    <dd><%= nurse.city %></dd>
-    <dt>Skills</dt>
-    <dd><%= nurse.skills.join(', ') || '-' %></dd>
-    <dt>Availability Slots</dt>
-    <dd><%= nurse.availability.join(', ') || '-' %></dd>
-    <dt>Experience</dt>
-    <dd><%= nurse.experienceYears %> years</dd>
-    <dt>Education Level</dt>
-    <dd><%= nurse.educationLevel || '-' %></dd>
-    <dt>Status</dt>
-    <dd><span class="pill"><%= nurse.status %></span></dd>
-    <dt>Public Availability</dt>
-    <dd><%= nurse.isAvailable ? 'Available' : 'Unavailable' %></dd>
-    <dt>Assigned Agents</dt>
-    <dd>
-      <% if (!assignedAgents.length) { %>
-      Not assigned
-      <% } %>
-      <% assignedAgents.forEach((agent) => { %>
-      <div><strong><%= agent.name %></strong> - <%= agent.email %> - <%= agent.region %></div>
-      <% }) %>
-    </dd>
-    <dt>Your Referral Code</dt>
-    <dd><code><%= nurse.referralCode %></code></dd>
-    <dt>Referral Link For Agents</dt>
-    <dd><code><%= referralLink %></code></dd>
-    <dt>Referral Earnings</dt>
-    <dd><%= referralTotal.toFixed(2) %></dd>
+<!-- Main Profile Card -->
+<section class="profile-card profile-card-clean">
+  <div class="profile-card-header">
+    <h2>Personal Information</h2>
+  </div>
+  <dl class="profile-details-grid">
+    <div class="detail-item">
+      <dt>Full Name</dt>
+      <dd><%= nurse.fullName %></dd>
+    </div>
+    <div class="detail-item">
+      <dt>Email</dt>
+      <dd><%= nurse.email %></dd>
+    </div>
+    <div class="detail-item">
+      <dt>Phone</dt>
+      <dd><%= nurse.phoneNumber %></dd>
+    </div>
+    <div class="detail-item">
+      <dt>City</dt>
+      <dd><%= nurse.city %></dd>
+    </div>
+    <% if (nurse.workCity) { %>
+    <div class="detail-item">
+      <dt>Work City</dt>
+      <dd><%= nurse.workCity %></dd>
+    </div>
+    <% } %>
+    <% if (nurse.address) { %>
+    <div class="detail-item full-width">
+      <dt>Address</dt>
+      <dd><%= nurse.address %></dd>
+    </div>
+    <% } %>
+    <% if (nurse.aadharNumber) { %>
+    <div class="detail-item">
+      <dt>Aadhar</dt>
+      <dd><%= getDisplayAadhar(nurse.aadharNumber) %></dd>
+    </div>
+    <% } %>
+    <div class="detail-item">
+      <dt>Experience</dt>
+      <dd><%= nurse.experienceYears || 0 %> years</dd>
+    </div>
+    <% if (nurse.educationLevel) { %>
+    <div class="detail-item">
+      <dt>Education</dt>
+      <dd><%= nurse.educationLevel %></dd>
+    </div>
+    <% } %>
   </dl>
 </section>
 
-<!-- Complete Profile Section -->
-<section class="content-section">
-  <h2>Complete Your Profile</h2>
-  <p>Add more details to increase your chances of getting selected for care requests.</p>
-  
-  <form method="POST" action="/nurse/profile/complete" class="form-grid" enctype="multipart/form-data">
-    
-    <!-- Experience Years -->
-    <label>
-      Experience (Years) <span class="required-indicator" title="Required"></span>
-      <input 
-        name="experienceYears" 
-        type="number" 
-        value="<%= nurse.experienceYears || '' %>"
-        min="0" 
-        max="60" 
-        required 
-      />
-    </label>
-    
-    <!-- Skills Multi-select -->
-    <div class="full-width">
-      <label>Skills <span class="required-indicator" title="Required"></span></label>
-      <div class="multiselect-container">
-        <div class="multiselect-wrapper">
-          <select name="skills" id="skillsSelect" multiple required>
-            <option value="Elderly Care" <%= (nurse.skills || []).includes('Elderly Care') ? 'selected' : '' %>>Elderly Care</option>
-            <option value="ICU Experience" <%= (nurse.skills || []).includes('ICU Experience') ? 'selected' : '' %>>ICU Experience</option>
-            <option value="Injection Specialist" <%= (nurse.skills || []).includes('Injection Specialist') ? 'selected' : '' %>>Injection Specialist</option>
-            <option value="Post-Surgery Care" <%= (nurse.skills || []).includes('Post-Surgery Care') ? 'selected' : '' %>>Post-Surgery Care</option>
-            <option value="Bedridden Care" <%= (nurse.skills || []).includes('Bedridden Care') ? 'selected' : '' %>>Bedridden Care</option>
-            <option value="Child Care" <%= (nurse.skills || []).includes('Child Care') ? 'selected' : '' %>>Child Care</option>
-            <option value="Palliative Care" <%= (nurse.skills || []).includes('Palliative Care') ? 'selected' : '' %>>Palliative Care</option>
-          </select>
-        </div>
-        <small class="helper-text">Hold Ctrl/Cmd to select multiple skills</small>
-      </div>
-    </div>
-    
-    <!-- Shift Preference Multi-select -->
-    <div class="full-width">
-      <label>Shift Preference <span class="required-indicator" title="Required"></span></label>
-      <div class="multiselect-container">
-        <div class="multiselect-wrapper">
-          <select name="availability" id="availabilitySelect" multiple required>
-            <option value="Day Shift" <%= (nurse.availability || []).includes('Day Shift') ? 'selected' : '' %>>Day Shift</option>
-            <option value="Night Shift" <%= (nurse.availability || []).includes('Night Shift') ? 'selected' : '' %>>Night Shift</option>
-            <option value="24-Hour Live-in" <%= (nurse.availability || []).includes('24-Hour Live-in') ? 'selected' : '' %>>24-Hour Live-in</option>
-            <option value="Part Time" <%= (nurse.availability || []).includes('Part Time') ? 'selected' : '' %>>Part Time</option>
-            <option value="Full Time" <%= (nurse.availability || []).includes('Full Time') ? 'selected' : '' %>>Full Time</option>
-          </select>
-        </div>
-        <small class="helper-text">Hold Ctrl/Cmd to select multiple shift preferences</small>
-      </div>
-    </div>
-    
-    <!-- Resume Upload (Optional) -->
-    <div class="full-width">
-      <label>Resume (Optional)</label>
-      <div class="file-upload-container" id="resumeUpload">
-        <input 
-          type="file" 
-          name="resume" 
-          id="resumeInput"
-          accept=".pdf,image/*"
-        />
-        <label for="resumeInput" class="file-upload-label">
-          <span class="upload-icon">📄</span>
-          <span>Click to upload resume</span>
-          <small class="file-info">PDF or Image (Max 5MB)</small>
-        </label>
+<!-- Skills Section -->
+<section class="profile-card profile-card-clean">
+  <div class="profile-card-header">
+    <h2>Skills</h2>
+  </div>
+  <div class="skills-tags-container">
+    <% if (allSkills.length > 0) { %>
+      <% allSkills.forEach(function(skill) { %>
+        <span class="skill-tag"><%= skill %></span>
+      <% }); %>
+    <% } else { %>
+      <p class="no-data">No skills added yet. Update your profile to add skills.</p>
+    <% } %>
+  </div>
+</section>
+
+<!-- Availability Section -->
+<section class="profile-card profile-card-clean">
+  <div class="profile-card-header">
+    <h2>Availability</h2>
+  </div>
+  <div class="skills-tags-container">
+    <% if (nurse.availability && nurse.availability.length > 0) { %>
+      <% nurse.availability.forEach(function(avail) { %>
+        <span class="availability-tag"><%= avail %></span>
+      <% }); %>
+    <% } else { %>
+      <p class="no-data">No availability set. Update your profile to add availability.</p>
+    <% } %>
+  </div>
+</section>
+
+<!-- Documents Section -->
+<section class="profile-card profile-card-clean">
+  <div class="profile-card-header">
+    <h2>Documents</h2>
+  </div>
+  <div class="documents-grid">
+    <div class="document-item">
+      <div class="document-icon">📄</div>
+      <div class="document-info">
+        <dt>Resume</dt>
         <% if (nurse.resumeUrl) { %>
-        <div class="file-upload-preview" id="resumePreview" style="display: flex;">
-          <span class="file-info">Resume uploaded</span>
-          <button type="button" class="file-remove" onclick="removeResume()">✕</button>
-        </div>
+          <dd><a href="<%= nurse.resumeUrl %>" target="_blank" class="document-link">View Resume</a></dd>
         <% } else { %>
-        <div class="file-upload-preview" id="resumePreview" style="display: none;">
-          <span class="file-info" id="resumeFileName"></span>
-          <button type="button" class="file-remove" onclick="removeResume()">✕</button>
-        </div>
+          <dd class="no-document">Not uploaded</dd>
         <% } %>
       </div>
     </div>
-    
-    <!-- Education Level -->
-    <div class="full-width education-section">
-      <label>Education Level (Optional)</label>
-      <select name="educationLevel" id="educationLevelSelect">
-        <option value="">Select education level...</option>
-        <option value="10th Pass" <%= nurse.educationLevel === '10th Pass' ? 'selected' : '' %>>10th Pass</option>
-        <option value="12th Pass" <%= nurse.educationLevel === '12th Pass' ? 'selected' : '' %>>12th Pass</option>
-        <option value="GDA" <%= nurse.educationLevel === 'GDA' ? 'selected' : '' %>>GDA (General Duty Assistant)</option>
-        <option value="ANM" <%= nurse.educationLevel === 'ANM' ? 'selected' : '' %>>ANM (Auxiliary Nurse Midwife)</option>
-        <option value="GNM" <%= nurse.educationLevel === 'GNM' ? 'selected' : '' %>>GNM (General Nursing Midwifery)</option>
-        <option value="BSc Nursing" <%= nurse.educationLevel === 'BSc Nursing' ? 'selected' : '' %>>BSc Nursing</option>
-        <option value="MSc Nursing" <%= nurse.educationLevel === 'MSc Nursing' ? 'selected' : '' %>>MSc Nursing</option>
-      </select>
-      <small class="helper-text">Select your highest nursing qualification</small>
-      
-      <!-- Certificate Upload (Shows when education level is selected) -->
-      <div id="certificateUploadSection" style="margin-top: 1rem; <%= nurse.educationLevel ? 'display: block;' : 'display: none;' %>">
-        <label>Upload Certificate (Optional)</label>
-        <div class="file-upload-container" id="certificateUpload">
-          <input 
-            type="file" 
-            name="certificate" 
-            id="certificateInput"
-            accept="image/*,.pdf"
-          />
-          <label for="certificateInput" class="file-upload-label">
-            <span class="upload-icon">🎓</span>
-            <span>Click to upload education certificate</span>
-            <small class="file-info">Image or PDF (Max 5MB)</small>
-          </label>
-          <% if (nurse.certificateUrl) { %>
-          <div class="file-upload-preview" style="display: flex;">
-            <span class="file-info">Certificate uploaded</span>
-          </div>
-          <% } %>
-        </div>
+    <div class="document-item">
+      <div class="document-icon">🎓</div>
+      <div class="document-info">
+        <dt>Certificate</dt>
+        <% if (nurse.certificateUrl) { %>
+          <dd><a href="<%= nurse.certificateUrl %>" target="_blank" class="document-link">View Certificate</a></dd>
+        <% } else { %>
+          <dd class="no-document">Not uploaded</dd>
+        <% } %>
       </div>
     </div>
-
-    <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
-      <span class="btn-text">Save Profile Details</span>
-      <span class="spinner" style="display: none;"></span>
-    </button>
-  </form>
-  
-  <small class="helper-text" style="margin-top: 0.5rem;">
-    💡 You can save your progress and complete later. Your profile is currently <%= profileCompletion %>% complete.
-  </small>
-</section>
-
-<section class="content-section">
-  <h2>Public Profile Controls</h2>
-  <form method="POST" action="/nurse/profile/public" class="form-grid">
-    <label class="full-width">
-      Profile Image URL
-      <input name="profileImageUrl" type="url" value="<%= nurse.profileImageUrl || '' %>" placeholder="https://..." />
-    </label>
-    <label class="full-width">
-      Public Bio
-      <textarea name="publicBio" rows="4"><%= nurse.publicBio || '' %></textarea>
-    </label>
-
-    <fieldset class="full-width">
-      <legend>Public Skills</legend>
-      <div class="check-grid">
-        <% ['Elderly Care','Post-Surgery Care','Wound Dressing','Medication Support','Physiotherapy Assistance','Palliative Care'].forEach((skill) => { %>
-        <label class="check-item">
-          <input type="checkbox" name="publicSkills" value="<%= skill %>" <%= (nurse.publicSkills || []).includes(skill) ? 'checked' : '' %> />
-          <span><%= skill %></span>
-        </label>
-        <% }) %>
-      </div>
-      <small>Leave all unchecked to show all your skills.</small>
-    </fieldset>
-
-    <fieldset class="full-width">
-      <legend>Visibility</legend>
-      <div class="check-grid">
-        <label class="check-item">
-          <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %> />
-          <span>Available for public requests</span>
-        </label>
-        <label class="check-item">
-          <input type="checkbox" name="publicShowCity" <%= nurse.publicShowCity ? 'checked' : '' %> />
-          <span>Show city publicly</span>
-        </label>
-        <label class="check-item">
-          <input type="checkbox" name="publicShowExperience" <%= nurse.publicShowExperience ? 'checked' : '' %> />
-          <span>Show experience publicly</span>
-        </label>
-      </div>
-    </fieldset>
-
-    <button type="submit" class="btn primary">Save Public Settings</button>
-  </form>
-</section>
-
-<section class="content-section">
-  <h2>Referred Nurses</h2>
-  <div class="table-shell">
-    <table>
-      <thead>
-        <tr>
-          <th>Nurse</th>
-          <th>Status</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% if (!referredNurses.length) { %>
-        <tr>
-          <td colspan="3">No referrals yet.</td>
-        </tr>
-        <% } %>
-        <% referredNurses.forEach((item) => { %>
-        <tr>
-          <td><%= item.fullName %></td>
-          <td><span class="pill"><%= item.status %></span></td>
-          <td><%= item.createdAt.slice(0, 10) %></td>
-        </tr>
-        <% }) %>
-      </tbody>
-    </table>
   </div>
 </section>
 
-<section class="content-section">
-  <h2>Referral Commission History</h2>
-  <div class="table-shell">
-    <table>
-      <thead>
-        <tr>
-          <th>Patient</th>
-          <th>Referral Commission</th>
-          <th>Percent</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% if (!referralPatients.length) { %>
-        <tr>
-          <td colspan="4">No referral commission records yet.</td>
-        </tr>
-        <% } %>
-        <% referralPatients.forEach((item) => { %>
-        <tr>
-          <td>P-<%= item.id %> | <%= item.fullName %></td>
-          <td><%= typeof item.referralCommissionAmount === 'number' ? item.referralCommissionAmount.toFixed(2) : '0.00' %></td>
-          <td><%= typeof item.referralCommissionPercent === 'number' ? item.referralCommissionPercent.toFixed(2) : '0.00' %>%</td>
-          <td><%= item.createdAt.slice(0, 10) %></td>
-        </tr>
-        <% }) %>
-      </tbody>
-    </table>
+<!-- Referral Section -->
+<section class="profile-card profile-card-clean">
+  <div class="profile-card-header">
+    <h2>Referral & Earnings</h2>
   </div>
+  <dl class="profile-details-grid">
+    <div class="detail-item">
+      <dt>Referral Code</dt>
+      <dd><code class="referral-code"><%= nurse.referralCode %></code></dd>
+    </div>
+    <div class="detail-item">
+      <dt>Referral Link</dt>
+      <dd><code class="referral-link"><%= referralLink %></code></dd>
+    </div>
+    <div class="detail-item">
+      <dt>Total Earnings</dt>
+      <dd class="earnings-amount">₹<%= referralTotal.toFixed(2) %></dd>
+    </div>
+  </dl>
+  
+  <% if (referredNurses.length > 0) { %>
+  <div class="referred-nurses-section">
+    <h3>Referred Nurses (<%= referredNurses.length %>)</h3>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>Nurse</th>
+            <th>Status</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% referredNurses.forEach(function(item) { %>
+          <tr>
+            <td><%= item.fullName %></td>
+            <td><span class="pill"><%= item.status %></span></td>
+            <td><%= item.createdAt.slice(0, 10) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
 </section>
 
-<script>
-  // Education level change handler - show/hide certificate upload
-  document.getElementById('educationLevelSelect').addEventListener('change', function() {
-    const certificateSection = document.getElementById('certificateUploadSection');
-    if (this.value) {
-      certificateSection.style.display = 'block';
-    } else {
-      certificateSection.style.display = 'none';
-    }
-  });
-  
-  // Resume upload preview
-  document.getElementById('resumeInput').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    const preview = document.getElementById('resumePreview');
-    const fileName = document.getElementById('resumeFileName');
-    
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
-        this.value = '';
-        return;
-      }
-      fileName.textContent = file.name;
-      preview.style.display = 'flex';
-    }
-  });
-  
-  function removeResume() {
-    document.getElementById('resumeInput').value = '';
-    document.getElementById('resumePreview').style.display = 'none';
+<!-- Assigned Agents -->
+<% if (assignedAgents.length > 0) { %>
+<section class="profile-card profile-card-clean">
+  <div class="profile-card-header">
+    <h2>Assigned Agents</h2>
+  </div>
+  <div class="agents-list">
+    <% assignedAgents.forEach(function(agent) { %>
+    <div class="agent-item">
+      <div class="agent-info">
+        <dt><%= agent.name %></dt>
+        <dd><%= agent.email %></dd>
+        <dd class="agent-region"><%= agent.region %></dd>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+
+<style>
+/* Profile Header Styles */
+.profile-header-container {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+  border: 1px solid var(--line, #d7e4f2);
+  box-shadow: var(--shadow-soft);
+}
+
+.profile-avatar-large {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 3px solid var(--primary, #2563eb);
+}
+
+.profile-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-fallback-large {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary, #2563eb) 0%, #1d4ed8 100%);
+  color: white;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.profile-header-info {
+  flex: 1;
+}
+
+.profile-header-info h1 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.75rem;
+  color: var(--ink, #102a44);
+}
+
+.profile-email {
+  margin: 0 0 0.25rem 0;
+  color: var(--muted, #4f6880);
+  font-size: 0.95rem;
+}
+
+.profile-location {
+  margin: 0 0 0.5rem 0;
+  color: var(--muted, #4f6880);
+  font-size: 0.9rem;
+}
+
+.profile-status {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.availability-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.availability-badge.available {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.availability-badge.unavailable {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.profile-header-actions {
+  flex-shrink: 0;
+}
+
+/* Clean Profile Card */
+.profile-card-clean {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #d7e4f2);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.profile-card-header {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line, #d7e4f2);
+}
+
+.profile-card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--ink, #102a44);
+}
+
+/* Profile Details Grid */
+.profile-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin: 0;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-item dt {
+  font-size: 0.8rem;
+  color: var(--muted, #4f6880);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-item dd {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--ink, #102a44);
+  font-weight: 500;
+}
+
+.referral-code, .referral-link {
+  background: var(--surface-soft, #f5f9ff);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  border: 1px solid var(--line, #d7e4f2);
+  word-break: break-all;
+}
+
+.earnings-amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary, #2563eb) !important;
+}
+
+/* Skills Tags */
+.skills-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skill-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: var(--primary-deep, #1e40af);
+  font-weight: 500;
+}
+
+.availability-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #047857;
+  font-weight: 500;
+}
+
+.no-data {
+  color: var(--muted, #4f6880);
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0;
+}
+
+/* Documents Grid */
+.documents-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.document-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface-soft, #f5f9ff);
+  border-radius: 12px;
+  border: 1px solid var(--line, #d7e4f2);
+}
+
+.document-icon {
+  font-size: 1.5rem;
+}
+
+.document-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.document-info dt {
+  font-size: 0.8rem;
+  color: var(--muted, #4f6880);
+  font-weight: 600;
+}
+
+.document-link {
+  color: var(--primary, #2563eb);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.document-link:hover {
+  text-decoration: underline;
+}
+
+.no-document {
+  color: var(--muted, #4f6880);
+  font-size: 0.9rem;
+}
+
+/* Referred Nurses */
+.referred-nurses-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line, #d7e4f2);
+}
+
+.referred-nurses-section h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  color: var(--ink, #102a44);
+}
+
+/* Agents List */
+.agents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.agent-item {
+  padding: 0.75rem;
+  background: var(--surface-soft, #f5f9ff);
+  border-radius: 10px;
+  border: 1px solid var(--line, #d7e4f2);
+}
+
+.agent-info dt {
+  font-weight: 600;
+  color: var(--ink, #102a44);
+  margin-bottom: 0.15rem;
+}
+
+.agent-info dd {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted, #4f6880);
+}
+
+.agent-region {
+  font-size: 0.8rem !important;
+  color: var(--primary, #2563eb) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .profile-header-container {
+    flex-direction: column;
+    text-align: center;
   }
   
-  // Form submission with loading state
-  document.querySelector('form[action="/nurse/profile/complete"]').addEventListener('submit', function(e) {
-    const submitBtn = document.getElementById('submitBtn');
-    
-    // Show loading state
-    submitBtn.classList.add('loading');
-    submitBtn.querySelector('.btn-text').textContent = 'Saving...';
-    submitBtn.querySelector('.spinner').style.display = 'inline-block';
-    submitBtn.disabled = true;
-  });
-</script>
+  .profile-header-actions {
+    width: 100%;
+  }
+  
+  .profile-header-actions .btn {
+    width: 100%;
+  }
+  
+  .profile-details-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .documents-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 
 <%- include("../partials/footer") %>

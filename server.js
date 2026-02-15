@@ -4,7 +4,97 @@ const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
 const { readStore, writeStore, nextId } = require("./src/store");
+const fs = require("fs");
+
+// ============================================================
+// MULTER CONFIGURATION FOR FILE UPLOADS
+// ============================================================
+const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+const PROFILE_DIR = path.join(UPLOAD_DIR, "profile");
+const RESUME_DIR = path.join(UPLOAD_DIR, "resume");
+const CERTIFICATES_DIR = path.join(UPLOAD_DIR, "certificates");
+
+// Ensure upload directories exist
+[UPLOAD_DIR, PROFILE_DIR, RESUME_DIR, CERTIFICATES_DIR].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+// Storage configuration for profile images
+const profileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, PROFILE_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, "profile-" + uniqueSuffix + ext);
+  }
+});
+
+// Storage configuration for resumes
+const resumeStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, RESUME_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, "resume-" + uniqueSuffix + ext);
+  }
+});
+
+// Storage configuration for certificates
+const certificateStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, CERTIFICATES_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, "certificate-" + uniqueSuffix + ext);
+  }
+});
+
+// Multer upload configurations
+const uploadProfile = multer({
+  storage: profileStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error("Only JPG, JPEG, and PNG images are allowed"));
+  }
+});
+
+const uploadResume = multer({
+  storage: resumeStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error("Only PDF files are allowed for resume"));
+  }
+});
+
+const uploadCertificate = multer({
+  storage: certificateStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error("Only JPG, JPEG, PNG, and PDF files are allowed"));
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -161,6 +251,42 @@ const REFERRAL_DEFAULT_PERCENT = (() => {
   return Number(raw.toFixed(2));
 })();
 
+// Expanded nursing skills options
+const NURSING_SKILLS_OPTIONS = [
+  "General Nursing Care",
+  "ICU Care",
+  "Post Surgical Care",
+  "Elderly Care",
+  "Palliative Care",
+  "Injection Administration",
+  "IV Drip Handling",
+  "Tracheostomy Care",
+  "Bedridden Care",
+  "Physiotherapy Assistance",
+  "Wound Dressing",
+  "Catheter Care",
+  "Pediatric Care",
+  "Stroke Patient Care",
+  "Diabetes Management",
+  "Blood Pressure Monitoring",
+  "Oxygen Support",
+  "Emergency First Aid",
+  "Night Shift Care",
+  "Dementia Care"
+];
+
+// Education level options
+const EDUCATION_LEVEL_OPTIONS = [
+  "10th Pass",
+  "12th Pass",
+  "ANM",
+  "GNM",
+  "BSc Nursing",
+  "MSc Nursing",
+  "GDA",
+  "Other"
+];
+
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 app.disable("x-powered-by");
@@ -170,6 +296,10 @@ if (IS_PRODUCTION) {
 }
 
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "replace-this-session-secret",
@@ -520,6 +650,27 @@ function normalizeStoreShape(store) {
     }
     if (typeof nurse.certificateUrl !== "string") {
       nurse.certificateUrl = "";
+      changed = true;
+    }
+    // New fields for enhanced nurse profile
+    if (typeof nurse.aadharNumber !== "string") {
+      nurse.aadharNumber = "";
+      changed = true;
+    }
+    if (typeof nurse.address !== "string") {
+      nurse.address = "";
+      changed = true;
+    }
+    if (typeof nurse.workCity !== "string") {
+      nurse.workCity = "";
+      changed = true;
+    }
+    if (typeof nurse.profileImagePath !== "string") {
+      nurse.profileImagePath = "";
+      changed = true;
+    }
+    if (typeof nurse.customSkills !== "object" || !Array.isArray(nurse.customSkills)) {
+      nurse.customSkills = [];
       changed = true;
     }
 
@@ -1741,6 +1892,132 @@ app.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, (req, res)
 
 // Nurse Dashboard route - redirects to /nurse/profile
 app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, (req, res) => {
+  return res.redirect("/nurse/profile");
+});
+
+// Nurse Profile Edit GET route
+app.get("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, (req, res) => {
+  const store = readNormalizedStore();
+  const nurse = store.nurses.find((item) => item.id === req.nurseRecord.id);
+  if (!nurse) {
+    return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+  }
+
+  return res.render("nurse/profile-edit", {
+    title: "Update Profile",
+    nurse
+  });
+});
+
+// Combined upload middleware for profile edit
+const uploadFields = multer().fields([
+  { name: "profileImage", maxCount: 1 },
+  { name: "resume", maxCount: 1 },
+  { name: "certificate", maxCount: 1 }
+]);
+
+// Nurse Profile Edit POST route with file uploads
+app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, uploadFields, (req, res) => {
+  const store = readNormalizedStore();
+  const nurse = store.nurses.find((item) => item.id === req.nurseRecord.id);
+  if (!nurse) {
+    setFlash(req, "error", "Nurse profile not found.");
+    return res.redirect("/nurse/profile");
+  }
+
+  // Handle profile image upload
+  if (req.files && req.files.profileImage && req.files.profileImage[0]) {
+    nurse.profileImagePath = "/uploads/profile/" + req.files.profileImage[0].filename;
+  }
+
+  // Handle resume upload
+  if (req.files && req.files.resume && req.files.resume[0]) {
+    nurse.resumeUrl = "/uploads/resume/" + req.files.resume[0].filename;
+  }
+
+  // Handle certificate upload
+  if (req.files && req.files.certificate && req.files.certificate[0]) {
+    nurse.certificateUrl = "/uploads/certificates/" + req.files.certificate[0].filename;
+  }
+
+  // Update phone
+  if (req.body.phoneNumber) {
+    nurse.phoneNumber = String(req.body.phoneNumber).trim();
+  }
+
+  // Update city
+  if (req.body.city) {
+    nurse.city = String(req.body.city).trim();
+  }
+
+  // Update work city
+  if (req.body.workCity) {
+    nurse.workCity = String(req.body.workCity).trim();
+  }
+
+  // Update address
+  if (req.body.address) {
+    nurse.address = String(req.body.address).trim();
+  }
+
+  // Update Aadhar (validate 12 digits)
+  if (req.body.aadharNumber) {
+    const aadhar = String(req.body.aadharNumber).replace(/\D/g, "");
+    if (aadhar.length === 12) {
+      nurse.aadharNumber = aadhar;
+    }
+  }
+
+  // Update experience
+  const experienceYears = Number.parseInt(req.body.experienceYears, 10);
+  if (!Number.isNaN(experienceYears) && experienceYears >= 0 && experienceYears <= 60) {
+    nurse.experienceYears = experienceYears;
+  }
+
+  // Update education level
+  if (req.body.educationLevel) {
+    nurse.educationLevel = String(req.body.educationLevel).trim();
+  }
+
+  // Update skills
+  const allSkills = [
+    "General Nursing Care", "ICU Care", "Post Surgical Care", "Elderly Care",
+    "Palliative Care", "Injection Administration", "IV Drip Handling", "Tracheostomy Care",
+    "Bedridden Care", "Physiotherapy Assistance", "Wound Dressing", "Catheter Care",
+    "Pediatric Care", "Stroke Patient Care", "Diabetes Management", "Blood Pressure Monitoring",
+    "Oxygen Support", "Emergency First Aid", "Night Shift Care", "Dementia Care"
+  ];
+  
+  // Get selected skills from form
+  const selectedSkills = Array.isArray(req.body.skills) 
+    ? req.body.skills 
+    : req.body.skills ? [req.body.skills] : [];
+  
+  nurse.skills = selectedSkills.filter(skill => allSkills.includes(skill));
+
+  // Handle custom skills
+  if (req.body.customSkills) {
+    const customSkillsArray = String(req.body.customSkills).split(",").map(s => s.trim()).filter(Boolean);
+    nurse.customSkills = customSkillsArray;
+  } else {
+    nurse.customSkills = [];
+  }
+
+  // Update availability
+  const availabilityOptions = ["Day Shift", "Night Shift", "24-Hour Live-in", "Part Time", "Full Time"];
+  const selectedAvailability = Array.isArray(req.body.availability)
+    ? req.body.availability
+    : req.body.availability ? [req.body.availability] : [];
+  
+  nurse.availability = selectedAvailability.filter(avail => availabilityOptions.includes(avail));
+
+  // Update visibility settings
+  nurse.isAvailable = req.body.isAvailable === "on" || req.body.isAvailable === "true" || req.body.isAvailable === "1";
+  nurse.publicShowCity = req.body.publicShowCity === "on" || req.body.publicShowCity === "true" || req.body.publicShowCity === "1";
+  nurse.publicShowExperience = req.body.publicShowExperience === "on" || req.body.publicShowExperience === "true" || req.body.publicShowExperience === "1";
+
+  writeStore(store);
+  setFlash(req, "success", "Profile updated successfully!");
   return res.redirect("/nurse/profile");
 });
 

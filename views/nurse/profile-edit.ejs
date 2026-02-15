@@ -1,0 +1,825 @@
+<%- include("../partials/head", { title: "Update Profile" }) %>
+
+<%
+// Expanded nursing skills options
+const NURSING_SKILLS_OPTIONS = [
+  "General Nursing Care",
+  "ICU Care",
+  "Post Surgical Care",
+  "Elderly Care",
+  "Palliative Care",
+  "Injection Administration",
+  "IV Drip Handling",
+  "Tracheostomy Care",
+  "Bedridden Care",
+  "Physiotherapy Assistance",
+  "Wound Dressing",
+  "Catheter Care",
+  "Pediatric Care",
+  "Stroke Patient Care",
+  "Diabetes Management",
+  "Blood Pressure Monitoring",
+  "Oxygen Support",
+  "Emergency First Aid",
+  "Night Shift Care",
+  "Dementia Care"
+];
+
+// Education level options
+const EDUCATION_LEVEL_OPTIONS = [
+  "10th Pass",
+  "12th Pass",
+  "ANM",
+  "GNM",
+  "BSc Nursing",
+  "MSc Nursing",
+  "GDA",
+  "Other"
+];
+
+// Shift/Availability options
+const AVAILABILITY_OPTIONS = [
+  "Day Shift",
+  "Night Shift",
+  "24-Hour Live-in",
+  "Part Time",
+  "Full Time"
+];
+
+// Combine skills with custom skills
+const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
+%>
+
+<section class="form-section">
+  <h1>Update Your Profile</h1>
+  <p>Keep your profile updated to get more care requests.</p>
+  
+  <form method="POST" action="/nurse/profile/edit" class="form-grid" enctype="multipart/form-data" id="profileEditForm">
+    
+    <!-- Profile Photo Section -->
+    <div class="full-width profile-photo-section">
+      <label>Profile Photo</label>
+      <div class="profile-photo-upload">
+        <div class="current-photo">
+          <% if (nurse.profileImagePath) { %>
+            <img src="<%= nurse.profileImagePath %>" alt="Current Profile Photo" id="currentPhoto" />
+          <% } else if (nurse.profileImageUrl) { %>
+            <img src="<%= nurse.profileImageUrl %>" alt="Current Profile Photo" id="currentPhoto" />
+          <% } else { %>
+            <div class="photo-fallback" id="photoFallback"><%= nurse.fullName.charAt(0).toUpperCase() %></div>
+          <% } %>
+        </div>
+        <div class="photo-upload-controls">
+          <input 
+            type="file" 
+            name="profileImage" 
+            id="profileImageInput"
+            accept="image/png,image/jpg,image/jpeg"
+            class="file-input-hidden"
+          />
+          <label for="profileImageInput" class="btn secondary photo-upload-btn">
+            📷 Upload New Photo
+          </label>
+          <p class="helper-text">Accepts: JPG, PNG (Max 2MB)</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Contact Information -->
+    <div class="full-width">
+      <h3 class="section-subtitle">Contact Information</h3>
+    </div>
+    
+    <label>
+      Phone Number <span class="required-indicator" title="Required"></span>
+      <input 
+        name="phoneNumber" 
+        type="tel" 
+        value="<%= nurse.phoneNumber || '' %>"
+        maxlength="10"
+        pattern="[6-9][0-9]{9}"
+        required
+      />
+    </label>
+    
+    <label>
+      City (Home) <span class="required-indicator" title="Required"></span>
+      <input 
+        name="city" 
+        type="text" 
+        value="<%= nurse.city || '' %>"
+        required
+      />
+    </label>
+    
+    <label>
+      Work City Preference
+      <input 
+        name="workCity" 
+        type="text" 
+        value="<%= nurse.workCity || '' %>"
+        placeholder="City where you want to work"
+      />
+    </label>
+    
+    <label class="full-width">
+      Full Address
+      <textarea name="address" rows="2" placeholder="Enter your full address"><%= nurse.address || '' %></textarea>
+    </label>
+    
+    <!-- Aadhar Section -->
+    <div class="full-width">
+      <h3 class="section-subtitle">Identity Verification</h3>
+    </div>
+    
+    <label class="full-width">
+      Aadhar Number
+      <input 
+        name="aadharNumber" 
+        type="text" 
+        value="<%= nurse.aadharNumber || '' %>"
+        maxlength="12"
+        pattern="[0-9]{12}"
+        placeholder="12-digit Aadhar number"
+      />
+      <small class="helper-text">Only last 4 digits will be visible on your profile</small>
+    </label>
+    
+    <!-- Professional Information -->
+    <div class="full-width">
+      <h3 class="section-subtitle">Professional Information</h3>
+    </div>
+    
+    <label>
+      Experience (Years) <span class="required-indicator" title="Required"></span>
+      <input 
+        name="experienceYears" 
+        type="number" 
+        value="<%= nurse.experienceYears || 0 %>"
+        min="0" 
+        max="60" 
+        required
+      />
+    </label>
+    
+    <label>
+      Education Level
+      <select name="educationLevel" id="educationLevelSelect">
+        <option value="">Select education level...</option>
+        <% EDUCATION_LEVEL_OPTIONS.forEach(function(edu) { %>
+          <option value="<%= edu %>" <%= nurse.educationLevel === edu ? 'selected' : '' %>><%= edu %></option>
+        <% }); %>
+      </select>
+    </label>
+    
+    <!-- Skills Section with Multi-select -->
+    <div class="full-width">
+      <label>Skills</label>
+      <div class="skills-multiselect-container">
+        <div class="skills-input-wrapper">
+          <input 
+            type="text" 
+            id="skillsSearch" 
+            placeholder="Search skills..."
+            class="skills-search-input"
+          />
+          <button type="button" class="dropdown-toggle" id="skillsDropdownToggle">
+            ▼
+          </button>
+        </div>
+        <div class="skills-dropdown" id="skillsDropdown">
+          <% NURSING_SKILLS_OPTIONS.forEach(function(skill) { %>
+            <label class="skill-option">
+              <input 
+                type="checkbox" 
+                name="skills" 
+                value="<%= skill %>"
+                <%= (nurse.skills || []).includes(skill) ? 'checked' : '' %>
+              />
+              <span><%= skill %></span>
+            </label>
+          <% }); %>
+          <div class="custom-skill-option">
+            <label class="skill-option">
+              <input type="checkbox" id="customSkillCheckbox" />
+              <span>Other (Add custom skill)</span>
+            </label>
+            <div class="custom-skill-input" id="customSkillInput" style="display: none;">
+              <input 
+                type="text" 
+                id="customSkillValue" 
+                placeholder="Enter custom skill"
+              />
+              <button type="button" class="btn small" id="addCustomSkill">Add</button>
+            </div>
+          </div>
+        </div>
+        <div class="selected-skills-tags" id="selectedSkillsTags">
+          <% (nurse.skills || []).forEach(function(skill) { %>
+            <span class="skill-tag" data-skill="<%= skill %>">
+              <%= skill %>
+              <button type="button" class="remove-skill" data-skill="<%= skill %>">×</button>
+            </span>
+          <% }); %>
+          <% (nurse.customSkills || []).forEach(function(skill) { %>
+            <span class="skill-tag custom" data-skill="<%= skill %>">
+              <%= skill %>
+              <button type="button" class="remove-skill" data-skill="<%= skill %>">×</button>
+            </span>
+          <% }); %>
+        </div>
+        <input type="hidden" name="customSkills" id="customSkillsInput" value="<%= (nurse.customSkills || []).join(',') %>" />
+      </div>
+    </div>
+    
+    <!-- Availability/Shift Preference -->
+    <div class="full-width">
+      <label>Shift Preference</label>
+      <div class="availability-checkboxes">
+        <% AVAILABILITY_OPTIONS.forEach(function(avail) { %>
+          <label class="check-item">
+            <input 
+              type="checkbox" 
+              name="availability" 
+              value="<%= avail %>"
+              <%= (nurse.availability || []).includes(avail) ? 'checked' : '' %>
+            />
+            <span><%= avail %></span>
+          </label>
+        <% }); %>
+      </div>
+    </div>
+    
+    <!-- Documents Section -->
+    <div class="full-width">
+      <h3 class="section-subtitle">Documents</h3>
+    </div>
+    
+    <div class="full-width">
+      <label>Resume (PDF only)</label>
+      <div class="file-upload-container" id="resumeUpload">
+        <input 
+          type="file" 
+          name="resume" 
+          id="resumeInput"
+          accept="application/pdf"
+        />
+        <label for="resumeInput" class="file-upload-label">
+          <span class="upload-icon">📄</span>
+          <span>Click to upload resume</span>
+          <small class="file-info">PDF only (Max 5MB)</small>
+        </label>
+        <% if (nurse.resumeUrl) { %>
+        <div class="file-upload-preview" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+          <span class="file-info">✓ Resume uploaded</span>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    
+    <div class="full-width">
+      <label>Certificate (Optional)</label>
+      <div class="file-upload-container" id="certificateUpload">
+        <input 
+          type="file" 
+          name="certificate" 
+          id="certificateInput"
+          accept="image/*,.pdf"
+        />
+        <label for="certificateInput" class="file-upload-label">
+          <span class="upload-icon">🎓</span>
+          <span>Click to upload certificate</span>
+          <small class="file-info">Image or PDF (Max 5MB)</small>
+        </label>
+        <% if (nurse.certificateUrl) { %>
+        <div class="file-upload-preview" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+          <span class="file-info">✓ Certificate uploaded</span>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    
+    <!-- Visibility Settings -->
+    <div class="full-width">
+      <h3 class="section-subtitle">Profile Visibility</h3>
+    </div>
+    
+    <div class="full-width">
+      <label class="check-item">
+        <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %> />
+        <span>Available for care requests</span>
+      </label>
+    </div>
+    
+    <div class="full-width">
+      <label class="check-item">
+        <input type="checkbox" name="publicShowCity" <%= nurse.publicShowCity !== false ? 'checked' : '' %> />
+        <span>Show city on public profile</span>
+      </label>
+    </div>
+    
+    <div class="full-width">
+      <label class="check-item">
+        <input type="checkbox" name="publicShowExperience" <%= nurse.publicShowExperience !== false ? 'checked' : '' %> />
+        <span>Show experience on public profile</span>
+      </label>
+    </div>
+
+    <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
+      <span class="btn-text">Save Changes</span>
+      <span class="spinner" style="display: none;"></span>
+    </button>
+    
+    <a href="/nurse/profile" class="btn secondary full-width" style="text-align: center; margin-top: 0.5rem;">Cancel</a>
+  </form>
+</section>
+
+<style>
+.form-section {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.form-section h1 {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.form-section > p {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #4f6880;
+}
+
+.section-subtitle {
+  margin: 1rem 0 0.75rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #d7e4f2;
+  color: #102a44;
+  font-size: 1.1rem;
+}
+
+/* Profile Photo Upload */
+.profile-photo-section {
+  margin-bottom: 1rem;
+}
+
+.profile-photo-section > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #102a44;
+}
+
+.profile-photo-upload {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem;
+  background: #f5f9ff;
+  border-radius: 12px;
+  border: 1px solid #d7e4f2;
+}
+
+.current-photo {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 3px solid #2563eb;
+}
+
+.current-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.photo-upload-controls {
+  flex: 1;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.photo-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Skills Multi-select */
+.skills-multiselect-container {
+  position: relative;
+}
+
+.skills-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.skills-search-input {
+  flex: 1;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid #c9d9de;
+  border-radius: 11px;
+  font: inherit;
+}
+
+.skills-search-input:focus {
+  border-color: #76b5ac;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 143, 127, 0.12);
+}
+
+.dropdown-toggle {
+  padding: 0.62rem 0.75rem;
+  border: 1px solid #c9d9de;
+  border-radius: 11px;
+  background: #fbfdfd;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.dropdown-toggle:hover {
+  background: #f5f9ff;
+}
+
+.skills-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #d7e4f2;
+  border-radius: 11px;
+  box-shadow: 0 8px 25px rgba(16, 42, 68, 0.15);
+  z-index: 100;
+  margin-top: 4px;
+}
+
+.skills-dropdown.open {
+  display: block;
+}
+
+.skill-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.skill-option:hover {
+  background: #f5f9ff;
+}
+
+.skill-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+}
+
+.custom-skill-option {
+  border-top: 1px solid #d7e4f2;
+  padding: 0.5rem;
+}
+
+.custom-skill-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f5f9ff;
+  border-radius: 8px;
+}
+
+.custom-skill-input input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #c9d9de;
+  border-radius: 8px;
+}
+
+.selected-skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.skill-tag.custom {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #047857;
+}
+
+.remove-skill {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.remove-skill:hover {
+  color: #dc2626;
+}
+
+/* Availability Checkboxes */
+.availability-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+/* Form Grid */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-weight: 600;
+  color: #102a44;
+}
+
+.form-grid input,
+.form-grid textarea,
+.form-grid select {
+  border: 1px solid #c9d9de;
+  border-radius: 11px;
+  background: #fbfdfd;
+  padding: 0.62rem 0.68rem;
+  color: #13313a;
+  font: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.form-grid input:focus,
+.form-grid textarea:focus,
+.form-grid select:focus {
+  border-color: #76b5ac;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 143, 127, 0.12);
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.check-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .profile-photo-upload {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .availability-checkboxes {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<script>
+// Skills dropdown toggle
+document.getElementById('skillsDropdownToggle').addEventListener('click', function() {
+  document.getElementById('skillsDropdown').classList.toggle('open');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const container = document.querySelector('.skills-multiselect-container');
+  if (!container.contains(e.target)) {
+    document.getElementById('skillsDropdown').classList.remove('open');
+  }
+});
+
+// Skills search filter
+document.getElementById('skillsSearch').addEventListener('input', function() {
+  const searchTerm = this.value.toLowerCase();
+  const options = document.querySelectorAll('.skill-option');
+  
+  options.forEach(function(option) {
+    const text = option.querySelector('span').textContent.toLowerCase();
+    if (text.includes(searchTerm)) {
+      option.style.display = 'flex';
+    } else {
+      option.style.display = 'none';
+    }
+  });
+});
+
+// Custom skill checkbox
+document.getElementById('customSkillCheckbox').addEventListener('change', function() {
+  const customInput = document.getElementById('customSkillInput');
+  if (this.checked) {
+    customInput.style.display = 'flex';
+    document.getElementById('customSkillValue').focus();
+  } else {
+    customInput.style.display = 'none';
+  }
+});
+
+// Add custom skill
+document.getElementById('addCustomSkill').addEventListener('click', function() {
+  const customSkillValue = document.getElementById('customSkillValue').value.trim();
+  if (customSkillValue) {
+    addSkillTag(customSkillValue, true);
+    document.getElementById('customSkillValue').value = '';
+    document.getElementById('customSkillCheckbox').checked = false;
+    document.getElementById('customSkillInput').style.display = 'none';
+  }
+});
+
+function addSkillTag(skill, isCustom) {
+  const tagsContainer = document.getElementById('selectedSkillsTags');
+  const customSkillsInput = document.getElementById('customSkillsInput');
+  
+  // Check if skill already exists
+  const existingTags = tagsContainer.querySelectorAll('.skill-tag');
+  for (let tag of existingTags) {
+    if (tag.dataset.skill === skill) return;
+  }
+  
+  // Create tag element
+  const tag = document.createElement('span');
+  tag.className = 'skill-tag' + (isCustom ? ' custom' : '');
+  tag.dataset.skill = skill;
+  tag.innerHTML = `${skill}<button type="button" class="remove-skill" data-skill="${skill}">×</button>`;
+  
+  tagsContainer.appendChild(tag);
+  
+  // Update custom skills input
+  if (isCustom) {
+    const currentCustom = customSkillsInput.value ? customSkillsInput.value.split(',') : [];
+    currentCustom.push(skill);
+    customSkillsInput.value = currentCustom.join(',');
+  }
+  
+  // Add remove functionality
+  tag.querySelector('.remove-skill').addEventListener('click', function() {
+    removeSkillTag(skill, isCustom);
+  });
+}
+
+function removeSkillTag(skill, isCustom) {
+  const tagsContainer = document.getElementById('selectedSkillsTags');
+  const customSkillsInput = document.getElementById('customSkillsInput');
+  
+  // Remove tag
+  const tag = tagsContainer.querySelector(`.skill-tag[data-skill="${skill}"]`);
+  if (tag) {
+    tag.remove();
+  }
+  
+  // Uncheck checkbox
+  const checkbox = document.querySelector(`.skill-option input[value="${skill}"]`);
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+  
+  // Update custom skills input
+  if (isCustom) {
+    let currentCustom = customSkillsInput.value ? customSkillsInput.value.split(',') : [];
+    currentCustom = currentCustom.filter(s => s !== skill);
+    customSkillsInput.value = currentCustom.join(',');
+  }
+}
+
+// Handle existing skill checkboxes
+document.querySelectorAll('.skill-option input[name="skills"]').forEach(function(checkbox) {
+  checkbox.addEventListener('change', function() {
+    if (this.checked) {
+      addSkillTag(this.value, false);
+    } else {
+      removeSkillTag(this.value, false);
+    }
+  });
+});
+
+// Handle existing remove buttons
+document.querySelectorAll('.remove-skill').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    const skill = this.dataset.skill;
+    const isCustom = this.parentElement.classList.contains('custom');
+    removeSkillTag(skill, isCustom);
+  });
+});
+
+// Form submission
+document.getElementById('profileEditForm').addEventListener('submit', function(e) {
+  const submitBtn = document.getElementById('submitBtn');
+  
+  // Show loading state
+  submitBtn.classList.add('loading');
+  submitBtn.querySelector('.btn-text').textContent = 'Saving...';
+  submitBtn.querySelector('.spinner').style.display = 'inline-block';
+  submitBtn.disabled = true;
+});
+
+// File upload previews
+document.getElementById('profileImageInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File size must be less than 2MB');
+      this.value = '';
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const currentPhoto = document.getElementById('currentPhoto');
+      const fallback = document.getElementById('photoFallback');
+      
+      if (currentPhoto) {
+        currentPhoto.src = e.target.result;
+      } else if (fallback) {
+        const img = document.createElement('img');
+        img.id = 'currentPhoto';
+        img.src = e.target.result;
+        img.alt = 'Profile Photo';
+        fallback.parentNode.replaceChild(img, fallback);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+document.getElementById('resumeInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      this.value = '';
+    }
+  }
+});
+
+document.getElementById('certificateInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      this.value = '';
+    }
+  }
+});
+</script>
+
+<%- include("../partials/footer") %>
