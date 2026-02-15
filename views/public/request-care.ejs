@@ -12,41 +12,131 @@
   </div>
   <% } %>
 
-  <form method="POST" action="/request-care" class="form-grid">
+  <form method="POST" action="/request-care" class="form-grid" id="requestCareForm" enctype="multipart/form-data">
     <input type="hidden" name="preferredNurseId" value="<%= preferredNurse ? preferredNurse.id : '' %>" />
+    
     <label>
-      Full Name
+      Full Name <span class="required-indicator" title="Required"></span>
       <input name="fullName" type="text" required />
     </label>
+    
     <label>
-      Email
+      Email <span class="required-indicator" title="Required"></span>
       <input name="email" type="email" required />
     </label>
+    
     <label>
-      Phone Number
-      <input name="phoneNumber" type="text" required />
+      Phone Number <span class="required-indicator" title="Required"></span>
+      <input 
+        name="phoneNumber" 
+        type="tel" 
+        maxlength="10" 
+        pattern="[6-9][0-9]{9}"
+        placeholder="10-digit mobile number"
+        required 
+        title="Enter 10-digit Indian mobile number starting with 6, 7, 8, or 9"
+      />
     </label>
+    
     <label>
-      City
+      City <span class="required-indicator" title="Required"></span>
       <input name="city" type="text" required />
     </label>
+    
     <label class="full-width">
-      Care Requirement
-      <textarea name="careRequirement" rows="4" required></textarea>
+      Care Requirement <span class="required-indicator" title="Required"></span>
+      <select name="careRequirement" required>
+        <option value="">Select care type...</option>
+        <% careRequirementOptions.forEach(function(opt) { %>
+          <option value="<%= opt.value %>"><%= opt.label %></option>
+        <% }); %>
+      </select>
     </label>
+    
     <label class="full-width">
-      Duration
-      <input name="duration" type="text" placeholder="Example: 2 weeks, 3 months, ongoing" required />
+      Duration <span class="required-indicator" title="Required"></span>
+      <select name="duration" id="durationSelect" required>
+        <option value="">Select duration...</option>
+        <% durationOptions.forEach(function(opt) { %>
+          <option value="<%= opt.value %>"><%= opt.label %></option>
+        <% }); %>
+      </select>
+      <small class="helper-text">Select "Custom" for durations not listed</small>
     </label>
-    <label>
-      Budget Min (INR, Optional)
-      <input name="budgetMin" type="number" min="0" step="0.01" />
-    </label>
-    <label>
-      Budget Max (INR, Optional)
-      <input name="budgetMax" type="number" min="0" step="0.01" />
-    </label>
-    <button type="submit" class="btn primary">Submit Request</button>
+    
+    <div class="full-width custom-duration-fields" id="customDurationFields">
+      <label>
+        Custom Duration Value <span class="required-indicator" title="Required"></span>
+        <input name="customDurationValue" type="number" min="1" placeholder="Enter number" />
+      </label>
+      <label>
+        Duration Unit <span class="required-indicator" title="Required"></span>
+        <select name="customDurationUnit">
+          <option value="days">Days</option>
+          <option value="weeks">Weeks</option>
+          <option value="months">Months</option>
+        </select>
+      </label>
+    </div>
+    
+    <!-- Daily Budget Fields -->
+    <div class="full-width daily-budget-fields" id="dailyBudgetFields" style="display: none;">
+      <label>
+        Daily Budget Min (INR ₹) <span class="required-indicator" title="Required"></span>
+        <input 
+          name="budgetMinDaily" 
+          type="number" 
+          min="500" 
+          max="5000"
+          step="100"
+          placeholder="Min: ₹500 - ₹5,000"
+        />
+        <small class="helper-text">Daily budget: ₹500 – ₹5,000</small>
+      </label>
+      <label>
+        Daily Budget Max (INR ₹) <span class="required-indicator" title="Required"></span>
+        <input 
+          name="budgetMaxDaily" 
+          type="number" 
+          min="500" 
+          max="5000"
+          step="100"
+          placeholder="Max: ₹500 - ₹5,000"
+        />
+      </label>
+    </div>
+    
+    <!-- Monthly Budget Fields -->
+    <div class="full-width monthly-budget-fields" id="monthlyBudgetFields">
+      <label>
+        Monthly Budget Min (INR ₹) <span class="required-indicator" title="Required"></span>
+        <input 
+          name="budgetMin" 
+          type="number" 
+          min="5000" 
+          max="200000"
+          step="100"
+          placeholder="Min: ₹5,000 - ₹2,00,000"
+        />
+        <small class="helper-text">Monthly budget: ₹5,000 – ₹2,00,000</small>
+      </label>
+      <label>
+        Monthly Budget Max (INR ₹) <span class="required-indicator" title="Required"></span>
+        <input 
+          name="budgetMax" 
+          type="number" 
+          min="5000" 
+          max="200000"
+          step="100"
+          placeholder="Max: ₹5,000 - ₹2,00,000"
+        />
+      </label>
+    </div>
+    
+    <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
+      <span class="btn-text">Submit Request</span>
+      <span class="spinner" style="display: none;"></span>
+    </button>
   </form>
 
   <aside class="urgent-support">
@@ -66,5 +156,153 @@
     </div>
   </aside>
 </section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var durationSelect = document.getElementById('durationSelect');
+    var customFields = document.getElementById('customDurationFields');
+    var dailyBudgetFields = document.getElementById('dailyBudgetFields');
+    var monthlyBudgetFields = document.getElementById('monthlyBudgetFields');
+    var form = document.getElementById('requestCareForm');
+    var submitBtn = document.getElementById('submitBtn');
+    
+    // Budget constraints
+    var DAILY_BUDGET_MIN = 500;
+    var DAILY_BUDGET_MAX = 5000;
+    var MONTHLY_BUDGET_MIN = 5000;
+    var MONTHLY_BUDGET_MAX = 200000;
+    
+    // Duration categories
+    var dailyDurations = ['1_day', '3_days', '7_days'];
+    var monthlyDurations = ['1_month', '3_months', '6_months', '1_year'];
+    
+    // Function to update budget fields based on duration
+    function updateBudgetFields(duration) {
+      // First hide all budget fields
+      dailyBudgetFields.style.display = 'none';
+      monthlyBudgetFields.style.display = 'none';
+      
+      // Clear all budget inputs
+      var dailyMin = dailyBudgetFields.querySelector('input[name="budgetMinDaily"]');
+      var dailyMax = dailyBudgetFields.querySelector('input[name="budgetMaxDaily"]');
+      var monthlyMin = monthlyBudgetFields.querySelector('input[name="budgetMin"]');
+      var monthlyMax = monthlyBudgetFields.querySelector('input[name="budgetMax"]');
+      
+      dailyMin.value = '';
+      dailyMax.value = '';
+      monthlyMin.value = '';
+      monthlyMax.value = '';
+      
+      // Reset required and remove validation attributes
+      dailyMin.required = false;
+      dailyMax.required = false;
+      monthlyMin.required = false;
+      monthlyMax.required = false;
+      dailyMin.removeAttribute('min');
+      dailyMin.removeAttribute('max');
+      dailyMax.removeAttribute('min');
+      dailyMax.removeAttribute('max');
+      monthlyMin.removeAttribute('min');
+      monthlyMin.removeAttribute('max');
+      monthlyMax.removeAttribute('min');
+      monthlyMax.removeAttribute('max');
+      
+      // Show appropriate budget fields based on duration
+      if (dailyDurations.includes(duration)) {
+        dailyBudgetFields.style.display = 'block';
+        dailyMin.required = true;
+        dailyMax.required = true;
+        dailyMin.setAttribute('min', DAILY_BUDGET_MIN);
+        dailyMin.setAttribute('max', DAILY_BUDGET_MAX);
+        dailyMax.setAttribute('min', DAILY_BUDGET_MIN);
+        dailyMax.setAttribute('max', DAILY_BUDGET_MAX);
+      } else if (monthlyDurations.includes(duration)) {
+        monthlyBudgetFields.style.display = 'block';
+        monthlyMin.required = true;
+        monthlyMax.required = true;
+        monthlyMin.setAttribute('min', MONTHLY_BUDGET_MIN);
+        monthlyMin.setAttribute('max', MONTHLY_BUDGET_MAX);
+        monthlyMax.setAttribute('min', MONTHLY_BUDGET_MIN);
+        monthlyMax.setAttribute('max', MONTHLY_BUDGET_MAX);
+      } else {
+        // Default to monthly for custom or unknown duration
+        monthlyBudgetFields.style.display = 'block';
+        monthlyMin.required = true;
+        monthlyMax.required = true;
+        monthlyMin.setAttribute('min', MONTHLY_BUDGET_MIN);
+        monthlyMin.setAttribute('max', MONTHLY_BUDGET_MAX);
+        monthlyMax.setAttribute('min', MONTHLY_BUDGET_MIN);
+        monthlyMax.setAttribute('max', MONTHLY_BUDGET_MAX);
+      }
+    }
+    
+    // Handle custom duration dropdown
+    if (durationSelect && customFields) {
+      durationSelect.addEventListener('change', function() {
+        var duration = this.value;
+        
+        // Toggle custom duration fields
+        if (duration === 'custom') {
+          customFields.classList.add('visible');
+        } else {
+          customFields.classList.remove('visible');
+          // Clear custom duration values
+          var customValueInput = customFields.querySelector('input[name="customDurationValue"]');
+          var customUnitSelect = customFields.querySelector('select[name="customDurationUnit"]');
+          if (customValueInput) customValueInput.value = '';
+          if (customUnitSelect) customUnitSelect.selectedIndex = 0;
+        }
+        
+        // Update budget fields
+        updateBudgetFields(duration);
+      });
+    }
+    
+    // Form validation and submission
+    form.addEventListener('submit', function(e) {
+      var duration = durationSelect.value;
+      
+      // Validate based on budget type
+      if (dailyDurations.includes(duration)) {
+        var dailyMin = dailyBudgetFields.querySelector('input[name="budgetMinDaily"]');
+        var dailyMax = dailyBudgetFields.querySelector('input[name="budgetMaxDaily"]');
+        
+        if (dailyMin.value && (dailyMin.value < DAILY_BUDGET_MIN || dailyMin.value > DAILY_BUDGET_MAX)) {
+          e.preventDefault();
+          alert('Daily budget must be between ₹' + DAILY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + DAILY_BUDGET_MAX.toLocaleString('en-IN'));
+          return;
+        }
+        if (dailyMax.value && (dailyMax.value < DAILY_BUDGET_MIN || dailyMax.value > DAILY_BUDGET_MAX)) {
+          e.preventDefault();
+          alert('Daily budget must be between ₹' + DAILY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + DAILY_BUDGET_MAX.toLocaleString('en-IN'));
+          return;
+        }
+      } else {
+        var monthlyMin = monthlyBudgetFields.querySelector('input[name="budgetMin"]');
+        var monthlyMax = monthlyBudgetFields.querySelector('input[name="budgetMax"]');
+        
+        if (monthlyMin.value && (monthlyMin.value < MONTHLY_BUDGET_MIN || monthlyMin.value > MONTHLY_BUDGET_MAX)) {
+          e.preventDefault();
+          alert('Monthly budget must be between ₹' + MONTHLY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + MONTHLY_BUDGET_MAX.toLocaleString('en-IN'));
+          return;
+        }
+        if (monthlyMax.value && (monthlyMax.value < MONTHLY_BUDGET_MIN || monthlyMax.value > MONTHLY_BUDGET_MAX)) {
+          e.preventDefault();
+          alert('Monthly budget must be between ₹' + MONTHLY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + MONTHLY_BUDGET_MAX.toLocaleString('en-IN'));
+          return;
+        }
+      }
+      
+      // Show loading state
+      submitBtn.classList.add('loading');
+      submitBtn.querySelector('.btn-text').textContent = 'Submitting...';
+      submitBtn.querySelector('.spinner').style.display = 'inline-block';
+      submitBtn.disabled = true;
+    });
+    
+    // Initialize budget fields on page load
+    updateBudgetFields(durationSelect.value);
+  });
+</script>
 
 <%- include("../partials/footer") %>

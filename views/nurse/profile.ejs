@@ -1,9 +1,37 @@
 <%- include("../partials/head", { title }) %>
 
+<%
+// Calculate profile completion percentage
+let profileCompletion = 40; // Base: basic details already provided
+if (nurse.skills && nurse.skills.length > 0) profileCompletion += 15;
+if (nurse.availability && nurse.availability.length > 0) profileCompletion += 15;
+if (nurse.experienceYears && nurse.experienceYears > 0) profileCompletion += 10;
+if (nurse.profileImageUrl) profileCompletion += 10;
+if (nurse.educationLevel) profileCompletion += 10;
+%>
+
 <section class="dashboard-header">
   <h1>Nurse Profile</h1>
   <p>Your public profile excludes email and phone by design. Manage what is visible below.</p>
 </section>
+
+<!-- Profile Completion Indicator -->
+<div class="profile-completion">
+  <div class="profile-completion-header">
+    <span class="profile-completion-title">Profile Completion</span>
+    <span class="profile-completion-percent"><%= profileCompletion %>%</span>
+  </div>
+  <div class="profile-completion-bar">
+    <div class="profile-completion-fill" style="width: <%= profileCompletion %>%"></div>
+  </div>
+  <small style="margin-top: 0.5rem; display: block; color: #666;">
+    <% if (profileCompletion < 100) { %>
+    Complete your profile to increase visibility and get more patient requests!
+    <% } else { %>
+    Your profile is complete! ✓
+    <% } %>
+  </small>
+</div>
 
 <section class="profile-card">
   <dl>
@@ -23,6 +51,8 @@
     <dd><%= nurse.availability.join(', ') || '-' %></dd>
     <dt>Experience</dt>
     <dd><%= nurse.experienceYears %> years</dd>
+    <dt>Education Level</dt>
+    <dd><%= nurse.educationLevel || '-' %></dd>
     <dt>Status</dt>
     <dd><span class="pill"><%= nurse.status %></span></dd>
     <dt>Public Availability</dt>
@@ -43,6 +73,141 @@
     <dt>Referral Earnings</dt>
     <dd><%= referralTotal.toFixed(2) %></dd>
   </dl>
+</section>
+
+<!-- Complete Profile Section -->
+<section class="content-section">
+  <h2>Complete Your Profile</h2>
+  <p>Add more details to increase your chances of getting selected for care requests.</p>
+  
+  <form method="POST" action="/nurse/profile/complete" class="form-grid" enctype="multipart/form-data">
+    
+    <!-- Experience Years -->
+    <label>
+      Experience (Years) <span class="required-indicator" title="Required"></span>
+      <input 
+        name="experienceYears" 
+        type="number" 
+        value="<%= nurse.experienceYears || '' %>"
+        min="0" 
+        max="60" 
+        required 
+      />
+    </label>
+    
+    <!-- Skills Multi-select -->
+    <div class="full-width">
+      <label>Skills <span class="required-indicator" title="Required"></span></label>
+      <div class="multiselect-container">
+        <div class="multiselect-wrapper">
+          <select name="skills" id="skillsSelect" multiple required>
+            <option value="Elderly Care" <%= (nurse.skills || []).includes('Elderly Care') ? 'selected' : '' %>>Elderly Care</option>
+            <option value="ICU Experience" <%= (nurse.skills || []).includes('ICU Experience') ? 'selected' : '' %>>ICU Experience</option>
+            <option value="Injection Specialist" <%= (nurse.skills || []).includes('Injection Specialist') ? 'selected' : '' %>>Injection Specialist</option>
+            <option value="Post-Surgery Care" <%= (nurse.skills || []).includes('Post-Surgery Care') ? 'selected' : '' %>>Post-Surgery Care</option>
+            <option value="Bedridden Care" <%= (nurse.skills || []).includes('Bedridden Care') ? 'selected' : '' %>>Bedridden Care</option>
+            <option value="Child Care" <%= (nurse.skills || []).includes('Child Care') ? 'selected' : '' %>>Child Care</option>
+            <option value="Palliative Care" <%= (nurse.skills || []).includes('Palliative Care') ? 'selected' : '' %>>Palliative Care</option>
+          </select>
+        </div>
+        <small class="helper-text">Hold Ctrl/Cmd to select multiple skills</small>
+      </div>
+    </div>
+    
+    <!-- Shift Preference Multi-select -->
+    <div class="full-width">
+      <label>Shift Preference <span class="required-indicator" title="Required"></span></label>
+      <div class="multiselect-container">
+        <div class="multiselect-wrapper">
+          <select name="availability" id="availabilitySelect" multiple required>
+            <option value="Day Shift" <%= (nurse.availability || []).includes('Day Shift') ? 'selected' : '' %>>Day Shift</option>
+            <option value="Night Shift" <%= (nurse.availability || []).includes('Night Shift') ? 'selected' : '' %>>Night Shift</option>
+            <option value="24-Hour Live-in" <%= (nurse.availability || []).includes('24-Hour Live-in') ? 'selected' : '' %>>24-Hour Live-in</option>
+            <option value="Part Time" <%= (nurse.availability || []).includes('Part Time') ? 'selected' : '' %>>Part Time</option>
+            <option value="Full Time" <%= (nurse.availability || []).includes('Full Time') ? 'selected' : '' %>>Full Time</option>
+          </select>
+        </div>
+        <small class="helper-text">Hold Ctrl/Cmd to select multiple shift preferences</small>
+      </div>
+    </div>
+    
+    <!-- Resume Upload (Optional) -->
+    <div class="full-width">
+      <label>Resume (Optional)</label>
+      <div class="file-upload-container" id="resumeUpload">
+        <input 
+          type="file" 
+          name="resume" 
+          id="resumeInput"
+          accept=".pdf,image/*"
+        />
+        <label for="resumeInput" class="file-upload-label">
+          <span class="upload-icon">📄</span>
+          <span>Click to upload resume</span>
+          <small class="file-info">PDF or Image (Max 5MB)</small>
+        </label>
+        <% if (nurse.resumeUrl) { %>
+        <div class="file-upload-preview" id="resumePreview" style="display: flex;">
+          <span class="file-info">Resume uploaded</span>
+          <button type="button" class="file-remove" onclick="removeResume()">✕</button>
+        </div>
+        <% } else { %>
+        <div class="file-upload-preview" id="resumePreview" style="display: none;">
+          <span class="file-info" id="resumeFileName"></span>
+          <button type="button" class="file-remove" onclick="removeResume()">✕</button>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    
+    <!-- Education Level -->
+    <div class="full-width education-section">
+      <label>Education Level (Optional)</label>
+      <select name="educationLevel" id="educationLevelSelect">
+        <option value="">Select education level...</option>
+        <option value="10th Pass" <%= nurse.educationLevel === '10th Pass' ? 'selected' : '' %>>10th Pass</option>
+        <option value="12th Pass" <%= nurse.educationLevel === '12th Pass' ? 'selected' : '' %>>12th Pass</option>
+        <option value="GDA" <%= nurse.educationLevel === 'GDA' ? 'selected' : '' %>>GDA (General Duty Assistant)</option>
+        <option value="ANM" <%= nurse.educationLevel === 'ANM' ? 'selected' : '' %>>ANM (Auxiliary Nurse Midwife)</option>
+        <option value="GNM" <%= nurse.educationLevel === 'GNM' ? 'selected' : '' %>>GNM (General Nursing Midwifery)</option>
+        <option value="BSc Nursing" <%= nurse.educationLevel === 'BSc Nursing' ? 'selected' : '' %>>BSc Nursing</option>
+        <option value="MSc Nursing" <%= nurse.educationLevel === 'MSc Nursing' ? 'selected' : '' %>>MSc Nursing</option>
+      </select>
+      <small class="helper-text">Select your highest nursing qualification</small>
+      
+      <!-- Certificate Upload (Shows when education level is selected) -->
+      <div id="certificateUploadSection" style="margin-top: 1rem; <%= nurse.educationLevel ? 'display: block;' : 'display: none;' %>">
+        <label>Upload Certificate (Optional)</label>
+        <div class="file-upload-container" id="certificateUpload">
+          <input 
+            type="file" 
+            name="certificate" 
+            id="certificateInput"
+            accept="image/*,.pdf"
+          />
+          <label for="certificateInput" class="file-upload-label">
+            <span class="upload-icon">🎓</span>
+            <span>Click to upload education certificate</span>
+            <small class="file-info">Image or PDF (Max 5MB)</small>
+          </label>
+          <% if (nurse.certificateUrl) { %>
+          <div class="file-upload-preview" style="display: flex;">
+            <span class="file-info">Certificate uploaded</span>
+          </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
+      <span class="btn-text">Save Profile Details</span>
+      <span class="spinner" style="display: none;"></span>
+    </button>
+  </form>
+  
+  <small class="helper-text" style="margin-top: 0.5rem;">
+    💡 You can save your progress and complete later. Your profile is currently <%= profileCompletion %>% complete.
+  </small>
 </section>
 
 <section class="content-section">
@@ -151,5 +316,50 @@
     </table>
   </div>
 </section>
+
+<script>
+  // Education level change handler - show/hide certificate upload
+  document.getElementById('educationLevelSelect').addEventListener('change', function() {
+    const certificateSection = document.getElementById('certificateUploadSection');
+    if (this.value) {
+      certificateSection.style.display = 'block';
+    } else {
+      certificateSection.style.display = 'none';
+    }
+  });
+  
+  // Resume upload preview
+  document.getElementById('resumeInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('resumePreview');
+    const fileName = document.getElementById('resumeFileName');
+    
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        this.value = '';
+        return;
+      }
+      fileName.textContent = file.name;
+      preview.style.display = 'flex';
+    }
+  });
+  
+  function removeResume() {
+    document.getElementById('resumeInput').value = '';
+    document.getElementById('resumePreview').style.display = 'none';
+  }
+  
+  // Form submission with loading state
+  document.querySelector('form[action="/nurse/profile/complete"]').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Show loading state
+    submitBtn.classList.add('loading');
+    submitBtn.querySelector('.btn-text').textContent = 'Saving...';
+    submitBtn.querySelector('.spinner').style.display = 'inline-block';
+    submitBtn.disabled = true;
+  });
+</script>
 
 <%- include("../partials/footer") %>

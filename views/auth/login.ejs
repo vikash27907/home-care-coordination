@@ -3,16 +3,16 @@
 <section class="form-section narrow">
   <h1>Login</h1>
   <p>Secure access for approved admin, agent, and nurse accounts of Prisha Home Care.</p>
-  <form method="POST" action="/login" class="form-grid">
+  <form method="POST" action="/login" class="form-grid" id="loginForm">
     <label>
-      Email or Phone Number
+      Email or Phone Number <span class="required-indicator" title="Required"></span>
       <input name="identifier" type="text" required />
     </label>
     <label>
-      Password
+      Password <span class="required-indicator" title="Required"></span>
       <input name="password" type="password" required />
     </label>
-    <button type="submit" class="btn primary">Login</button>
+    <button type="submit" class="btn primary full-width">Login</button>
   </form>
 </section>
 

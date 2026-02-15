@@ -10,6 +10,119 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
+// ============================================================
+// PRODUCTION-GRADE VALIDATION CONSTANTS & HELPERS
+// ============================================================
+
+// India phone validation regex: exactly 10 digits, starts with 6-9
+const INDIA_PHONE_REGEX = /^[6-9]\d{9}$/;
+
+// Standard email validation regex
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+// Duration options for care duration dropdown
+const DURATION_OPTIONS = [
+  { value: "1_day", label: "1 Day" },
+  { value: "3_days", label: "3 Days" },
+  { value: "7_days", label: "7 Days" },
+  { value: "15_days", label: "15 Days" },
+  { value: "1_month", label: "1 Month" },
+  { value: "3_months", label: "3 Months" },
+  { value: "6_months", label: "6 Months" },
+  { value: "1_year", label: "1 Year" },
+  { value: "custom", label: "Custom" }
+];
+
+// Care requirement options
+const CARE_REQUIREMENT_OPTIONS = [
+  { value: "8_hours_daily", label: "8 Hours Daily" },
+  { value: "12_hours_daily", label: "12 Hours Daily" },
+  { value: "24_hours_live_in", label: "24 Hours Live-in" },
+  { value: "one_time_visit", label: "One-Time Visit" },
+  { value: "night_shift_12", label: "Night Shift (12 Hours)" },
+  { value: "custom", label: "Custom" }
+];
+
+// Budget constraints (INR)
+const BUDGET_MIN = 5000;
+const BUDGET_MAX = 200000;
+
+// Sanitization helper - removes potentially dangerous characters
+function sanitizeInput(value) {
+  if (value === undefined || value === null) return "";
+  const str = String(value);
+  // Trim whitespace
+  let sanitized = str.trim();
+  // Remove script tags and event handlers
+  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  sanitized = sanitized.replace(/on\w+\s*=\s*["'][^"']*["']/gi, "");
+  sanitized = sanitized.replace(/javascript:/gi, "");
+  // Remove SQL injection patterns (basic)
+  sanitized = sanitized.replace(/(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|TRUNCATE)\b)/gi, "");
+  return sanitized;
+}
+
+// Validate India phone number
+function validateIndiaPhone(phone) {
+  if (!phone || typeof phone !== "string") {
+    return { valid: false, error: "Please enter a valid 10-digit Indian mobile number." };
+  }
+  const cleaned = phone.replace(/\D/g, "");
+  if (!INDIA_PHONE_REGEX.test(cleaned)) {
+    return { valid: false, error: "Please enter a valid 10-digit Indian mobile number." };
+  }
+  return { valid: true, value: cleaned };
+}
+
+// Validate email format
+function validateEmail(email) {
+  if (!email || typeof email !== "string") {
+    return { valid: false, error: "Please enter a valid email address." };
+  }
+  const trimmed = email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(trimmed)) {
+    return { valid: false, error: "Please enter a valid email address." };
+  }
+  return { valid: true, value: trimmed };
+}
+
+// Validate budget range
+function validateBudget(budgetMin, budgetMax) {
+  const min = budgetMin !== undefined && budgetMin !== "" ? Number(budgetMin) : null;
+  const max = budgetMax !== undefined && budgetMax !== "" ? Number(budgetMax) : null;
+
+  if (min !== null && (isNaN(min) || min < BUDGET_MIN)) {
+    return { error: `Budget must be at least ₹${BUDGET_MIN.toLocaleString("en-IN")}.` };
+  }
+  if (max !== null && (isNaN(max) || max > BUDGET_MAX)) {
+    return { error: `Budget cannot exceed ₹${BUDGET_MAX.toLocaleString("en-IN")}.` };
+  }
+  if (min !== null && max !== null && max < min) {
+    return { error: "Maximum budget cannot be less than minimum budget." };
+  }
+  if (min !== null && max !== null && (min < BUDGET_MIN || max > BUDGET_MAX)) {
+    return { error: `Budget must be between ₹${BUDGET_MIN.toLocaleString("en-IN")} and ₹${BUDGET_MAX.toLocaleString("en-IN")}.` };
+  }
+
+  return {
+    budgetMin: min === null ? null : Number(min.toFixed(2)),
+    budgetMax: max === null ? null : Number(max.toFixed(2))
+  };
+}
+
+// Validation middleware for request body
+function validateRequest(req, res, next) {
+  // Sanitize all string inputs
+  for (const key in req.body) {
+    if (typeof req.body[key] === "string") {
+      req.body[key] = sanitizeInput(req.body[key]);
+    }
+  }
+  next();
+}
+
+app.use(validateRequest);
+
 const NURSE_STATUSES = ["Pending", "Approved", "Rejected"];
 const AGENT_STATUSES = ["Pending", "Approved", "Rejected"];
 const PATIENT_STATUSES = ["New", "In Progress", "Closed"];
@@ -396,6 +509,20 @@ function normalizeStoreShape(store) {
       changed = true;
     }
 
+    // New fields for nurse profile completion
+    if (typeof nurse.educationLevel !== "string") {
+      nurse.educationLevel = "";
+      changed = true;
+    }
+    if (typeof nurse.resumeUrl !== "string") {
+      nurse.resumeUrl = "";
+      changed = true;
+    }
+    if (typeof nurse.certificateUrl !== "string") {
+      nurse.certificateUrl = "";
+      changed = true;
+    }
+
     let referralCode = String(nurse.referralCode || "").trim().toUpperCase();
     if (!referralCode || referralCodes.has(referralCode)) {
       referralCode = generateReferralCode(referralCodes);
@@ -619,6 +746,11 @@ app.use((req, res, next) => {
   res.locals.agentStatuses = AGENT_STATUSES;
   res.locals.patientStatuses = PATIENT_STATUSES;
   res.locals.commissionTypes = COMMISSION_TYPES;
+  // Add validation options to all views
+  res.locals.durationOptions = DURATION_OPTIONS;
+  res.locals.careRequirementOptions = CARE_REQUIREMENT_OPTIONS;
+  res.locals.budgetMin = BUDGET_MIN;
+  res.locals.budgetMax = BUDGET_MAX;
   return next();
 });
 
@@ -653,7 +785,7 @@ function seedAdmin() {
 function createNurseUnderAgent(req, res, failRedirect) {
   const creatorAgentEmail = req.currentUser && req.currentUser.role === "agent" ? normalizeEmail(req.currentUser.email) : "";
   const fullName = String(req.body.fullName || "").trim();
-  const email = normalizeEmail(req.body.email);
+  const emailInput = String(req.body.email || "").trim();
   const password = String(req.body.password || "");
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
@@ -667,12 +799,24 @@ function createNurseUnderAgent(req, res, failRedirect) {
   const publicShowExperience = creatorAgentEmail ? toBoolean(req.body.publicShowExperience) : true;
   const referredByCode = String(req.body.referredByCode || "").trim().toUpperCase();
 
-  if (!fullName || !email || !password || !phoneNumber || !city || Number.isNaN(experienceYears)) {
+  // Validate required fields
+  if (!fullName || !emailInput || !password || !phoneNumber || !city || Number.isNaN(experienceYears)) {
     setFlash(req, "error", "Please complete all required nurse details.");
     return res.redirect(failRedirect);
   }
-  if (!normalizePhone(phoneNumber)) {
-    setFlash(req, "error", "Please enter a valid phone number.");
+  
+  // Validate email format
+  const emailValidation = validateEmail(emailInput);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect(failRedirect);
+  }
+  const email = emailValidation.value;
+  
+  // Validate India phone number
+  const phoneValidation = validateIndiaPhone(phoneNumber);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
     return res.redirect(failRedirect);
   }
 
@@ -748,17 +892,29 @@ function createNurseUnderAgent(req, res, failRedirect) {
 
 function createAgentUnderAgent(req, res, failRedirect) {
   const fullName = String(req.body.fullName || "").trim();
-  const email = normalizeEmail(req.body.email);
+  const emailInput = String(req.body.email || "").trim();
   const password = String(req.body.password || "");
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const region = String(req.body.region || "").trim();
 
-  if (!fullName || !email || !password || !phoneNumber || !region) {
+  // Validate required fields
+  if (!fullName || !emailInput || !password || !phoneNumber || !region) {
     setFlash(req, "error", "Please complete all agent details.");
     return res.redirect(failRedirect);
   }
-  if (!normalizePhone(phoneNumber)) {
-    setFlash(req, "error", "Please enter a valid phone number.");
+  
+  // Validate email format
+  const emailValidation = validateEmail(emailInput);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect(failRedirect);
+  }
+  const email = emailValidation.value;
+  
+  // Validate India phone number
+  const phoneValidation = validateIndiaPhone(phoneNumber);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
     return res.redirect(failRedirect);
   }
 
@@ -878,17 +1034,30 @@ app.post("/request-care", (req, res) => {
   const city = String(req.body.city || "").trim();
   const careRequirement = String(req.body.careRequirement || "").trim();
   const duration = String(req.body.duration || "").trim();
-  const budget = parseBudgetRange(req.body.budgetMin, req.body.budgetMax);
+  const budget = validateBudget(req.body.budgetMin, req.body.budgetMax);
   const preferredNurseIdRaw = String(req.body.preferredNurseId || "").trim();
 
+  // Validate required fields
   if (!fullName || !email || !phoneNumber || !city || !careRequirement || !duration) {
     setFlash(req, "error", "Please complete all required fields.");
     return res.redirect("/request-care");
   }
-  if (!normalizePhone(phoneNumber)) {
-    setFlash(req, "error", "Please enter a valid phone number.");
+  
+  // Validate India phone number
+  const phoneValidation = validateIndiaPhone(phoneNumber);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
     return res.redirect("/request-care");
   }
+  
+  // Validate email
+  const emailValidation = validateEmail(email);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect("/request-care");
+  }
+  
+  // Validate budget
   if (budget.error) {
     setFlash(req, "error", budget.error);
     return res.redirect("/request-care");
@@ -1592,6 +1761,66 @@ app.post("/nurse/profile/public", requireRole("nurse"), requireApprovedNurse, (r
 
   writeStore(store);
   setFlash(req, "success", "Public profile settings updated.");
+  return res.redirect("/nurse/profile");
+});
+
+// Complete Nurse Profile Route
+app.post("/nurse/profile/complete", requireRole("nurse"), requireApprovedNurse, (req, res) => {
+  const store = readNormalizedStore();
+  const nurse = store.nurses.find((item) => item.id === req.nurseRecord.id);
+  if (!nurse) {
+    setFlash(req, "error", "Nurse profile not found.");
+    return res.redirect("/nurse/profile");
+  }
+
+  // Update experience
+  const experienceYears = Number.parseInt(req.body.experienceYears, 10);
+  if (!Number.isNaN(experienceYears) && experienceYears >= 0 && experienceYears <= 60) {
+    nurse.experienceYears = experienceYears;
+  }
+
+  // Update skills - new skills options
+  const newSkillsOptions = [
+    "Elderly Care",
+    "ICU Experience",
+    "Injection Specialist",
+    "Post-Surgery Care",
+    "Bedridden Care",
+    "Child Care",
+    "Palliative Care"
+  ];
+  nurse.skills = toArray(req.body.skills).filter((skill) => newSkillsOptions.includes(skill));
+
+  // Update availability (shift preferences)
+  const newAvailabilityOptions = [
+    "Day Shift",
+    "Night Shift",
+    "24-Hour Live-in",
+    "Part Time",
+    "Full Time"
+  ];
+  nurse.availability = toArray(req.body.availability).filter((avail) => newAvailabilityOptions.includes(avail));
+
+  // Update education level (optional)
+  const educationLevel = String(req.body.educationLevel || "").trim();
+  const validEducationLevels = ["10th Pass", "12th Pass", "GDA", "ANM", "GNM", "BSc Nursing", "MSc Nursing"];
+  if (validEducationLevels.includes(educationLevel)) {
+    nurse.educationLevel = educationLevel;
+  } else {
+    nurse.educationLevel = "";
+  }
+
+  // Note: File uploads (resume, certificate, profile image) would need additional handling
+  // For now, we store the paths if provided via URL
+  if (req.body.resumeUrl) {
+    nurse.resumeUrl = String(req.body.resumeUrl).trim();
+  }
+  if (req.body.certificateUrl) {
+    nurse.certificateUrl = String(req.body.certificateUrl).trim();
+  }
+
+  writeStore(store);
+  setFlash(req, "success", "Profile details updated successfully!");
   return res.redirect("/nurse/profile");
 });
 

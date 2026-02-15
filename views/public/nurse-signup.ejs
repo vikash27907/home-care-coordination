@@ -1,60 +1,153 @@
 <%- include("../partials/head", { title }) %>
 
-<section class="form-section">
+<section class="form-section narrow">
   <h1>Nurse Signup Application</h1>
   <p>Your profile will be created with <strong>Pending</strong> status until verification is complete.</p>
-  <form method="POST" action="/nurse-signup" class="form-grid">
+  <form method="POST" action="/nurse-signup" class="form-grid" id="nurseSignupForm" enctype="multipart/form-data">
     <label>
-      Full Name
+      Full Name <span class="required-indicator" title="Required"></span>
       <input name="fullName" type="text" required />
     </label>
+    
     <label>
-      Email
+      Email <span class="required-indicator" title="Required"></span>
       <input name="email" type="email" required />
     </label>
+    
     <label>
-      Password
-      <input name="password" type="password" required />
+      Phone Number <span class="required-indicator" title="Required"></span>
+      <input 
+        name="phoneNumber" 
+        type="tel" 
+        maxlength="10" 
+        pattern="[6-9][0-9]{9}"
+        placeholder="10-digit mobile number"
+        required 
+        title="Enter 10-digit Indian mobile number starting with 6, 7, 8, or 9"
+      />
     </label>
+    
     <label>
-      Phone Number
-      <input name="phoneNumber" type="text" required />
-    </label>
-    <label>
-      City
+      City <span class="required-indicator" title="Required"></span>
       <input name="city" type="text" required />
     </label>
-    <label>
-      Experience (Years)
-      <input name="experienceYears" type="number" min="0" max="60" required />
+    
+    <!-- Profile Image Upload (Optional) -->
+    <div class="full-width">
+      <label>Profile Photo (Optional)</label>
+      <div class="file-upload-container" id="profileImageUpload">
+        <input 
+          type="file" 
+          name="profileImage" 
+          id="profileImageInput"
+          accept="image/*"
+          data-max-size="2097152"
+        />
+        <label for="profileImageInput" class="file-upload-label">
+          <span class="upload-icon">📷</span>
+          <span>Click to upload profile photo</span>
+          <small class="file-info">Max size: 2MB (JPG, PNG)</small>
+        </label>
+        <div class="file-upload-preview" id="profileImagePreview" style="display: none;">
+          <img id="profileImageImg" src="" alt="Profile Preview" />
+          <button type="button" class="file-remove" onclick="removeProfileImage()">✕</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Password Field with Show Toggle -->
+    <label class="full-width">
+      Password <span class="required-indicator" title="Required"></span>
+      <div class="password-field-wrapper">
+        <input 
+          name="password" 
+          type="password" 
+          id="passwordInput"
+          minlength="6" 
+          required
+          placeholder="Minimum 6 characters"
+        />
+        <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Show password">
+          👁
+        </button>
+      </div>
+      <small class="helper-text">Minimum 6 characters required</small>
     </label>
 
-    <fieldset class="full-width">
-      <legend>Skills (multiple selection)</legend>
-      <div class="check-grid">
-        <% skillsOptions.forEach((skill) => { %>
-        <label class="check-item">
-          <input type="checkbox" name="skills" value="<%= skill %>" />
-          <span><%= skill %></span>
-        </label>
-        <% }) %>
-      </div>
-    </fieldset>
-
-    <fieldset class="full-width">
-      <legend>Availability (multiple selection)</legend>
-      <div class="check-grid">
-        <% availabilityOptions.forEach((slot) => { %>
-        <label class="check-item">
-          <input type="checkbox" name="availability" value="<%= slot %>" />
-          <span><%= slot %></span>
-        </label>
-        <% }) %>
-      </div>
-    </fieldset>
-
-    <button type="submit" class="btn primary">Submit Application</button>
+    <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
+      <span class="btn-text">Submit Application</span>
+      <span class="spinner" style="display: none;"></span>
+    </button>
   </form>
+  
+  <div class="hint">
+    <p><strong>Note:</strong> After signup, you can complete your profile with additional details like skills, experience, education certificates, and resume from your dashboard.</p>
+    <p>Profile completion: <strong>40%</strong> (Basic details)</p>
+  </div>
 </section>
+
+<script>
+  // Password toggle functionality
+  function togglePassword() {
+    const passwordInput = document.getElementById('passwordInput');
+    const toggleBtn = document.querySelector('.password-toggle');
+    if (passwordInput.type === 'password') {
+      passwordInput.type = 'text';
+      toggleBtn.textContent = '🙈';
+    } else {
+      passwordInput.type = 'password';
+      toggleBtn.textContent = '👁';
+    }
+  }
+  
+  // Profile image preview
+  document.getElementById('profileImageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('profileImagePreview');
+    const previewImg = document.getElementById('profileImageImg');
+    const container = document.getElementById('profileImageUpload');
+    
+    if (file) {
+      // Check file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('File size must be less than 2MB');
+        this.value = '';
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        previewImg.src = e.target.result;
+        preview.style.display = 'flex';
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+  
+  function removeProfileImage() {
+    document.getElementById('profileImageInput').value = '';
+    document.getElementById('profileImagePreview').style.display = 'none';
+    document.getElementById('profileImageImg').src = '';
+  }
+  
+  // Form submission with loading state
+  document.getElementById('nurseSignupForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    const passwordInput = document.getElementById('passwordInput');
+    
+    // Validate password minimum length
+    if (passwordInput.value.length < 6) {
+      e.preventDefault();
+      alert('Password must be at least 6 characters');
+      return;
+    }
+    
+    // Show loading state
+    submitBtn.classList.add('loading');
+    submitBtn.querySelector('.btn-text').textContent = 'Submitting...';
+    submitBtn.querySelector('.spinner').style.display = 'inline-block';
+    submitBtn.disabled = true;
+  });
+</script>
 
 <%- include("../partials/footer") %>

@@ -3,40 +3,82 @@
 <section class="form-section">
   <h1>Add Patient</h1>
   <p>New patient records are automatically assigned to your agent email.</p>
-  <form method="POST" action="/agent/patients/new" class="form-grid">
+  <form method="POST" action="/agent/patients/new" class="form-grid" id="addPatientForm">
     <label>
-      Full Name
+      Full Name <span class="required-indicator" title="Required"></span>
       <input name="fullName" type="text" required />
     </label>
+    
     <label>
-      Email
+      Email <span class="required-indicator" title="Required"></span>
       <input name="email" type="email" required />
     </label>
+    
     <label>
-      Phone Number
-      <input name="phoneNumber" type="text" required />
+      Phone Number <span class="required-indicator" title="Required"></span>
+      <input 
+        name="phoneNumber" 
+        type="tel" 
+        maxlength="10" 
+        pattern="[6-9][0-9]{9}"
+        placeholder="10-digit mobile number"
+        required 
+        title="Enter 10-digit Indian mobile number starting with 6, 7, 8, or 9"
+      />
     </label>
+    
     <label>
-      City
+      City <span class="required-indicator" title="Required"></span>
       <input name="city" type="text" required />
     </label>
+    
     <label class="full-width">
-      Care Requirement
-      <textarea name="careRequirement" rows="4" required></textarea>
+      Care Requirement <span class="required-indicator" title="Required"></span>
+      <select name="careRequirement" required>
+        <option value="">Select care type...</option>
+        <% careRequirementOptions.forEach(function(opt) { %>
+          <option value="<%= opt.value %>"><%= opt.label %></option>
+        <% }); %>
+      </select>
     </label>
+    
     <label class="full-width">
-      Duration
-      <input name="duration" type="text" required />
+      Duration <span class="required-indicator" title="Required"></span>
+      <select name="duration" required>
+        <option value="">Select duration...</option>
+        <% durationOptions.forEach(function(opt) { %>
+          <option value="<%= opt.value %>"><%= opt.label %></option>
+        <% }); %>
+      </select>
     </label>
+    
     <label>
-      Budget Min (INR, Optional)
-      <input name="budgetMin" type="number" min="0" step="0.01" />
+      Monthly Budget Min (INR ₹) <span class="required-indicator" title="Required"></span>
+      <input 
+        name="budgetMin" 
+        type="number" 
+        min="<%= budgetMin %>" 
+        max="<%= budgetMax %>"
+        step="100"
+        placeholder="Min: ₹<%= budgetMin.toLocaleString('en-IN') %>"
+        required
+      />
     </label>
+    
     <label>
-      Budget Max (INR, Optional)
-      <input name="budgetMax" type="number" min="0" step="0.01" />
+      Monthly Budget Max (INR ₹) <span class="required-indicator" title="Required"></span>
+      <input 
+        name="budgetMax" 
+        type="number" 
+        min="<%= budgetMin %>" 
+        max="<%= budgetMax %>"
+        step="100"
+        placeholder="Max: ₹<%= budgetMax.toLocaleString('en-IN') %>"
+        required
+      />
     </label>
-    <button type="submit" class="btn primary">Add Patient</button>
+    
+    <button type="submit" class="btn primary full-width">Add Patient</button>
   </form>
 </section>
 

@@ -856,3 +856,452 @@ thead th {
     opacity: 1;
   }
 }
+
+/* ============================================================
+   PRODUCTION-GRADE VALIDATION STYLES
+   ============================================================ */
+
+/* Field error state */
+.field-error {
+  border-color: var(--danger, #b91c1c) !important;
+  background: #fff5f5 !important;
+}
+
+.field-error:focus {
+  border-color: var(--danger, #b91c1c) !important;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15) !important;
+}
+
+/* Field success state */
+.field-success {
+  border-color: var(--success, #166534) !important;
+  background: #f0fdf4 !important;
+}
+
+/* Error message */
+.field-error-message {
+  color: var(--danger, #b91c1c);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+/* Required field indicator */
+.required-mark {
+  color: var(--danger, #b91c1c);
+  margin-left: 0.25rem;
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Success confirmation page */
+.success-confirmation {
+  text-align: center;
+  padding: 3rem 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.success-confirmation .success-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--success, #166534);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  font-size: 2.5rem;
+  color: #fff;
+}
+
+.success-confirmation h2 {
+  color: var(--success, #166534);
+  margin-bottom: 1rem;
+}
+
+.success-confirmation p {
+  color: var(--muted, #4f6880);
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+/* Custom duration fields */
+.custom-duration-fields {
+  display: none;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--surface-soft, #f5f9ff);
+  border-radius: 11px;
+  border: 1px solid var(--line, #d7e4f2);
+}
+
+.custom-duration-fields.visible {
+  display: block;
+}
+
+.custom-duration-fields .duration-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.custom-duration-fields input {
+  flex: 1;
+}
+
+.custom-duration-fields select {
+  width: auto;
+}
+
+/* Form label improvements */
+.form-grid label {
+  position: relative;
+}
+
+.form-grid label .required-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--danger, #b91c1c);
+  border-radius: 50%;
+  margin-left: 4px;
+  vertical-align: super;
+}
+
+/* Helper text */
+.helper-text {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted, #4f6880);
+  margin-top: 0.25rem;
+  font-weight: 400;
+}
+
+/* Improved Submit Button */
+.btn-submit {
+  height: 52px !important;
+  padding: 0.85rem 1.5rem !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, var(--primary, #1e88e5) 0%, var(--primary-deep, #1669b5) 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(30, 136, 229, 0.35) !important;
+  transition: all 0.3s ease !important;
+  cursor: pointer !important;
+}
+
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(30, 136, 229, 0.45) !important;
+}
+
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+  background: linear-gradient(135deg, #94b9e6 0%, #7aa3cf 100%) !important;
+}
+
+.btn-submit.loading {
+  pointer-events: none !important;
+}
+
+.btn-submit .spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2.5px;
+}
+
+/* Multi-select dropdown styles */
+.multiselect-container {
+  position: relative;
+}
+
+.multiselect-wrapper {
+  position: relative;
+}
+
+.multiselect-input {
+  width: 100%;
+  cursor: pointer;
+  background: #fbfdfd;
+}
+
+.multiselect-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #d7e4f2);
+  border-radius: 11px;
+  box-shadow: 0 8px 25px rgba(16, 42, 68, 0.15);
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+  display: none;
+  margin-top: 4px;
+}
+
+.multiselect-dropdown.open {
+  display: block;
+}
+
+.multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.multiselect-option:hover {
+  background: var(--surface-soft, #f5f9ff);
+}
+
+.multiselect-option.selected {
+  background: rgba(30, 136, 229, 0.1);
+  color: var(--primary, #1e88e5);
+}
+
+.multiselect-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary, #1e88e5);
+}
+
+.multiselect-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.multiselect-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  background: rgba(30, 136, 229, 0.12);
+  border: 1px solid rgba(30, 136, 229, 0.25);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: var(--primary-deep, #1669b5);
+  font-weight: 600;
+}
+
+.multiselect-tag-remove {
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--primary-deep, #1669b5);
+}
+
+.multiselect-tag-remove:hover {
+  color: var(--danger, #b91c1c);
+}
+
+/* Password field with show toggle */
+.password-field-wrapper {
+  position: relative;
+}
+
+.password-field-wrapper input {
+  padding-right: 42px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted, #4f6880);
+  padding: 4px;
+  font-size: 1.1rem;
+}
+
+.password-toggle:hover {
+  color: var(--primary, #1e88e5);
+}
+
+/* File upload styles */
+.file-upload-container {
+  border: 2px dashed var(--line, #d7e4f2);
+  border-radius: 11px;
+  padding: 1rem;
+  text-align: center;
+  background: var(--surface-soft, #f5f9ff);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.file-upload-container:hover {
+  border-color: var(--primary, #1e88e5);
+  background: rgba(30, 136, 229, 0.05);
+}
+
+.file-upload-container.dragover {
+  border-color: var(--primary, #1e88e5);
+  background: rgba(30, 136, 229, 0.1);
+}
+
+.file-upload-container input[type="file"] {
+  display: none;
+}
+
+.file-upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: var(--muted, #4f6880);
+}
+
+.file-upload-label .upload-icon {
+  font-size: 1.8rem;
+  color: var(--primary, #1e88e5);
+}
+
+.file-upload-preview {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.file-upload-preview img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--line, #d7e4f2);
+}
+
+.file-info {
+  font-size: 0.85rem;
+  color: var(--muted, #4f6880);
+}
+
+.file-remove {
+  background: none;
+  border: none;
+  color: var(--danger, #b91c1c);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px;
+}
+
+/* Profile completion indicator */
+.profile-completion {
+  background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+  border: 1px solid #ffe082;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.profile-completion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+.profile-completion-title {
+  font-weight: 700;
+  color: #f57c00;
+  font-size: 0.95rem;
+}
+
+.profile-completion-percent {
+  font-weight: 800;
+  color: #e65100;
+  font-size: 1.1rem;
+}
+
+.profile-completion-bar {
+  height: 10px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.profile-completion-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff9800 0%, #ff5722 100%);
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+/* Education level selection */
+.education-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--surface-soft, #f5f9ff);
+  border-radius: 11px;
+  border: 1px solid var(--line, #d7e4f2);
+}
+
+.education-section label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+/* Toggle switch for optional fields */
+.toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.toggle-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary, #1e88e5);
+}
+
+/* Signup form specific improvements */
+.form-section .form-grid {
+  margin-top: 1.2rem;
+}
+
+/* Additional spinner animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading .btn-text {
+  animation: pulse 1s ease-in-out infinite;
+}
