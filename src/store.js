@@ -5,6 +5,7 @@ const { spawnSync } = require("child_process");
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 const USE_DATABASE = Boolean(process.env.DATABASE_URL);
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const PG_STORE_CLI_PATH = path.join(__dirname, "..", "scripts", "pg-store-cli.js");
 
 function defaultStore() {
@@ -61,7 +62,14 @@ function runPgStoreCli(command, payload) {
   return JSON.parse(output);
 }
 
+function assertStorageMode() {
+  if (IS_PRODUCTION && !USE_DATABASE) {
+    throw new Error("DATABASE_URL is required in production. File store mode is disabled.");
+  }
+}
+
 function ensureStore() {
+  assertStorageMode();
   if (USE_DATABASE) {
     return;
   }
@@ -76,6 +84,7 @@ function ensureStore() {
 }
 
 function readStore() {
+  assertStorageMode();
   if (USE_DATABASE) {
     const parsed = runPgStoreCli("read");
     return mergeWithDefaults(parsed);
@@ -87,6 +96,7 @@ function readStore() {
 }
 
 function writeStore(store) {
+  assertStorageMode();
   if (USE_DATABASE) {
     runPgStoreCli("write", store);
     return;
@@ -108,9 +118,22 @@ function updateStore(mutator) {
   writeStore(store);
 }
 
+function verifyStorageConnection() {
+  assertStorageMode();
+  if (!USE_DATABASE) {
+    ensureStore();
+    return { mode: "file" };
+  }
+  runPgStoreCli("read");
+  return { mode: "postgres" };
+}
+
 module.exports = {
   readStore,
   writeStore,
   nextId,
-  updateStore
+  updateStore,
+  verifyStorageConnection,
+  USE_DATABASE,
+  IS_PRODUCTION
 };
