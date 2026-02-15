@@ -2,89 +2,185 @@
 
 <section class="dashboard-header">
   <h1>Nurse Management</h1>
-  <p>Filter by status, approve or reject applications, and assign one or more agents.</p>
+  <p>Approve, reject, or manage nurse applications. Use filters below to view specific statuses.</p>
 </section>
 
-<form method="GET" action="/admin/nurses" class="filter-row">
-  <label>
-    Status Filter
-    <select name="status">
-      <option value="All" <%= statusFilter === 'All' ? 'selected' : '' %>>All</option>
-      <% nurseStatuses.forEach((status) => { %>
-      <option value="<%= status %>" <%= statusFilter === status ? 'selected' : '' %>><%= status %></option>
-      <% }) %>
-    </select>
-  </label>
-  <button type="submit" class="btn">Apply</button>
-</form>
+<!-- Filter Tabs -->
+<nav class="filter-tabs">
+  <a href="/admin/nurses?status=All" class="tab <%= statusFilter === 'All' ? 'active' : '' %>">All</a>
+  <a href="/admin/nurses?status=Pending" class="tab <%= statusFilter === 'Pending' ? 'active' : '' %>">
+    Pending <% if (nurses.filter(n => n.status === 'Pending').length > 0) { %><span class="badge"><%= nurses.filter(n => n.status === 'Pending').length %></span><% } %>
+  </a>
+  <a href="/admin/nurses?status=Approved" class="tab <%= statusFilter === 'Approved' ? 'active' : '' %>">Approved</a>
+  <a href="/admin/nurses?status=Rejected" class="tab <%= statusFilter === 'Rejected' ? 'active' : '' %>">Rejected</a>
+</nav>
 
-<section class="table-shell">
-  <table>
-    <thead>
-      <tr>
-        <th>Nurse ID</th>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>City</th>
-        <th>Skills</th>
-        <th>Availability Slots</th>
-        <th>Experience</th>
-        <th>Status</th>
-        <th>Public Availability</th>
-        <th>Assigned Agents</th>
-        <th>Referral Code</th>
-        <th>Created</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% if (!nurses.length) { %>
-      <tr>
-        <td colspan="14">No nurse records found for this filter.</td>
-      </tr>
+<!-- Quick Actions for Pending -->
+<% if (statusFilter === 'Pending') { %>
+<section class="pending-alert">
+  <h3>⚠️ Pending Approvals</h3>
+  <p>You have <strong><%= nurses.length %></strong> nurses waiting for approval. Review and take action below.</p>
+</section>
+<% } %>
+
+<% if (!nurses.length) { %>
+<section class="empty-state">
+  <p>No nurses found for this filter.</p>
+  <a href="/admin/nurses" class="btn">View All Nurses</a>
+</section>
+<% } else { %>
+<section class="cards-container">
+  <% nurses.forEach((nurse) => { %>
+  <div class="nurse-card status-<%= nurse.status.toLowerCase() %>">
+    <div class="card-header">
+      <div class="nurse-avatar">
+        <%= nurse.fullName.charAt(0).toUpperCase() %>
+      </div>
+      <div class="nurse-title">
+        <h3><%= nurse.fullName %></h3>
+        <span class="status-badge <%= nurse.status.toLowerCase() %>"><%= nurse.status %></span>
+      </div>
+    </div>
+    
+    <div class="card-body">
+      <div class="info-row">
+        <span class="info-label">📧 Email</span>
+        <span class="info-value"><%= nurse.email %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">📱 Phone</span>
+        <span class="info-value"><%= nurse.phoneNumber %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">🏙️ City</span>
+        <span class="info-value"><%= nurse.city || '-' %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">💼 Experience</span>
+        <span class="info-value"><%= nurse.experienceYears || 0 %> years</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">🎯 Skills</span>
+        <span class="info-value skills"><%= (nurse.skills || []).join(', ') || 'Not specified' %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">📅 Registered</span>
+        <span class="info-value"><%= nurse.createdAt ? new Date(nurse.createdAt).toLocaleDateString() : '-' %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">🔗 Referral Code</span>
+        <span class="info-value"><code><%= nurse.referralCode || '-' %></code></span>
+      </div>
+    </div>
+    
+    <div class="card-actions">
+      <% if (nurse.status === 'Pending') { %>
+        <!-- Approve Button -->
+        <form method="POST" action="/admin/nurses/<%= nurse.id %>/update" class="action-form">
+          <input type="hidden" name="status" value="Approved">
+          <input type="hidden" name="statusFilter" value="<%= statusFilter %>">
+          <input type="hidden" name="isAvailable" value="true">
+          <button type="submit" class="btn btn-success">✅ Approve</button>
+        </form>
+        
+        <!-- Reject Button with Modal -->
+        <button class="btn btn-danger" onclick="openRejectModal('<%= nurse.id %>', '<%= nurse.fullName.replace(/'/g, "\\'") %>')">❌ Reject</button>
       <% } %>
-      <% nurses.forEach((nurse) => { %>
-      <tr>
-        <td>N-<%= nurse.id %></td>
-        <td><%= nurse.fullName %></td>
-        <td><%= nurse.email %></td>
-        <td><%= nurse.phoneNumber %></td>
-        <td><%= nurse.city %></td>
-        <td><%= nurse.skills.join(', ') || '-' %></td>
-        <td><%= nurse.availability.join(', ') || '-' %></td>
-        <td><%= nurse.experienceYears %> yrs</td>
-        <td><span class="pill"><%= nurse.status %></span></td>
-        <td><%= nurse.isAvailable ? 'Available' : 'Unavailable' %></td>
-        <td><%= (nurse.agentEmails || []).join(', ') || 'Unassigned' %></td>
-        <td><code><%= nurse.referralCode || '-' %></code></td>
-        <td><%= nurse.createdAt.slice(0, 10) %></td>
-        <td>
-          <form method="POST" action="/admin/nurses/<%= nurse.id %>/update" class="table-form">
-            <input type="hidden" name="statusFilter" value="<%= statusFilter %>" />
-            <select name="status">
-              <% nurseStatuses.forEach((status) => { %>
-              <option value="<%= status %>" <%= nurse.status === status ? 'selected' : '' %>><%= status %></option>
-              <% }) %>
-            </select>
-            <label class="check-item">
-              <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %> />
-              <span>Publicly Available</span>
-            </label>
-            <select name="agentEmails" multiple size="4">
-              <% approvedAgents.forEach((agent) => { %>
-              <option value="<%= agent.email %>" <%= (nurse.agentEmails || []).includes(agent.email) ? 'selected' : '' %>>
-                <%= agent.fullName %> (<%= agent.email %>)
-              </option>
-              <% }) %>
-            </select>
-            <button type="submit" class="btn small">Save</button>
-          </form>
-        </td>
-      </tr>
-      <% }) %>
-    </tbody>
-  </table>
+      
+      <% if (nurse.status === 'Approved') { %>
+        <!-- Toggle Availability -->
+        <form method="POST" action="/admin/nurses/<%= nurse.id %>/update" class="action-form">
+          <input type="hidden" name="statusFilter" value="<%= statusFilter %>">
+          <input type="hidden" name="status" value="Approved">
+          <label class="toggle-label">
+            <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %> onchange="this.form.submit()">
+            <span>Available</span>
+          </label>
+        </form>
+      <% } %>
+      
+      <!-- Delete Button -->
+      <button class="btn btn-outline" onclick="openDeleteModal('<%= nurse.id %>', '<%= nurse.fullName.replace(/'/g, "\\'") %>', 'nurse')">🗑️ Delete</button>
+    </div>
+  </div>
+  <% }); %>
 </section>
+<% } %>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Reject Nurse</h2>
+      <span class="close" onclick="closeRejectModal()">&times;</span>
+    </div>
+    <form method="POST" action="/admin/nurses/<%= nurses[0] ? nurses[0].id : '' %>/update" id="rejectForm">
+      <input type="hidden" name="status" value="Rejected">
+      <input type="hidden" name="statusFilter" value="<%= statusFilter %>">
+      <div class="modal-body">
+        <p>You are rejecting: <strong id="rejectNurseName"></strong></p>
+        <div class="form-group">
+          <label for="rejectReason">Reason for rejection (optional):</label>
+          <textarea name="rejectReason" id="rejectReason" rows="4" placeholder="Enter reason for rejection..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+        <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Delete Permanently</h2>
+      <span class="close" onclick="closeDeleteModal()">&times;</span>
+    </div>
+    <form method="POST" id="deleteForm" action="">
+      <div class="modal-body">
+        <div class="warning-box">
+          <p>⚠️ <strong>Warning:</strong> This action cannot be undone!</p>
+          <p>You are about to delete: <strong id="deleteName"></strong></p>
+          <p>This will remove all data from the database. The person can register again.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+        <button type="submit" class="btn btn-danger">🗑️ Delete Forever</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openRejectModal(id, name) {
+  document.getElementById('rejectModal').style.display = 'block';
+  document.getElementById('rejectNurseName').textContent = name;
+  document.getElementById('rejectForm').action = '/admin/nurses/' + id + '/update';
+}
+
+function closeRejectModal() {
+  document.getElementById('rejectModal').style.display = 'none';
+}
+
+function openDeleteModal(id, name, type) {
+  document.getElementById('deleteModal').style.display = 'block';
+  document.getElementById('deleteName').textContent = name;
+  document.getElementById('deleteForm').action = '/admin/user/' + id + '/delete?type=' + type;
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+  if (event.target.classList.contains('modal')) {
+    event.target.style.display = 'none';
+  }
+}
+</script>
 
 <%- include("../partials/footer") %>

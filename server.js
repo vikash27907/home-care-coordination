@@ -1473,7 +1473,8 @@ app.get("/admin", requireRole("admin"), (req, res) => {
     totalPatients: store.patients.length,
     newPatients: store.patients.filter((item) => item.status === "New").length,
     totalAgents: store.agents.length,
-    pendingAgents: store.agents.filter((item) => item.status === "Pending").length
+    pendingAgents: store.agents.filter((item) => item.status === "Pending").length,
+    openConcerns: getOpenConcernsCount(store)
   };
   return res.render("admin/dashboard", { title: "Admin Dashboard", metrics });
 });

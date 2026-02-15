@@ -6,37 +6,80 @@
 </section>
 
 <section class="metrics-grid">
-  <article class="metric">
-    <h3>Total Nurses</h3>
-    <p><%= metrics.totalNurses %></p>
-    <small><%= metrics.pendingNurses %> pending • <%= metrics.availableNurses %> publicly available</small>
-  </article>
-  <article class="metric">
-    <h3>Total Patients</h3>
-    <p><%= metrics.totalPatients %></p>
-    <small><%= metrics.newPatients %> new</small>
-  </article>
-  <article class="metric">
-    <h3>Total Agents</h3>
-    <p><%= metrics.totalAgents %></p>
-    <small><%= metrics.pendingAgents %> pending</small>
-  </article>
+  <a href="/admin/nurses?status=Pending" class="metric clickable">
+    <h3>Pending Nurses</h3>
+    <p class="highlight"><%= metrics.pendingNurses %></p>
+    <small>Click to review approvals</small>
+  </a>
+  <a href="/admin/patients?status=New" class="metric clickable">
+    <h3>New Patients</h3>
+    <p class="highlight"><%= metrics.newPatients %></p>
+    <small>Click to view requests</small>
+  </a>
+  <a href="/admin/agents?status=Pending" class="metric clickable">
+    <h3>Pending Agents</h3>
+    <p class="highlight"><%= metrics.pendingAgents %></p>
+    <small>Click to review approvals</small>
+  </a>
+</section>
+
+<section class="quick-stats">
+  <div class="stat-item">
+    <span class="stat-label">Total Nurses:</span>
+    <span class="stat-value"><%= metrics.totalNurses %></span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Available:</span>
+    <span class="stat-value"><%= metrics.availableNurses %></span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Total Patients:</span>
+    <span class="stat-value"><%= metrics.totalPatients %></span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Total Agents:</span>
+    <span class="stat-value"><%= metrics.totalAgents %></span>
+  </div>
 </section>
 
 <section class="content-section">
   <h2>Admin Actions</h2>
   <div class="cards-grid">
-    <a href="/admin/nurses" class="card link-card">
-      <h3>Review Nurses</h3>
-      <p>Approve or reject nurse applications and assign agent ownership.</p>
+    <a href="/admin/nurses?status=Pending" class="card link-card approval-card">
+      <div class="card-icon">👩‍⚕️</div>
+      <h3>Pending Nurses</h3>
+      <p><%= metrics.pendingNurses %> waiting for approval</p>
+      <span class="btn btn-primary">Review Now</span>
+    </a>
+    <a href="/admin/nurses?status=Approved" class="card link-card">
+      <div class="card-icon">✅</div>
+      <h3>Approved Nurses</h3>
+      <p>Manage approved nurses</p>
+      <span class="btn btn-secondary">View All</span>
+    </a>
+    <a href="/admin/agents?status=Pending" class="card link-card approval-card">
+      <div class="card-icon">🤝</div>
+      <h3>Pending Agents</h3>
+      <p><%= metrics.pendingAgents %> waiting for approval</p>
+      <span class="btn btn-primary">Review Now</span>
+    </a>
+    <a href="/admin/agents?status=Approved" class="card link-card">
+      <div class="card-icon">✅</div>
+      <h3>Approved Agents</h3>
+      <p>Manage approved agents</p>
+      <span class="btn btn-secondary">View All</span>
     </a>
     <a href="/admin/patients" class="card link-card">
-      <h3>Coordinate Patients</h3>
-      <p>Update care status and assign regional agents for follow-up.</p>
+      <div class="card-icon">🏥</div>
+      <h3>Patient Requests</h3>
+      <p><%= metrics.newPatients %> new requests</p>
+      <span class="btn btn-secondary">Coordinate</span>
     </a>
-    <a href="/admin/agents" class="card link-card">
-      <h3>Review Agents</h3>
-      <p>Approve or reject agent registrations for regional operations.</p>
+    <a href="/admin/concerns" class="card link-card">
+      <div class="card-icon">💬</div>
+      <h3>Concerns</h3>
+      <p>View user support requests</p>
+      <span class="btn btn-secondary">View All</span>
     </a>
   </div>
 </section>

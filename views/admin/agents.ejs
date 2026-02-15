@@ -2,68 +2,164 @@
 
 <section class="dashboard-header">
   <h1>Agent Management</h1>
-  <p>Approve or reject regional coordinators before they can access agent tools.</p>
+  <p>Approve, reject, or manage agent registrations. Use filters below to view specific statuses.</p>
 </section>
 
-<form method="GET" action="/admin/agents" class="filter-row">
-  <label>
-    Status Filter
-    <select name="status">
-      <option value="All" <%= statusFilter === 'All' ? 'selected' : '' %>>All</option>
-      <% agentStatuses.forEach((status) => { %>
-      <option value="<%= status %>" <%= statusFilter === status ? 'selected' : '' %>><%= status %></option>
-      <% }) %>
-    </select>
-  </label>
-  <button type="submit" class="btn">Apply</button>
-</form>
+<!-- Filter Tabs -->
+<nav class="filter-tabs">
+  <a href="/admin/agents?status=All" class="tab <%= statusFilter === 'All' ? 'active' : '' %>">All</a>
+  <a href="/admin/agents?status=Pending" class="tab <%= statusFilter === 'Pending' ? 'active' : '' %>">
+    Pending <% if (agents.filter(a => a.status === 'Pending').length > 0) { %><span class="badge"><%= agents.filter(a => a.status === 'Pending').length %></span><% } %>
+  </a>
+  <a href="/admin/agents?status=Approved" class="tab <%= statusFilter === 'Approved' ? 'active' : '' %>">Approved</a>
+  <a href="/admin/agents?status=Rejected" class="tab <%= statusFilter === 'Rejected' ? 'active' : '' %>">Rejected</a>
+</nav>
 
-<section class="table-shell">
-  <table>
-    <thead>
-      <tr>
-        <th>Agent ID</th>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>City / Region</th>
-        <th>Created By</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% if (!agents.length) { %>
-      <tr>
-        <td colspan="9">No agent records found for this filter.</td>
-      </tr>
+<!-- Quick Actions for Pending -->
+<% if (statusFilter === 'Pending') { %>
+<section class="pending-alert">
+  <h3>⚠️ Pending Approvals</h3>
+  <p>You have <strong><%= agents.length %></strong> agents waiting for approval. Review and take action below.</p>
+</section>
+<% } %>
+
+<% if (!agents.length) { %>
+<section class="empty-state">
+  <p>No agents found for this filter.</p>
+  <a href="/admin/agents" class="btn">View All Agents</a>
+</section>
+<% } else { %>
+<section class="cards-container">
+  <% agents.forEach((agent) => { %>
+  <div class="nurse-card status-<%= agent.status.toLowerCase() %>">
+    <div class="card-header">
+      <div class="nurse-avatar">
+        <%= agent.fullName.charAt(0).toUpperCase() %>
+      </div>
+      <div class="nurse-title">
+        <h3><%= agent.fullName %></h3>
+        <span class="status-badge <%= agent.status.toLowerCase() %>"><%= agent.status %></span>
+      </div>
+    </div>
+    
+    <div class="card-body">
+      <div class="info-row">
+        <span class="info-label">📧 Email</span>
+        <span class="info-value"><%= agent.email %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">📱 Phone</span>
+        <span class="info-value"><%= agent.phoneNumber %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">🌍 Region</span>
+        <span class="info-value"><%= agent.region || '-' %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">👤 Created By</span>
+        <span class="info-value"><%= agent.createdByAgentEmail || 'System/Admin' %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">📅 Registered</span>
+        <span class="info-value"><%= agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : '-' %></span>
+      </div>
+    </div>
+    
+    <div class="card-actions">
+      <% if (agent.status === 'Pending') { %>
+        <!-- Approve Button -->
+        <form method="POST" action="/admin/agents/<%= agent.id %>/update" class="action-form">
+          <input type="hidden" name="status" value="Approved">
+          <input type="hidden" name="statusFilter" value="<%= statusFilter %>">
+          <button type="submit" class="btn btn-success">✅ Approve</button>
+        </form>
+        
+        <!-- Reject Button with Modal -->
+        <button class="btn btn-danger" onclick="openRejectModal('<%= agent.id %>', '<%= agent.fullName.replace(/'/g, "\\'") %>')">❌ Reject</button>
       <% } %>
-      <% agents.forEach((agent) => { %>
-      <tr>
-        <td>A-<%= agent.id %></td>
-        <td><%= agent.fullName %></td>
-        <td><%= agent.email %></td>
-        <td><%= agent.phoneNumber %></td>
-        <td><%= agent.region %></td>
-        <td><%= agent.createdByAgentEmail || 'System/Admin' %></td>
-        <td><span class="pill"><%= agent.status %></span></td>
-        <td><%= agent.createdAt.slice(0, 10) %></td>
-        <td>
-          <form method="POST" action="/admin/agents/<%= agent.id %>/update" class="table-form">
-            <input type="hidden" name="statusFilter" value="<%= statusFilter %>" />
-            <select name="status">
-              <% agentStatuses.forEach((status) => { %>
-              <option value="<%= status %>" <%= agent.status === status ? 'selected' : '' %>><%= status %></option>
-              <% }) %>
-            </select>
-            <button type="submit" class="btn small">Save</button>
-          </form>
-        </td>
-      </tr>
-      <% }) %>
-    </tbody>
-  </table>
+      
+      <!-- Delete Button -->
+      <button class="btn btn-outline" onclick="openDeleteModal('<%= agent.id %>', '<%= agent.fullName.replace(/'/g, "\\'") %>', 'agent')">🗑️ Delete</button>
+    </div>
+  </div>
+  <% }); %>
 </section>
+<% } %>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Reject Agent</h2>
+      <span class="close" onclick="closeRejectModal()">&times;</span>
+    </div>
+    <form method="POST" action="/admin/agents/<%= agents[0] ? agents[0].id : '' %>/update" id="rejectForm">
+      <input type="hidden" name="status" value="Rejected">
+      <input type="hidden" name="statusFilter" value="<%= statusFilter %>">
+      <div class="modal-body">
+        <p>You are rejecting: <strong id="rejectAgentName"></strong></p>
+        <div class="form-group">
+          <label for="rejectReason">Reason for rejection (optional):</label>
+          <textarea name="rejectReason" id="rejectReason" rows="4" placeholder="Enter reason for rejection..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+        <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Delete Permanently</h2>
+      <span class="close" onclick="closeDeleteModal()">&times;</span>
+    </div>
+    <form method="POST" id="deleteForm" action="">
+      <div class="modal-body">
+        <div class="warning-box">
+          <p>⚠️ <strong>Warning:</strong> This action cannot be undone!</p>
+          <p>You are about to delete: <strong id="deleteName"></strong></p>
+          <p>This will remove all data from the database. The person can register again.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+        <button type="submit" class="btn btn-danger">🗑️ Delete Forever</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openRejectModal(id, name) {
+  document.getElementById('rejectModal').style.display = 'block';
+  document.getElementById('rejectAgentName').textContent = name;
+  document.getElementById('rejectForm').action = '/admin/agents/' + id + '/update';
+}
+
+function closeRejectModal() {
+  document.getElementById('rejectModal').style.display = 'none';
+}
+
+function openDeleteModal(id, name, type) {
+  document.getElementById('deleteModal').style.display = 'block';
+  document.getElementById('deleteName').textContent = name;
+  document.getElementById('deleteForm').action = '/admin/user/' + id + '/delete?type=' + type;
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+  if (event.target.classList.contains('modal')) {
+    event.target.style.display = 'none';
+  }
+}
+</script>
 
 <%- include("../partials/footer") %>

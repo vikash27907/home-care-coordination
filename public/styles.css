@@ -1305,3 +1305,409 @@ thead th {
 .loading .btn-text {
   animation: pulse 1s ease-in-out infinite;
 }
+
+/* ============================================================
+   ADMIN DASHBOARD CARD-BASED LAYOUT
+   ============================================================ */
+
+/* Filter Tabs */
+.filter-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.filter-tabs .tab {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.filter-tabs .tab:hover {
+  background: var(--surface-soft);
+  color: var(--primary);
+}
+
+.filter-tabs .tab.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.filter-tabs .tab .badge {
+  display: inline-block;
+  background: var(--danger);
+  color: white;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 5px;
+}
+
+/* Pending Alert */
+.pending-alert {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border: 1px solid #ffcc80;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.pending-alert h3 {
+  color: #e65100;
+  margin-bottom: 0.5rem;
+}
+
+.pending-alert p {
+  color: #bf360c;
+}
+
+/* Cards Container */
+.cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* Nurse/Agent Card */
+.nurse-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nurse-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(16, 42, 68, 0.12);
+}
+
+.nurse-card.status-pending {
+  border-left: 4px solid #ff9800;
+}
+
+.nurse-card.status-approved {
+  border-left: 4px solid var(--success);
+}
+
+.nurse-card.status-rejected {
+  border-left: 4px solid var(--danger);
+  opacity: 0.8;
+}
+
+.nurse-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.nurse-card .nurse-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.nurse-card .nurse-title {
+  flex: 1;
+}
+
+.nurse-card .nurse-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.nurse-card .card-body {
+  margin-bottom: 1rem;
+}
+
+.nurse-card .info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--surface-soft);
+}
+
+.nurse-card .info-row:last-child {
+  border-bottom: none;
+}
+
+.nurse-card .info-label {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.nurse-card .info-value {
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+.nurse-card .info-value.skills {
+  font-size: 0.8rem;
+}
+
+.nurse-card .card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.nurse-card .action-form {
+  display: inline;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-badge.pending,
+.status-badge.pending {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.status-badge.approved,
+.status-badge.approved {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-badge.rejected,
+.status-badge.rejected {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Buttons */
+.btn-success {
+  background: var(--success);
+  color: white;
+  border: none;
+}
+
+.btn-success:hover {
+  background: #0d5c2d;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: #991b1b;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.btn-outline:hover {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+/* Toggle Label */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.toggle-label input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--surface);
+  margin: 5% auto;
+  padding: 0;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  animation: modalSlide 0.3s ease;
+}
+
+@keyframes modalSlide {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-header .close {
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.modal-header .close:hover {
+  color: var(--ink);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.warning-box {
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.warning-box p {
+  margin: 0.5rem 0;
+  color: var(--danger);
+}
+
+/* Dashboard Clickable Metrics */
+.metric.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metric.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(16, 42, 68, 0.15);
+  border-color: var(--primary);
+}
+
+.metric .highlight {
+  font-size: 2.5rem;
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.metric.clickable .highlight {
+  color: var(--primary-deep);
+}
+
+/* Quick Stats */
+.quick-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.quick-stats .stat-item {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.quick-stats .stat-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.quick-stats .stat-value {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Approval Card */
+.approval-card {
+  border: 2px solid #ff9800;
+  background: linear-gradient(135deg, #fff8e1 0%, #fffde7 100%);
+}
+
+/* Card Icon */
+.card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+}
+
+.empty-state p {
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
