@@ -34,7 +34,7 @@
           <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
           <a href="/login" class="nav-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
           <% } %> <% if (currentUser && currentUser.role === 'admin') { %>
-          <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>">Admin Dashboard</a>
+          <a href="/admin/dashboard" class="<%= currentPath === '/admin/dashboard' ? 'active' : '' %>">Dashboard</a>
           <a href="/admin/nurses" class="<%= currentPath === '/admin/nurses' ? 'active' : '' %>">Nurses</a>
           <a href="/admin/patients" class="<%= currentPath === '/admin/patients' ? 'active' : '' %>">Patients</a>
           <a href="/admin/agents" class="<%= currentPath === '/admin/agents' ? 'active' : '' %>">Agents</a>
@@ -42,7 +42,7 @@
             <button type="submit" class="logout-btn">Logout</button>
           </form>
           <% } %> <% if (currentUser && currentUser.role === 'agent') { %>
-          <a href="/agent" class="<%= currentPath === '/agent' ? 'active' : '' %>">Agent Dashboard</a>
+          <a href="/agent/dashboard" class="<%= currentPath === '/agent/dashboard' ? 'active' : '' %>">Dashboard</a>
           <a href="/agent/patients/new" class="<%= currentPath === '/agent/patients/new' ? 'active' : '' %>"
             >Add Patient</a
           >
@@ -52,7 +52,7 @@
             <button type="submit" class="logout-btn">Logout</button>
           </form>
           <% } %> <% if (currentUser && currentUser.role === 'nurse') { %>
-          <a href="/nurse/profile" class="<%= currentPath === '/nurse/profile' ? 'active' : '' %>">My Profile</a>
+          <a href="/nurse/dashboard" class="<%= currentPath === '/nurse/dashboard' ? 'active' : '' %>">Dashboard</a>
           <form method="POST" action="/logout" class="inline-form">
             <button type="submit" class="logout-btn">Logout</button>
           </form>

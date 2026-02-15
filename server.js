@@ -206,9 +206,9 @@ function getApprovedAgents(store) {
 }
 
 function redirectByRole(role) {
-  if (role === "admin") return "/admin";
-  if (role === "agent") return "/agent";
-  if (role === "nurse") return "/nurse/profile";
+  if (role === "admin") return "/admin/dashboard";
+  if (role === "agent") return "/agent/dashboard";
+  if (role === "nurse") return "/nurse/dashboard";
   return "/";
 }
 
@@ -809,7 +809,13 @@ function createAgentUnderAgent(req, res, failRedirect) {
 }
 
 seedAdmin();
+
+// Health check routes - support both /health and /healthz
 app.get("/health", (req, res) => {
+  res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
+});
+
+app.get("/healthz", (req, res) => {
   res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
 });
 
@@ -1042,6 +1048,11 @@ app.get("/admin", requireRole("admin"), (req, res) => {
   return res.render("admin/dashboard", { title: "Admin Dashboard", metrics });
 });
 
+// Admin Dashboard route - redirects to /admin
+app.get("/admin/dashboard", requireRole("admin"), (req, res) => {
+  return res.redirect("/admin");
+});
+
 app.get("/admin/nurses", requireRole("admin"), (req, res) => {
   const statusFilter = String(req.query.status || "All");
   const store = readNormalizedStore();
@@ -1262,6 +1273,11 @@ app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
     transferTargets,
     createdAgents
   });
+});
+
+// Agent Dashboard route - redirects to /agent
+app.get("/agent/dashboard", requireRole("agent"), requireApprovedAgent, (req, res) => {
+  return res.redirect("/agent");
 });
 
 app.get("/agent/patients/new", requireRole("agent"), requireApprovedAgent, (req, res) => {
@@ -1552,6 +1568,11 @@ app.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, (req, res)
     referralTotal: Number(referralTotal.toFixed(2)),
     referralLink: `/agent/nurses/new?ref=${encodeURIComponent(nurse.referralCode)}`
   });
+});
+
+// Nurse Dashboard route - redirects to /nurse/profile
+app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, (req, res) => {
+  return res.redirect("/nurse/profile");
 });
 
 app.post("/nurse/profile/public", requireRole("nurse"), requireApprovedNurse, (req, res) => {
