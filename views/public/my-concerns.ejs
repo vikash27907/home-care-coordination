@@ -1,0 +1,54 @@
+<%- include('../partials/head') %>
+
+<div class="container">
+  <div class="page-header">
+    <h1>My Concerns</h1>
+    <p>Track the status of your submitted concerns and support tickets.</p>
+  </div>
+
+  <div class="content-card">
+    <div class="actions-bar">
+      <a href="/concern/new" class="btn btn-primary">Raise New Concern</a>
+    </div>
+
+    <% if (concerns.length === 0) { %>
+      <div class="empty-state">
+        <p>You haven't raised any concerns yet.</p>
+        <a href="/concern/new" class="btn btn-secondary">Raise a Concern</a>
+      </div>
+    <% } else { %>
+      <div class="concerns-list">
+        <% concerns.forEach(function(concern) { %>
+          <div class="concern-item">
+            <div class="concern-header">
+              <span class="concern-status status-<%= concern.status.toLowerCase().replace(' ', '-') %>">
+                <%= concern.status %>
+              </span>
+              <span class="concern-date">
+                <%= new Date(concern.createdAt).toLocaleDateString('en-IN', { 
+                  day: 'numeric', 
+                  month: 'short', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) %>
+              </span>
+            </div>
+            <div class="concern-category"><%= concern.category %></div>
+            <h3 class="concern-subject"><%= concern.subject %></h3>
+            <p class="concern-message"><%= concern.message %></p>
+            
+            <% if (concern.adminReply) { %>
+              <div class="admin-reply">
+                <strong>Admin Response:</strong>
+                <p><%= concern.adminReply %></p>
+              </div>
+            <% } %>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -6,6 +6,7 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const { readStore, writeStore, nextId } = require("./src/store");
+const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification } = require("./src/email");
 const fs = require("fs");
 
 // ============================================================
@@ -216,6 +217,14 @@ app.use(validateRequest);
 const NURSE_STATUSES = ["Pending", "Approved", "Rejected"];
 const AGENT_STATUSES = ["Pending", "Approved", "Rejected"];
 const PATIENT_STATUSES = ["New", "In Progress", "Closed"];
+const CONCERN_STATUSES = ["Open", "In Progress", "Resolved"];
+const CONCERN_CATEGORIES = [
+  "Profile Issue",
+  "Payment Issue", 
+  "Approval Issue",
+  "Technical Issue",
+  "Other"
+];
 const COMMISSION_TYPES = ["Percent", "Flat"];
 const DEFAULT_ADMIN_EMAIL = "admin@homecare.local";
 const DEFAULT_ADMIN_PASSWORD = "Admin@123";
@@ -432,6 +441,82 @@ function parseBudgetRange(budgetMinRaw, budgetMaxRaw) {
 
 function now() {
   return new Date().toISOString();
+}
+
+// ============================================================
+// EMAIL VERIFICATION & PASSWORD RESET HELPERS
+// ============================================================
+
+// Generate a secure random token
+function generateToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+// Generate a temporary password
+function generateTempPassword() {
+  return crypto.randomBytes(4).toString("hex").toUpperCase();
+}
+
+// Check if reset token is expired (15 minutes)
+function isResetTokenExpired(expiry) {
+  if (!expiry) return true;
+  return new Date(expiry) < new Date();
+}
+
+// Mask Aadhar number (show last 4 digits)
+function maskAadhar(aadharNumber) {
+  if (!aadharNumber || aadharNumber.length < 4) return "XXXX-XXXX-XXXX";
+  const cleaned = aadharNumber.replace(/\D/g, "");
+  if (cleaned.length < 4) return "XXXX-XXXX-XXXX";
+  return `XXXX-XXXX-${cleaned.slice(-4)}`;
+}
+
+// ============================================================
+// CONCERN SYSTEM HELPERS
+// ============================================================
+
+// Get all concerns
+function getAllConcerns(store) {
+  if (!Array.isArray(store.concerns)) {
+    return [];
+  }
+  return store.concerns.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+// Get concerns by user ID
+function getConcernsByUserId(store, userId) {
+  return store.concerns
+    ? store.concerns.filter(c => c.userId === userId).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    : [];
+}
+
+// Get open concerns count
+function getOpenConcernsCount(store) {
+  return store.concerns ? store.concerns.filter(c => c.status === "Open").length : 0;
+}
+
+// Create a new concern
+function createConcern(store, userId, role, userName, subject, message, category) {
+  const concernId = nextId(store, "concern");
+  const concern = {
+    id: concernId,
+    userId,
+    role,
+    userName,
+    subject,
+    message,
+    category,
+    status: "Open",
+    adminReply: "",
+    createdAt: now(),
+    updatedAt: now()
+  };
+  
+  if (!store.concerns) {
+    store.concerns = [];
+  }
+  store.concerns.push(concern);
+  return concern;
 }
 
 function setFlash(req, type, message) {
@@ -700,6 +785,23 @@ function normalizeStoreShape(store) {
       user.phoneNumber = (agent && agent.phoneNumber) || (nurse && nurse.phoneNumber) || "";
       changed = true;
     }
+    // Email verification fields
+    if (typeof user.emailVerified !== "boolean") {
+      user.emailVerified = false;
+      changed = true;
+    }
+    if (typeof user.verificationToken !== "string") {
+      user.verificationToken = "";
+      changed = true;
+    }
+    if (typeof user.resetToken !== "string") {
+      user.resetToken = "";
+      changed = true;
+    }
+    if (typeof user.resetTokenExpiry !== "string") {
+      user.resetTokenExpiry = "";
+      changed = true;
+    }
   });
 
   store.patients.forEach((patient) => {
@@ -897,6 +999,8 @@ app.use((req, res, next) => {
   res.locals.agentStatuses = AGENT_STATUSES;
   res.locals.patientStatuses = PATIENT_STATUSES;
   res.locals.commissionTypes = COMMISSION_TYPES;
+  res.locals.concernStatuses = CONCERN_STATUSES;
+  res.locals.concernCategories = CONCERN_CATEGORIES;
   // Add validation options to all views
   res.locals.durationOptions = DURATION_OPTIONS;
   res.locals.careRequirementOptions = CARE_REQUIREMENT_OPTIONS;
@@ -1333,6 +1437,12 @@ app.post("/login", (req, res) => {
 
   if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
     setFlash(req, "error", "Invalid credentials.");
+    return res.redirect("/login");
+  }
+
+  // Check if email is verified for nurses and agents
+  if ((user.role === "nurse" || user.role === "agent") && !user.emailVerified) {
+    setFlash(req, "error", "Please verify your email before logging in. Check your inbox for the verification link.");
     return res.redirect("/login");
   }
 
@@ -2101,6 +2211,452 @@ app.post("/nurse/profile/complete", requireRole("nurse"), requireApprovedNurse, 
   return res.redirect("/nurse/profile");
 });
 
+// ============================================================
+// EMAIL VERIFICATION ROUTES
+// ============================================================
+
+// Email verification page
+app.get("/verify-email/:token", (req, res) => {
+  const token = String(req.params.token || "").trim();
+  if (!token) {
+    setFlash(req, "error", "Invalid verification link.");
+    return res.redirect("/login");
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.verificationToken === token);
+
+  if (!user) {
+    setFlash(req, "error", "Invalid or expired verification link.");
+    return res.redirect("/login");
+  }
+
+  // Mark email as verified
+  user.emailVerified = true;
+  user.verificationToken = "";
+  writeStore(store);
+
+  setFlash(req, "success", "Email verified successfully! You can now log in.");
+  return res.redirect("/login");
+});
+
+// ============================================================
+// PASSWORD RESET ROUTES
+// ============================================================
+
+// Forgot password page
+app.get("/forgot-password", (req, res) => {
+  if (req.currentUser) {
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+  return res.render("auth/forgot-password", { title: "Forgot Password" });
+});
+
+// Request password reset
+app.post("/forgot-password", (req, res) => {
+  const emailInput = String(req.body.email || "").trim();
+  
+  if (!emailInput) {
+    setFlash(req, "error", "Please enter your email address.");
+    return res.redirect("/forgot-password");
+  }
+
+  const emailValidation = validateEmail(emailInput);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", "Please enter a valid email address.");
+    return res.redirect("/forgot-password");
+  }
+
+  const email = emailValidation.value;
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.email === email);
+
+  if (user) {
+    // Generate reset token (15 minutes expiry)
+    const resetToken = generateToken();
+    const expiryDate = new Date();
+    expiryDate.setMinutes(expiryDate.getMinutes() + 15);
+    
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = expiryDate.toISOString();
+    writeStore(store);
+
+    // Send reset email (async, don't wait)
+    sendResetPasswordEmail(user.email, user.fullName, resetToken).catch(err => {
+      console.error("Failed to send reset email:", err);
+    });
+  }
+
+  // Always show success to prevent email enumeration
+  setFlash(req, "success", "If an account exists with this email, you will receive a password reset link shortly.");
+  return res.redirect("/login");
+});
+
+// Reset password page
+app.get("/reset-password/:token", (req, res) => {
+  const token = String(req.params.token || "").trim();
+  
+  if (!token) {
+    setFlash(req, "error", "Invalid reset link.");
+    return res.redirect("/forgot-password");
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.resetToken === token);
+
+  if (!user) {
+    setFlash(req, "error", "Invalid or expired reset link.");
+    return res.redirect("/forgot-password");
+  }
+
+  if (isResetTokenExpired(user.resetTokenExpiry)) {
+    // Clear expired token
+    user.resetToken = "";
+    user.resetTokenExpiry = "";
+    writeStore(store);
+    
+    setFlash(req, "error", "Reset link has expired. Please request a new one.");
+    return res.redirect("/forgot-password");
+  }
+
+  return res.render("auth/reset-password", { 
+    title: "Reset Password",
+    token: token 
+  });
+});
+
+// Process password reset
+app.post("/reset-password/:token", (req, res) => {
+  const token = String(req.params.token || "").trim();
+  const newPassword = String(req.body.password || "");
+  const confirmPassword = String(req.body.confirmPassword || "");
+
+  if (!token || !newPassword || !confirmPassword) {
+    setFlash(req, "error", "All fields are required.");
+    return res.redirect(`/reset-password/${token}`);
+  }
+
+  if (newPassword !== confirmPassword) {
+    setFlash(req, "error", "Passwords do not match.");
+    return res.redirect(`/reset-password/${token}`);
+  }
+
+  if (newPassword.length < 6) {
+    setFlash(req, "error", "Password must be at least 6 characters.");
+    return res.redirect(`/reset-password/${token}`);
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.resetToken === token);
+
+  if (!user) {
+    setFlash(req, "error", "Invalid reset link.");
+    return res.redirect("/forgot-password");
+  }
+
+  if (isResetTokenExpired(user.resetTokenExpiry)) {
+    user.resetToken = "";
+    user.resetTokenExpiry = "";
+    writeStore(store);
+    
+    setFlash(req, "error", "Reset link has expired. Please request a new one.");
+    return res.redirect("/forgot-password");
+  }
+
+  // Update password
+  user.passwordHash = bcrypt.hashSync(newPassword, 10);
+  user.resetToken = "";
+  user.resetTokenExpiry = "";
+  writeStore(store);
+
+  setFlash(req, "success", "Password reset successfully! Please log in with your new password.");
+  return res.redirect("/login");
+});
+
+// ============================================================
+// CONCERN SYSTEM ROUTES
+// ============================================================
+
+// Raise concern page (for logged in users)
+app.get("/concern/new", requireAuth, (req, res) => {
+  return res.render("public/raise-concern", { title: "Raise Concern" });
+});
+
+// Submit concern
+app.post("/concern/new", requireAuth, (req, res) => {
+  const subject = String(req.body.subject || "").trim();
+  const message = String(req.body.message || "").trim();
+  const category = String(req.body.category || "").trim();
+
+  if (!subject || !message || !category) {
+    setFlash(req, "error", "All fields are required.");
+    return res.redirect("/concern/new");
+  }
+
+  if (!CONCERN_CATEGORIES.includes(category)) {
+    setFlash(req, "error", "Invalid category.");
+    return res.redirect("/concern/new");
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.id === req.currentUser.id);
+
+  if (!user) {
+    setFlash(req, "error", "User not found.");
+    return res.redirect("/");
+  }
+
+  // Create concern
+  const concern = createConcern(
+    store,
+    user.id,
+    user.role,
+    user.fullName,
+    subject,
+    message,
+    category
+  );
+  writeStore(store);
+
+  // Send notification to admin (async)
+  const adminEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
+  sendConcernNotification(adminEmail, {
+    userName: user.fullName,
+    role: user.role,
+    subject,
+    message,
+    category,
+    createdAt: concern.createdAt
+  }).catch(err => {
+    console.error("Failed to send admin notification:", err);
+  });
+
+  setFlash(req, "success", "Your concern has been submitted. We will get back to you shortly.");
+  
+  // Redirect based on role
+  if (user.role === "nurse") return res.redirect("/nurse/profile");
+  if (user.role === "agent") return res.redirect("/agent");
+  if (user.role === "admin") return res.redirect("/admin/concerns");
+  return res.redirect("/");
+});
+
+// User's concerns list
+app.get("/my-concerns", requireAuth, (req, res) => {
+  const store = readNormalizedStore();
+  const concerns = getConcernsByUserId(store, req.currentUser.id);
+  
+  return res.render("public/my-concerns", { 
+    title: "My Concerns",
+    concerns
+  });
+});
+
+// ============================================================
+// ADMIN CONCERNS ROUTES
+// ============================================================
+
+// Admin concerns list
+app.get("/admin/concerns", requireRole("admin"), (req, res) => {
+  const statusFilter = String(req.query.status || "All");
+  const store = readNormalizedStore();
+  const concerns = getAllConcerns(store);
+  
+  const filteredConcerns = statusFilter === "All" 
+    ? concerns 
+    : concerns.filter(c => c.status === statusFilter);
+
+  const openCount = getOpenConcernsCount(store);
+
+  return res.render("admin/concerns", {
+    title: "Manage Concerns",
+    concerns: filteredConcerns,
+    statusFilter,
+    openCount
+  });
+});
+
+// Admin update concern status
+app.post("/admin/concerns/:id/update", requireRole("admin"), (req, res) => {
+  const concernId = Number.parseInt(req.params.id, 10);
+  const status = String(req.body.status || "").trim();
+  const adminReply = String(req.body.adminReply || "").trim();
+  const statusFilter = String(req.body.statusFilter || "All");
+
+  if (!CONCERN_STATUSES.includes(status)) {
+    setFlash(req, "error", "Invalid status.");
+    return res.redirect(`/admin/concerns?status=${encodeURIComponent(statusFilter)}`);
+  }
+
+  const store = readNormalizedStore();
+  const concern = store.concerns.find((item) => item.id === concernId);
+
+  if (!concern) {
+    setFlash(req, "error", "Concern not found.");
+    return res.redirect(`/admin/concerns?status=${encodeURIComponent(statusFilter)}`);
+  }
+
+  concern.status = status;
+  concern.adminReply = adminReply;
+  concern.updatedAt = now();
+  writeStore(store);
+
+  setFlash(req, "success", "Concern updated successfully.");
+  return res.redirect(`/admin/concerns?status=${encodeURIComponent(statusFilter)}`);
+});
+
+// ============================================================
+// ADMIN USER MANAGEMENT ROUTES
+// ============================================================
+
+// Admin view user profile
+app.get("/admin/user/view/:role/:id", requireRole("admin"), (req, res) => {
+  const role = String(req.params.role || "");
+  const userId = Number.parseInt(req.params.id, 10);
+  
+  if (!["nurse", "agent"].includes(role) || Number.isNaN(userId)) {
+    return res.status(404).render("shared/not-found", { title: "Not Found" });
+  }
+
+  const store = readNormalizedStore();
+  
+  if (role === "nurse") {
+    const nurse = store.nurses.find((item) => item.id === userId);
+    if (!nurse) {
+      return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+    }
+    const user = store.users.find((item) => item.id === nurse.userId);
+    const concerns = getConcernsByUserId(store, nurse.userId);
+    
+    return res.render("admin/view-nurse", {
+      title: "View Nurse",
+      nurse,
+      user,
+      concerns,
+      maskedAadhar: maskAadhar(nurse.aadharNumber)
+    });
+  }
+  
+  if (role === "agent") {
+    const agent = store.agents.find((item) => item.id === userId);
+    if (!agent) {
+      return res.status(404).render("shared/not-found", { title: "Agent Not Found" });
+    }
+    const user = store.users.find((item) => item.id === agent.userId);
+    const concerns = getConcernsByUserId(store, agent.userId);
+    
+    return res.render("admin/view-agent", {
+      title: "View Agent",
+      agent,
+      user,
+      concerns
+    });
+  }
+
+  return res.status(404).render("shared/not-found", { title: "Not Found" });
+});
+
+// Admin reset user password
+app.post("/admin/user/:id/reset-password", requireRole("admin"), (req, res) => {
+  const userId = Number.parseInt(req.params.id, 10);
+  
+  if (Number.isNaN(userId)) {
+    setFlash(req, "error", "Invalid user.");
+    return res.redirect("/admin/nurses");
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.id === userId);
+
+  if (!user) {
+    setFlash(req, "error", "User not found.");
+    return res.redirect("/admin/nurses");
+  }
+
+  // Generate temporary password
+  const tempPassword = generateTempPassword();
+  user.passwordHash = bcrypt.hashSync(tempPassword, 10);
+  writeStore(store);
+
+  // Show temp password (in production, would send via secure channel)
+  setFlash(req, "success", `Password reset successful! Temporary password: ${tempPassword}`);
+  
+  // Redirect based on role
+  if (user.role === "nurse") return res.redirect("/admin/nurses");
+  if (user.role === "agent") return res.redirect("/admin/agents");
+  return res.redirect("/admin");
+});
+
+// Admin toggle email verification
+app.post("/admin/user/:id/verify-email", requireRole("admin"), (req, res) => {
+  const userId = Number.parseInt(req.params.id, 10);
+  
+  if (Number.isNaN(userId)) {
+    setFlash(req, "error", "Invalid user.");
+    return res.redirect("/admin/nurses");
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.id === userId);
+
+  if (!user) {
+    setFlash(req, "error", "User not found.");
+    return res.redirect("/admin/nurses");
+  }
+
+  // Toggle email verified status
+  user.emailVerified = !user.emailVerified;
+  writeStore(store);
+
+  const status = user.emailVerified ? "verified" : "unverified";
+  setFlash(req, "success", `Email ${status} status updated.`);
+  
+  if (user.role === "nurse") return res.redirect("/admin/nurses");
+  if (user.role === "agent") return res.redirect("/admin/agents");
+  return res.redirect("/admin");
+});
+
+// Admin delete user account
+app.post("/admin/user/:id/delete", requireRole("admin"), (req, res) => {
+  const userId = Number.parseInt(req.params.id, 10);
+  
+  if (Number.isNaN(userId)) {
+    setFlash(req, "error", "Invalid user.");
+    return res.redirect("/admin/nurses");
+  }
+
+  const store = readNormalizedStore();
+  const user = store.users.find((item) => item.id === userId);
+
+  if (!user) {
+    setFlash(req, "error", "User not found.");
+    return res.redirect("/admin/nurses");
+  }
+
+  // Don't allow deleting admin
+  if (user.role === "admin") {
+    setFlash(req, "error", "Cannot delete admin account.");
+    return res.redirect("/admin");
+  }
+
+  // Remove from nurses or agents
+  if (user.role === "nurse") {
+    store.nurses = store.nurses.filter((item) => item.userId !== userId);
+  } else if (user.role === "agent") {
+    store.agents = store.agents.filter((item) => item.userId !== userId);
+  }
+
+  // Remove user
+  store.users = store.users.filter((item) => item.id !== userId);
+  writeStore(store);
+
+  setFlash(req, "success", "User account deleted successfully.");
+  
+  if (user.role === "nurse") return res.redirect("/admin/nurses");
+  if (user.role === "agent") return res.redirect("/admin/agents");
+  return res.redirect("/admin");
+});
+
+// 404 handler
 app.use((req, res) => {
   return res.status(404).render("shared/not-found", { title: "Page Not Found" });
 });

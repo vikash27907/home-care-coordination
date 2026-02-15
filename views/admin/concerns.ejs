@@ -1,0 +1,153 @@
+<%- include('../partials/head') %>
+
+<div class="admin-container">
+  <%- include('sidebar') %>
+  
+  <div class="admin-content">
+    <div class="page-header">
+      <h1>Manage Concerns</h1>
+      <% if (openCount > 0) { %>
+        <span class="notification-badge"><%= openCount %> Open</span>
+      <% } %>
+    </div>
+
+    <div class="tabs">
+      <a href="/admin/concerns?status=All" class="tab <%= statusFilter === 'All' ? 'active' : '' %>">All</a>
+      <a href="/admin/concerns?status=Open" class="tab <%= statusFilter === 'Open' ? 'active' : '' %>">
+        Open <% if (openCount > 0) { %><span class="badge"><%= openCount %></span><% } %>
+      </a>
+      <a href="/admin/concerns?status=In Progress" class="tab <%= statusFilter === 'In Progress' ? 'active' : '' %>">In Progress</a>
+      <a href="/admin/concerns?status=Resolved" class="tab <%= statusFilter === 'Resolved' ? 'active' : '' %>">Resolved</a>
+    </div>
+
+    <div class="content-card">
+      <% if (concerns.length === 0) { %>
+        <div class="empty-state">
+          <p>No concerns found.</p>
+        </div>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Role</th>
+              <th>Category</th>
+              <th>Subject</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% concerns.forEach(function(concern) { %>
+              <tr>
+                <td><%= concern.userName %></td>
+                <td><span class="role-badge"><%= concern.role %></span></td>
+                <td><%= concern.category %></td>
+                <td><%= concern.subject %></td>
+                <td><%= new Date(concern.createdAt).toLocaleDateString('en-IN') %></td>
+                <td>
+                  <span class="status-badge status-<%= concern.status.toLowerCase().replace(' ', '-') %>">
+                    <%= concern.status %>
+                  </span>
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-secondary" onclick="showConcernModal(<%= JSON.stringify(concern) %>)">
+                    View
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<!-- Concern Detail Modal -->
+<div id="concernModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Concern Details</h2>
+      <span class="close" onclick="closeModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div id="modalContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showConcernModal(concern) {
+  const modal = document.getElementById('concernModal');
+  const content = document.getElementById('modalContent');
+  
+  content.innerHTML = `
+    <div class="detail-row">
+      <strong>User:</strong> ${concern.userName} (${concern.role})
+    </div>
+    <div class="detail-row">
+      <strong>Category:</strong> ${concern.category}
+    </div>
+    <div class="detail-row">
+      <strong>Date:</strong> ${new Date(concern.createdAt).toLocaleString()}
+    </div>
+    <div class="detail-row">
+      <strong>Status:</strong> 
+      <span class="status-badge status-${concern.status.toLowerCase().replace(' ', '-')}">${concern.status}</span>
+    </div>
+    <div class="detail-row">
+      <strong>Subject:</strong> ${concern.subject}
+    </div>
+    <div class="detail-row">
+      <strong>Message:</strong>
+      <p class="message-content">${concern.message}</p>
+    </div>
+    ${concern.adminReply ? `
+      <div class="detail-row">
+        <strong>Admin Reply:</strong>
+        <p class="message-content">${concern.adminReply}</p>
+      </div>
+    ` : ''}
+    
+    <form action="/admin/concerns/${concern.id}/update" method="POST" class="concern-response-form">
+      <input type="hidden" name="statusFilter" value="<%= statusFilter %>">
+      
+      <div class="form-group">
+        <label for="status">Update Status</label>
+        <select name="status" id="status">
+          <option value="Open" ${concern.status === 'Open' ? 'selected' : ''}>Open</option>
+          <option value="In Progress" ${concern.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+          <option value="Resolved" ${concern.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="adminReply">Reply to User</label>
+        <textarea name="adminReply" id="adminReply" rows="4" placeholder="Write your response...">${concern.adminReply || ''}</textarea>
+      </div>
+      
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Concern</button>
+      </div>
+    </form>
+  `;
+  
+  modal.style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('concernModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const modal = document.getElementById('concernModal');
+  if (event.target === modal) {
+    modal.style.display = 'none';
+  }
+}
+</script>
+
+<%- include('../partials/footer') %>

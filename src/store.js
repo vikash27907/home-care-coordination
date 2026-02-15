@@ -14,12 +14,14 @@ function defaultStore() {
       user: 1,
       nurse: 1,
       patient: 1,
-      agent: 1
+      agent: 1,
+      concern: 1
     },
     users: [],
     nurses: [],
     patients: [],
-    agents: []
+    agents: [],
+    concerns: []
   };
 }
 
