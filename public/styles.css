@@ -1711,3 +1711,175 @@ thead th {
   color: var(--muted);
   margin-bottom: 1rem;
 }
+
+/* ============================================================
+   ADMIN GRID LAYOUT - NEW STYLES
+   ============================================================ */
+
+/* Admin cards grid - 3 columns desktop, 2 tablet, 1 mobile */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 1200px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Page header styles */
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  font-size: 1.8rem;
+  color: #0a2540;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-header .page-icon {
+  font-size: 1.5rem;
+}
+
+.page-header p {
+  color: #5a7a9a;
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Search and filter bar */
+.filter-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 250px;
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 0.85rem 1rem 0.85rem 2.75rem;
+  border: 2px solid #e0e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.search-box .search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #5a7a9a;
+  font-size: 1rem;
+}
+
+.filter-dropdown select {
+  padding: 0.85rem 1.5rem 0.85rem 1rem;
+  border: 2px solid #e0e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
+  min-width: 150px;
+}
+
+/* Admin main content area */
+.admin-main {
+  margin-left: 260px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f5f9 50%, #f0fdfa 100%);
+  padding: 2rem;
+}
+
+/* Status tab styling */
+.filter-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.filter-tabs .tab {
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  background: transparent;
+  color: #5a7a9a;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.filter-tabs .tab:hover {
+  background: #f0f5f8;
+  color: #0a2540;
+}
+
+.filter-tabs .tab.active {
+  background: #667eea;
+  color: white;
+}
+
+.filter-tabs .tab .badge {
+  display: inline-block;
+  background: #ff6b6b;
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+/* Quick stats in admin */
+.quick-stats {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(10,37,64,0.05);
+}
+
+.quick-stats .stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.quick-stats .stat-label {
+  color: #5a7a9a;
+  font-weight: 500;
+}
+
+.quick-stats .stat-value {
+  font-weight: 700;
+  color: #0a2540;
+}

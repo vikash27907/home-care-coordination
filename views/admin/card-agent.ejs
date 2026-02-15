@@ -1,0 +1,235 @@
+<%
+const roleIcon = '🏢';
+%>
+
+<div class="profile-card" onclick="window.location.href='/admin/user/view/agent/<%= agent.id %>'">
+  <div class="card-top">
+    <div class="profile-image-container">
+      <div class="profile-img-placeholder agent">
+        <%= agent.fullName.charAt(0).toUpperCase() %>
+      </div>
+      <div class="role-badge-icon"><%= roleIcon %></div>
+    </div>
+    
+    <div class="profile-info">
+      <h3 class="profile-name"><%= agent.fullName %></h3>
+      <span class="status-badge <%= agent.status.toLowerCase() %>"><%= agent.status %></span>
+    </div>
+  </div>
+  
+  <div class="card-details">
+    <div class="detail-row">
+      <span class="detail-icon">📧</span>
+      <span class="detail-value"><%= agent.email %></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-icon">📱</span>
+      <span class="detail-value"><%= agent.phoneNumber %></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-icon">🌍</span>
+      <span class="detail-value"><%= agent.region || 'Not specified' %></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-icon">👤</span>
+      <span class="detail-value"><%= agent.createdByAgentEmail || 'System' %></span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-icon">📅</span>
+      <span class="detail-value"><%= agent.createdAt ? new Date(agent.createdAt).toLocaleDateString('en-IN') : 'N/A' %></span>
+    </div>
+  </div>
+  
+  <div class="card-footer">
+    <div class="availability-indicator <%= agent.status === 'Approved' ? 'available' : 'unavailable' %>">
+      <span class="availability-dot"></span>
+      <span><%= agent.status === 'Approved' ? 'Active' : 'Inactive' %></span>
+    </div>
+    <span class="click-hint">Click to manage →</span>
+  </div>
+</div>
+
+<style>
+.profile-card {
+  background: white;
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(10, 37, 64, 0.08);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.profile-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 40px rgba(10, 37, 64, 0.15);
+  border-color: #00d4aa;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e8f0f8;
+}
+
+.profile-image-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-img-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2rem;
+  font-weight: 700;
+  border: 3px solid #e8f5f9;
+}
+
+.profile-img-placeholder.agent {
+  background: linear-gradient(135deg, #00d4aa 0%, #00b894 100%);
+}
+
+.role-badge-icon {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 28px;
+  height: 28px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0a2540;
+  margin: 0 0 0.4rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-badge.pending {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  color: #e65100;
+}
+
+.status-badge.approved {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  color: #2e7d32;
+}
+
+.status-badge.rejected {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  color: #c62828;
+}
+
+.card-details {
+  margin-bottom: 1rem;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f0f5f8;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-icon {
+  font-size: 0.9rem;
+  width: 20px;
+  text-align: center;
+}
+
+.detail-value {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #4a5568;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e8f0f8;
+}
+
+.availability-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.availability-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.availability-indicator.available {
+  color: #00a86b;
+}
+
+.availability-indicator.available .availability-dot {
+  background: #00a86b;
+}
+
+.availability-indicator.unavailable {
+  color: #999;
+}
+
+.availability-indicator.unavailable .availability-dot {
+  background: #ccc;
+}
+
+.click-hint {
+  font-size: 0.75rem;
+  color: #667eea;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.profile-card:hover .click-hint {
+  opacity: 1;
+}
+</style>

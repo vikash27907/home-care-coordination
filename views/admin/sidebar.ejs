@@ -1,0 +1,192 @@
+<%
+const currentPath = typeof currentPath !== 'undefined' ? currentPath : '';
+const pendingCount = typeof pendingNurses !== 'undefined' ? pendingNurses : 0;
+const pendingAgents = typeof pendingAgents !== 'undefined' ? pendingAgents : 0;
+const openConcerns = typeof openConcerns !== 'undefined' ? openConcerns : 0;
+const totalPending = pendingCount + pendingAgents;
+%>
+
+<aside class="admin-sidebar">
+  <div class="sidebar-header">
+    <div class="logo-medical">
+      <span class="logo-icon">⚕️</span>
+      <span class="logo-text">Prisha<span class="accent">Care</span></span>
+    </div>
+  </div>
+  
+  <nav class="sidebar-nav">
+    <a href="/admin" class="nav-item <%= currentPath === '/admin' ? 'active' : '' %>">
+      <span class="nav-icon">📊</span>
+      <span class="nav-text">Dashboard</span>
+    </a>
+    
+    <a href="/admin/approvals" class="nav-item <%= currentPath.includes('approvals') ? 'active' : '' %>">
+      <span class="nav-icon">⏳</span>
+      <span class="nav-text">Pending Approvals</span>
+      <% if (totalPending > 0) { %>
+        <span class="badge-notification"><%= totalPending %></span>
+      <% } %>
+    </a>
+    
+    <a href="/admin/nurses" class="nav-item <%= currentPath.includes('nurses') ? 'active' : '' %>">
+      <span class="nav-icon">👩‍⚕️</span>
+      <span class="nav-text">Nurses</span>
+    </a>
+    
+    <a href="/admin/agents" class="nav-item <%= currentPath.includes('agents') ? 'active' : '' %>">
+      <span class="nav-icon">🏢</span>
+      <span class="nav-text">Agents</span>
+    </a>
+    
+    <a href="/admin/patients" class="nav-item <%= currentPath.includes('patients') ? 'active' : '' %>">
+      <span class="nav-icon">🏥</span>
+      <span class="nav-text">Patients</span>
+    </a>
+    
+    <a href="/admin/concerns" class="nav-item <%= currentPath.includes('concerns') ? 'active' : '' %>">
+      <span class="nav-icon">💬</span>
+      <span class="nav-text">Concerns</span>
+      <% if (openConcerns > 0) { %>
+        <span class="badge-notification concern"><%= openConcerns %></span>
+      <% } %>
+    </a>
+  </nav>
+  
+  <div class="sidebar-footer">
+    <form method="POST" action="/logout">
+      <button type="submit" class="nav-item logout-btn">
+        <span class="nav-icon">🚪</span>
+        <span class="nav-text">Logout</span>
+      </button>
+    </form>
+  </div>
+</aside>
+
+<style>
+.admin-sidebar {
+  width: 260px;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #0a2540 0%, #0d3a5c 100%);
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.logo-medical {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 1.8rem;
+}
+
+.logo-text {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: white;
+  font-family: 'Inter', sans-serif;
+}
+
+.logo-text .accent {
+  color: #00d4aa;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.5rem;
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.nav-item:hover {
+  background: rgba(255,255,255,0.08);
+  color: white;
+}
+
+.nav-item.active {
+  background: rgba(0, 212, 170, 0.15);
+  color: #00d4aa;
+  border-left-color: #00d4aa;
+}
+
+.nav-icon {
+  font-size: 1.2rem;
+  width: 24px;
+  text-align: center;
+}
+
+.nav-text {
+  flex: 1;
+}
+
+.badge-notification {
+  background: #ff6b6b;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.badge-notification.concern {
+  background: #ffd93d;
+  color: #333;
+}
+
+.sidebar-footer {
+  padding: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.logout-btn {
+  background: rgba(255,107,107,0.15);
+  color: #ff6b6b;
+  border: none;
+}
+
+.logout-btn:hover {
+  background: rgba(255,107,107,0.25);
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .admin-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .admin-sidebar.open {
+    transform: translateX(0);
+  }
+}
+</style>

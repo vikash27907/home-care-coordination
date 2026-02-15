@@ -1,0 +1,328 @@
+<%- include("../partials/head") %>
+
+<div class="admin-main">
+  <!-- Back Button -->
+  <a href="/admin/nurses" class="back-link">← Back to Nurses</a>
+  
+  <!-- Header with Actions -->
+  <div class="profile-header">
+    <div class="profile-header-left">
+      <div class="profile-avatar-large">
+        <% if (nurse.profileImageUrl || nurse.profileImagePath) { %>
+          <img src="<%= nurse.profileImageUrl || nurse.profileImagePath %>" alt="<%= nurse.fullName %>">
+        <% } else { %>
+          <div class="avatar-placeholder"><%= nurse.fullName.charAt(0).toUpperCase() %></div>
+        <% } %>
+        <div class="role-icon">👩‍⚕️</div>
+      </div>
+      <div>
+        <h1 class="profile-name"><%= nurse.fullName %></h1>
+        <span class="status-badge <%= nurse.status.toLowerCase() %>"><%= nurse.status %></span>
+      </div>
+    </div>
+    
+    <div class="profile-actions">
+      <% if (nurse.status === 'Pending') { %>
+        <form method="POST" action="/admin/nurses/<%= nurse.id %>/update" style="display:inline;">
+          <input type="hidden" name="status" value="Approved">
+          <input type="hidden" name="isAvailable" value="true">
+          <button type="submit" class="btn btn-success">✅ Approve</button>
+        </form>
+        <button class="btn btn-danger" onclick="showRejectModal()">❌ Reject</button>
+      <% } %>
+      <button class="btn btn-primary" onclick="toggleEditMode()">✏️ Edit Profile</button>
+      <button class="btn btn-outline" onclick="showDeleteModal()">🗑️ Delete</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="profile-tabs">
+    <button class="tab-btn active" onclick="showTab('basic')">Basic Info</button>
+    <button class="tab-btn" onclick="showTab('professional')">Professional</button>
+    <button class="tab-btn" onclick="showTab('security')">Security</button>
+  </div>
+
+  <!-- Tab Contents -->
+  <div class="profile-content">
+    <!-- Basic Info Tab -->
+    <div id="basic" class="tab-panel active">
+      <div class="info-card">
+        <h3>Personal Information</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <label>Full Name</label>
+            <span class="view-mode"><%= nurse.fullName %></span>
+            <input type="text" name="fullName" value="<%= nurse.fullName %>" class="edit-mode" style="display:none;">
+          </div>
+          <div class="info-item">
+            <label>Email</label>
+            <span class="view-mode"><%= nurse.email %></span>
+            <input type="email" name="email" value="<%= nurse.email %>" class="edit-mode" style="display:none;">
+          </div>
+          <div class="info-item">
+            <label>Phone</label>
+            <span class="view-mode"><%= nurse.phoneNumber %></span>
+            <input type="tel" name="phoneNumber" value="<%= nurse.phoneNumber %>" class="edit-mode" style="display:none;">
+          </div>
+          <div class="info-item">
+            <label>City</label>
+            <span class="view-mode"><%= nurse.city || 'Not specified' %></span>
+            <input type="text" name="city" value="<%= nurse.city || '' %>" class="edit-mode" style="display:none;">
+          </div>
+          <div class="info-item">
+            <label>Work City</label>
+            <span class="view-mode"><%= nurse.workCity || 'Not specified' %></span>
+            <input type="text" name="workCity" value="<%= nurse.workCity || '' %>" class="edit-mode" style="display:none;">
+          </div>
+          <div class="info-item">
+            <label>Address</label>
+            <span class="view-mode"><%= nurse.address || 'Not specified' %></span>
+            <textarea name="address" class="edit-mode" style="display:none;"><%= nurse.address || '' %></textarea>
+          </div>
+          <div class="info-item">
+            <label>Aadhaar</label>
+            <span class="view-mode"><%= maskedAadhar %></span>
+            <input type="text" name="aadharNumber" value="<%= nurse.aadharNumber || '' %>" class="edit-mode" placeholder="12-digit Aadhaar" style="display:none;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Professional Tab -->
+    <div id="professional" class="tab-panel">
+      <div class="info-card">
+        <h3>Professional Details</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <label>Experience</label>
+            <span class="view-mode"><%= nurse.experienceYears || 0 %> years</span>
+            <input type="number" name="experienceYears" value="<%= nurse.experienceYears || 0 %>" class="edit-mode" style="display:none;">
+          </div>
+          <div class="info-item">
+            <label>Education Level</label>
+            <span class="view-mode"><%= nurse.educationLevel || 'Not specified' %></span>
+            <select name="educationLevel" class="edit-mode" style="display:none;">
+              <option value="">Select Education</option>
+              <option value="10th Pass" <%= nurse.educationLevel === '10th Pass' ? 'selected' : '' %>>10th Pass</option>
+              <option value="12th Pass" <%= nurse.educationLevel === '12th Pass' ? 'selected' : '' %>>12th Pass</option>
+              <option value="ANM" <%= nurse.educationLevel === 'ANM' ? 'selected' : '' %>>ANM</option>
+              <option value="GNM" <%= nurse.educationLevel === 'GNM' ? 'selected' : '' %>>GNM</option>
+              <option value="BSc Nursing" <%= nurse.educationLevel === 'BSc Nursing' ? 'selected' : '' %>>BSc Nursing</option>
+              <option value="MSc Nursing" <%= nurse.educationLevel === 'MSc Nursing' ? 'selected' : '' %>>MSc Nursing</option>
+              <option value="GDA" <%= nurse.educationLevel === 'GDA' ? 'selected' : '' %>>GDA</option>
+            </select>
+          </div>
+          <div class="info-item full-width">
+            <label>Skills</label>
+            <div class="view-mode">
+              <% if (nurse.skills && nurse.skills.length > 0) { %>
+                <% nurse.skills.forEach(function(skill) { %>
+                  <span class="skill-tag"><%= skill %></span>
+                <% }); %>
+              <% } else { %>
+                No skills specified
+              <% } %>
+            </div>
+          </div>
+          <div class="info-item full-width">
+            <label>Availability</label>
+            <span class="view-mode"><%= (nurse.availability || []).join(', ') || 'Not specified' %></span>
+          </div>
+          <div class="info-item">
+            <label>Publicly Available</label>
+            <span class="view-mode"><%= nurse.isAvailable ? 'Yes' : 'No' %></span>
+            <label class="edit-mode toggle-switch" style="display:none;">
+              <input type="checkbox" name="isAvailable" <%= nurse.isAvailable ? 'checked' : '' %>>
+              <span>Toggle availability</span>
+            </label>
+          </div>
+          <div class="info-item">
+            <label>Referral Code</label>
+            <code><%= nurse.referralCode || 'N/A' %></code>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Tab -->
+    <div id="security" class="tab-panel">
+      <div class="info-card">
+        <h3>Security & Access</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <label>Email Verified</label>
+            <span class="view-mode">
+              <% if (user && user.emailVerified) { %>
+                <span class="verified-badge">✅ Verified</span>
+              <% } else { %>
+                <span class="unverified-badge">❌ Not Verified</span>
+              <% } %>
+            </span>
+          </div>
+          <div class="info-item">
+            <label>Password</label>
+            <span class="view-mode">••••••••</span>
+            <form method="POST" action="/admin/user/<%= user ? user.id : '' %>/reset-password" class="edit-mode" style="display:none;">
+              <button type="submit" class="btn btn-warning">Reset Password</button>
+            </form>
+          </div>
+          <div class="info-item full-width">
+            <label>Set New Password (Admin)</label>
+            <form method="POST" action="/admin/user/<%= user ? user.id : '' %>/change-password" class="edit-mode" style="display:none;">
+              <input type="password" name="newPassword" placeholder="Enter new password" style="width:100%;padding:0.75rem;border:2px solid #e0e8f0;border-radius:8px;">
+              <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Change Password</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Mode Actions -->
+  <div class="edit-actions" style="display:none;" id="editActions">
+    <button class="btn btn-secondary" onclick="toggleEditMode()">Cancel</button>
+    <button class="btn btn-success" onclick="saveProfile()">💾 Save Changes</button>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div id="rejectModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Reject Nurse</h2>
+      <span class="close" onclick="closeModal('rejectModal')">&times;</span>
+    </div>
+    <form method="POST" action="/admin/nurses/<%= nurse.id %>/update">
+      <input type="hidden" name="status" value="Rejected">
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Reason for rejection</label>
+          <textarea name="rejectReason" rows="4" placeholder="Enter reason..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('rejectModal')">Cancel</button>
+        <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Delete Permanently</h2>
+      <span class="close" onclick="closeModal('deleteModal')">&times;</span>
+    </div>
+    <form method="POST" action="/admin/user/<%= user ? user.id : '' %>/delete">
+      <div class="modal-body">
+        <div class="warning-box">
+          <p>⚠️ <strong>Warning:</strong> This action cannot be undone!</p>
+          <p>All data for <strong><%= nurse.fullName %></strong> will be permanently deleted.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+        <button type="submit" class="btn btn-danger">🗑️ Delete Forever</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+let isEditMode = false;
+
+function toggleEditMode() {
+  isEditMode = !isEditMode;
+  document.querySelectorAll('.view-mode').forEach(el => el.style.display = isEditMode ? 'none' : 'inline');
+  document.querySelectorAll('.edit-mode').forEach(el => el.style.display = isEditMode ? 'block' : 'none');
+  document.getElementById('editActions').style.display = isEditMode ? 'flex' : 'none';
+}
+
+function showTab(tabId) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function showRejectModal() { document.getElementById('rejectModal').style.display = 'block'; }
+function showDeleteModal() { document.getElementById('deleteModal').style.display = 'block'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+window.onclick = function(event) {
+  if (event.target.classList.contains('modal')) {
+    event.target.style.display = 'none';
+  }
+}
+</script>
+
+<style>
+.admin-main { margin-left: 260px; padding: 2rem; background: #f0f7ff; min-height: 100vh; }
+
+.back-link { display: inline-block; margin-bottom: 1rem; color: #667eea; font-weight: 600; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+
+.profile-header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 2rem; border-radius: 20px; box-shadow: 0 4px 20px rgba(10,37,64,0.08); margin-bottom: 1.5rem; }
+
+.profile-header-left { display: flex; align-items: center; gap: 1.5rem; }
+
+.profile-avatar-large { position: relative; }
+.profile-avatar-large img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid #e8f5f9; }
+.avatar-placeholder { width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.5rem; font-weight: 700; }
+.role-icon { position: absolute; bottom: 0; right: 0; width: 35px; height: 35px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+
+.profile-name { margin: 0 0 0.5rem 0; font-size: 1.5rem; color: #0a2540; }
+
+.profile-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+.profile-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: white; padding: 0.5rem; border-radius: 12px; }
+.tab-btn { padding: 0.75rem 1.5rem; border: none; background: transparent; border-radius: 8px; font-weight: 600; color: #5a7a9a; cursor: pointer; transition: all 0.2s; }
+.tab-btn.active { background: #667eea; color: white; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.info-card { background: white; padding: 2rem; border-radius: 20px; box-shadow: 0 4px 20px rgba(10,37,64,0.08); }
+.info-card h3 { margin: 0 0 1.5rem 0; color: #0a2540; font-size: 1.2rem; border-bottom: 2px solid #e8f0f8; padding-bottom: 0.75rem; }
+
+.info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+.info-item { }
+.info-item.full-width { grid-column: 1 / -1; }
+.info-item label { display: block; font-size: 0.85rem; color: #5a7a9a; margin-bottom: 0.4rem; font-weight: 600; }
+.info-item .view-mode { font-size: 1rem; color: #0a2540; font-weight: 500; }
+.info-item input, .info-item select, .info-item textarea { width: 100%; padding: 0.75rem; border: 2px solid #e0e8f0; border-radius: 8px; font-size: 0.95rem; }
+.info-item input:focus, .info-item select:focus, .info-item textarea:focus { outline: none; border-color: #667eea; }
+
+.skill-tag { display: inline-block; background: linear-gradient(135deg, #667eea20, #764ba220); color: #667eea; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin: 0.2rem; }
+
+.verified-badge { color: #00a86b; font-weight: 700; }
+.unverified-badge { color: #999; font-weight: 700; }
+
+.edit-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding: 1rem; background: white; border-radius: 12px; }
+
+.btn { padding: 0.75rem 1.25rem; border-radius: 10px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-success { background: #00a86b; color: white; }
+.btn-danger { background: #ff6b6b; color: white; }
+.btn-primary { background: #667eea; color: white; }
+.btn-secondary { background: #e8f0f8; color: #5a7a9a; }
+.btn-warning { background: #ff9800; color: white; }
+.btn-outline { background: transparent; border: 2px solid #e0e8f0; color: #5a7a9a; }
+
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+.modal-content { background: white; margin: 10% auto; padding: 0; border-radius: 16px; width: 90%; max-width: 500px; }
+.modal-header { display: flex; justify-content: space-between; padding: 1.5rem; border-bottom: 1px solid #e8f0f8; }
+.modal-header h2 { margin: 0; font-size: 1.25rem; }
+.close { font-size: 1.5rem; cursor: pointer; color: #999; }
+.modal-body { padding: 1.5rem; }
+.modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e8f0f8; display: flex; gap: 0.75rem; justify-content: flex-end; }
+
+.warning-box { background: #fff5f5; border: 1px solid #fecaca; padding: 1rem; border-radius: 12px; }
+.warning-box p { margin: 0.5rem 0; color: #c62828; }
+
+.toggle-switch { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.toggle-switch input { width: 40px; height: 20px; }
+</style>
+
+<%- include("../partials/footer") %>
