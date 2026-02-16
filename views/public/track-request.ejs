@@ -1,0 +1,65 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <h1>Track / Modify Your Request</h1>
+  <p>Enter your Request ID to view or update your care request details.</p>
+
+  <form method="GET" action="/track-request" class="form-grid">
+    <label class="full-width">
+      Enter your Request ID
+      <input name="requestId" type="text" placeholder="e.g., REQ-2026-123456" value="<%= locals.requestId || '' %>" required />
+    </label>
+    <button type="submit" class="btn primary full-width">Search</button>
+  </form>
+
+  <% if (locals.error) { %>
+    <div class="alert error">
+      <%= locals.error %>
+    </div>
+  <% } %>
+
+  <% if (locals.request) { %>
+    <hr />
+    <h2>Editing Request: <%= request.requestId %></h2>
+    <form method="POST" action="/update-request" class="form-grid">
+      <input type="hidden" name="requestId" value="<%= request.requestId %>" />
+      
+      <label>
+        Minimum Monthly Budget (₹)
+        <input name="budgetMin" type="number" min="5000" max="200000" step="100" value="<%= request.budgetMin %>" />
+      </label>
+      
+      <label>
+        Maximum Monthly Budget (₹)
+        <input name="budgetMax" type="number" min="5000" max="200000" step="100" value="<%= request.budgetMax %>" />
+      </label>
+      
+      <label class="full-width">
+        Duration
+        <select name="duration">
+          <% durationOptions.forEach(function(opt) { %>
+            <option value="<%= opt.value %>" <%= request.duration === opt.value ? 'selected' : '' %>><%= opt.label %></option>
+          <% }); %>
+        </select>
+      </label>
+      
+      <label class="full-width">
+        Care Requirement
+        <select name="careRequirement">
+          <% careRequirementOptions.forEach(function(opt) { %>
+            <option value="<%= opt.value %>" <%= request.careRequirement === opt.value ? 'selected' : '' %>><%= opt.label %></option>
+          <% }); %>
+        </select>
+      </label>
+      
+      <label class="full-width">
+        Notes
+        <textarea name="notes" rows="4"><%= request.notes %></textarea>
+      </label>
+      
+      <button type="submit" class="btn primary full-width">Update Request</button>
+    </form>
+  <% } %>
+</section>
+
+<%- include("../partials/footer") %>

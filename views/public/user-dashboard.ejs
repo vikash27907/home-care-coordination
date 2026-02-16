@@ -1,0 +1,80 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>My Dashboard</h1>
+  <p>Welcome, <strong><%= currentUser.fullName %></strong>! Here are your care requests.</p>
+</section>
+
+<section class="content-section">
+  <div class="section-header">
+    <h2>My Care Requests</h2>
+    <a href="/request-care" class="btn primary">Submit New Request</a>
+  </div>
+  
+  <% if (!userRequests || userRequests.length === 0) { %>
+    <div class="empty-state">
+      <p>You haven't submitted any care requests yet.</p>
+      <a href="/request-care" class="btn">Submit Your First Request</a>
+    </div>
+  <% } else { %>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>Request ID</th>
+            <th>Care Type</th>
+            <th>City</th>
+            <th>Budget Range</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% userRequests.forEach((request) => { %>
+            <tr>
+              <td><strong><%= request.requestId %></strong></td>
+              <td><%= request.careRequirement %></td>
+              <td><%= request.city %></td>
+              <td>
+                <% if (typeof request.budgetMin === 'number' && typeof request.budgetMax === 'number') { %>
+                  ₹<%= request.budgetMin.toLocaleString('en-IN') %> - ₹<%= request.budgetMax.toLocaleString('en-IN') %>
+                <% } else { %>
+                  Not specified
+                <% } %>
+              </td>
+              <td><span class="pill"><%= request.status %></span></td>
+              <td><%= request.createdAt ? request.createdAt.slice(0, 10) : '-' %></td>
+              <td>
+                <a href="/track-request?requestId=<%= request.requestId %>" class="btn small">View/Edit</a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<section class="quick-actions">
+  <h2>Quick Actions</h2>
+  <div class="cards-grid">
+    <a href="/request-care" class="card link-card">
+      <div class="card-icon">📝</div>
+      <h3>New Care Request</h3>
+      <p>Submit a new patient care request</p>
+    </a>
+    <a href="/track-request" class="card link-card">
+      <div class="card-icon">🔍</div>
+      <h3>Track Request</h3>
+      <p>View or modify your existing requests</p>
+    </a>
+    <a href="/concern/new" class="card link-card">
+      <div class="card-icon">💬</div>
+      <h3>Raise Concern</h3>
+      <p>Contact support for any issues</p>
+    </a>
+  </div>
+</section>
+
+<%- include("../partials/footer") %>

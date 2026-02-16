@@ -457,6 +457,22 @@ function generateTempPassword() {
   return crypto.randomBytes(4).toString("hex").toUpperCase();
 }
 
+function generateRequestId(store) {
+  let requestId;
+  let isUnique = false;
+  
+  do {
+    const year = new Date().getFullYear();
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    requestId = `REQ-${year}-${randomNum}`;
+    
+    // Check for uniqueness
+    isUnique = !store.patients.some(patient => patient.requestId === requestId);
+  } while (!isUnique);
+  
+  return requestId;
+}
+
 // Check if reset token is expired (15 minutes)
 function isResetTokenExpired(expiry) {
   if (!expiry) return true;
@@ -537,7 +553,8 @@ function redirectByRole(role) {
   if (role === "admin") return "/admin/dashboard";
   if (role === "agent") return "/agent/dashboard";
   if (role === "nurse") return "/nurse/dashboard";
-  return "/";
+  // For regular users (user role), redirect to their dashboard
+  return "/dashboard";
 }
 
 function generateReferralCode(usedCodes) {
@@ -1336,8 +1353,11 @@ app.post("/request-care", (req, res) => {
   }
 
   const patientId = nextId(store, "patient");
+  const requestId = generateRequestId(store);
   store.patients.push({
     id: patientId,
+    requestId,
+    userId: req.currentUser ? req.currentUser.id : null,
     fullName,
     email,
     phoneNumber,
@@ -1346,6 +1366,7 @@ app.post("/request-care", (req, res) => {
     duration,
     budgetMin: budget.budgetMin,
     budgetMax: budget.budgetMax,
+    notes: req.body.notes || "",
     status: "New",
     agentEmail: "",
     nurseId: null,
@@ -1368,8 +1389,136 @@ app.post("/request-care", (req, res) => {
   });
   writeStore(store);
 
-  setFlash(req, "success", "Request submitted. Our team will coordinate your care manually.");
-  return res.redirect("/request-care");
+  return res.redirect(`/request-success?requestId=${requestId}`);
+});
+
+app.get("/request-success", (req, res) => {
+  const { requestId } = req.query;
+  if (!requestId) {
+    return res.redirect("/request-care");
+  }
+  res.render("public/request-success", {
+    title: "Request Submitted",
+    requestId
+  });
+});
+
+app.get("/track-request", (req, res) => {
+  const { requestId } = req.query;
+  const renderData = {
+    title: "Track Request",
+    requestId: requestId || ""
+  };
+
+  if (requestId) {
+    const store = readNormalizedStore();
+    const request = store.patients.find(p => p.requestId === requestId);
+    
+    if (request) {
+      // Permission check: allow if user is owner, admin, or agent assigned to this request
+      let hasPermission = false;
+      
+      if (req.currentUser) {
+        // Admin can view all
+        if (req.currentUser.role === "admin") {
+          hasPermission = true;
+        }
+        // Agent can view if assigned
+        else if (req.currentUser.role === "agent") {
+          if (request.agentEmail && request.agentEmail.toLowerCase() === req.currentUser.email.toLowerCase()) {
+            hasPermission = true;
+          }
+        }
+        // Nurse can view if assigned to this patient
+        else if (req.currentUser.role === "nurse") {
+          if (request.nurseId && req.nurseRecord && request.nurseId === req.nurseRecord.id) {
+            hasPermission = true;
+          }
+        }
+        // Regular user can view their own requests
+        else if (request.userId === req.currentUser.id) {
+          hasPermission = true;
+        }
+      } else {
+        // Public user can only view if they have the correct request ID (no additional check needed)
+        hasPermission = true;
+      }
+      
+      if (hasPermission) {
+        renderData.request = request;
+      } else {
+        renderData.error = "You don't have permission to view this request.";
+      }
+    } else {
+      renderData.error = "Request not found.";
+    }
+  }
+
+  res.render("public/track-request", renderData);
+});
+
+app.post("/update-request", (req, res) => {
+  const { requestId, budgetMin, budgetMax, duration, careRequirement, notes } = req.body;
+
+  if (!requestId) {
+    setFlash(req, "error", "Invalid request ID.");
+    return res.redirect("/track-request");
+  }
+
+  const budget = validateBudget(budgetMin, budgetMax);
+  if (budget.error) {
+    setFlash(req, "error", budget.error);
+    return res.redirect(`/track-request?requestId=${requestId}`);
+  }
+
+  const store = readNormalizedStore();
+  const requestIndex = store.patients.findIndex(p => p.requestId === requestId);
+
+  if (requestIndex === -1) {
+    setFlash(req, "error", "Request not found.");
+    return res.redirect("/track-request");
+  }
+
+  const request = store.patients[requestIndex];
+  
+  // Permission check: allow if user is owner or admin
+  let hasPermission = false;
+  
+  if (req.currentUser) {
+    // Admin can edit all
+    if (req.currentUser.role === "admin") {
+      hasPermission = true;
+    }
+    // Agent can edit if assigned
+    else if (req.currentUser.role === "agent") {
+      if (request.agentEmail && request.agentEmail.toLowerCase() === req.currentUser.email.toLowerCase()) {
+        hasPermission = true;
+      }
+    }
+    // Regular user can edit their own requests only
+    else if (request.userId === req.currentUser.id) {
+      hasPermission = true;
+    }
+  } else {
+    // Public users can edit with correct request ID
+    hasPermission = true;
+  }
+  
+  if (!hasPermission) {
+    setFlash(req, "error", "You don't have permission to edit this request.");
+    return res.redirect("/track-request");
+  }
+
+  store.patients[requestIndex].budgetMin = budget.budgetMin;
+  store.patients[requestIndex].budgetMax = budget.budgetMax;
+  store.patients[requestIndex].duration = duration;
+  store.patients[requestIndex].careRequirement = careRequirement;
+  store.patients[requestIndex].notes = notes;
+
+  writeStore(store);
+
+  setFlash(req, "success", "Request updated successfully.");
+  res.redirect(`/track-request?requestId=${requestId}`);
 });
 
 app.get("/nurse-signup", (req, res) => {
@@ -1461,6 +1610,32 @@ app.post("/login", (req, res) => {
 app.post("/logout", requireAuth, (req, res) => {
   req.session.destroy(() => {
     res.redirect("/");
+  });
+});
+
+// User Dashboard - for logged-in users who are not admin/agent/nurse
+// Shows their care requests
+app.get("/dashboard", requireAuth, (req, res) => {
+  // Redirect admin, agent, and nurse to their respective dashboards
+  if (req.currentUser.role === "admin") {
+    return res.redirect("/admin");
+  }
+  if (req.currentUser.role === "agent") {
+    return res.redirect("/agent");
+  }
+  if (req.currentUser.role === "nurse") {
+    return res.redirect("/nurse/profile");
+  }
+  
+  // For regular users, show their requests
+  const store = readNormalizedStore();
+  const userRequests = store.patients
+    .filter((item) => item.userId === req.currentUser.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return res.render("public/user-dashboard", {
+    title: "My Dashboard",
+    userRequests
   });
 });
 
@@ -1675,7 +1850,7 @@ app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
   const store = readNormalizedStore();
 
   const patients = store.patients
-    .filter((item) => normalizeEmail(item.agentEmail) === agentEmail)
+    .filter((item) => normalizeEmail(item.agentEmail) === agentEmail || (item.userId && item.userId === req.currentUser.id))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
   const nurses = store.nurses

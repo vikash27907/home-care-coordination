@@ -21,6 +21,50 @@
 </section>
 
 <section class="content-section">
+  <h2>My Care Requests</h2>
+  <div class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>Request ID</th>
+          <th>Care Type</th>
+          <th>City</th>
+          <th>Budget Range</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% const myRequests = patients.filter(p => p.userId === currentUser.id); %>
+        <% if (!myRequests.length) { %>
+          <tr>
+            <td colspan="6">You have not created any care requests yet.</td>
+          </tr>
+        <% } %>
+        <% myRequests.forEach((patient) => { %>
+          <tr>
+            <td><%= patient.requestId %></td>
+            <td><%= patient.careRequirement %></td>
+            <td><%= patient.city %></td>
+            <td>
+              <% if (typeof patient.budgetMin === 'number' && typeof patient.budgetMax === 'number') { %>
+                <%= patient.budgetMin.toFixed(2) %> - <%= patient.budgetMax.toFixed(2) %>
+              <% } else { %>
+                Open
+              <% } %>
+            </td>
+            <td><span class="pill"><%= patient.status %></span></td>
+            <td>
+              <a href="/track-request?requestId=<%= patient.requestId %>" class="btn small">View/Edit</a>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="content-section">
   <h2>Your Patients and Financials</h2>
   <div class="table-shell">
     <table>

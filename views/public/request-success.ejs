@@ -1,0 +1,20 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <div class="success-container">
+    <h1>Request Submitted Successfully</h1>
+    <p>Your request has been received. Please save this ID to track or modify your request.</p>
+    
+    <div class="request-id-display">
+      <strong>Your Request ID:</strong>
+      <span><%= requestId %></span>
+    </div>
+    
+    <div class="button-group">
+      <a href="/request-care" class="btn">Submit Another Request</a>
+      <a href="/track-request?requestId=<%= requestId %>" class="btn primary">Track / Modify Request</a>
+    </div>
+  </div>
+</section>
+
+<%- include("../partials/footer") %>
