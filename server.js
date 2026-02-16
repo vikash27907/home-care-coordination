@@ -5,8 +5,8 @@ const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
-const { readStore, writeStore, nextId, initializeStore } = require("./src/store");
-const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification } = require("./src/email");
+const { readStore, writeStore, nextId, initializeStore, getPatientByRequestId, createPatient } = require("./src/store");
+const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification, sendRequestConfirmationEmail } = require("./src/email");
 const { initializeDatabase } = require("./src/schema");
 const { pool } = require("./src/db");
 const fs = require("fs");
@@ -242,6 +242,14 @@ app.use(validateRequest);
 
 const NURSE_STATUSES = ["Pending", "Approved", "Rejected"];
 const AGENT_STATUSES = ["Pending", "Approved", "Rejected"];
+// Standardized request statuses
+const REQUEST_STATUSES = [
+  "Requested",
+  "Waiting for Acceptance",
+  "Agent Will Contact You Soon",
+  "Nurse Will Be Assigned Shortly",
+  "Nurse Assigned"
+];
 const PATIENT_STATUSES = ["New", "In Progress", "Closed"];
 const CONCERN_STATUSES = ["Open", "In Progress", "Resolved"];
 const CONCERN_CATEGORIES = [
@@ -254,6 +262,25 @@ const CONCERN_CATEGORIES = [
 const COMMISSION_TYPES = ["Percent", "Flat"];
 const DEFAULT_ADMIN_EMAIL = "admin@homecare.local";
 const DEFAULT_ADMIN_PASSWORD = "Admin@123";
+
+// Valid service schedule values (standardized)
+const VALID_SERVICE_SCHEDULES = [
+  "one_time_visit",
+  "8_hour_shift",
+  "12_hour_shift",
+  "day_shift",
+  "night_shift",
+  "24_hour_shift",
+  "live_in_care"
+];
+
+// Helper function to validate service schedule
+function validateServiceSchedule(serviceSchedule) {
+  if (!serviceSchedule || !VALID_SERVICE_SCHEDULES.includes(serviceSchedule)) {
+    return { valid: false, error: "Please select a valid service schedule." };
+  }
+  return { valid: true, value: serviceSchedule };
+}
 
 const SKILLS_OPTIONS = [
   "Elderly Care",
@@ -1046,18 +1073,28 @@ app.use((req, res, next) => {
   res.locals.concernCategories = CONCERN_CATEGORIES;
   // Add validation options to all views
   res.locals.durationUnits = DURATION_UNITS;
-  // Service schedule options (combined care type + schedule)
+// Service schedule options - standardized list
   const SERVICE_SCHEDULE_OPTIONS = [
-    { value: "full_time_day", label: "Full-time Day Care" },
-    { value: "night_shift", label: "Night Shift Care" },
-    { value: "24_hour_care", label: "24-Hour Care (Live-in)" },
-    { value: "icu_support", label: "ICU Support" },
-    { value: "post_surgery", label: "Post-Surgery Care" },
-    { value: "elderly_care", label: "Elderly Care" },
-    { value: "one_time_visit", label: "One-Time Visit" }
+    { value: "one_time_visit", label: "One-Time Visit" },
+    { value: "8_hour_shift", label: "8-Hour Shift" },
+    { value: "12_hour_shift", label: "12-Hour Shift" },
+    { value: "day_shift", label: "Day Shift" },
+    { value: "night_shift", label: "Night Shift" },
+    { value: "24_hour_shift", label: "24-Hour Shift" },
+    { value: "live_in_care", label: "Live-In Care" }
+  ];
+
+  // Request status options - standardized
+  const REQUEST_STATUSES = [
+    "Requested",
+    "Waiting for Acceptance",
+    "Agent Will Contact You Soon",
+    "Nurse Will Be Assigned Shortly",
+    "Nurse Assigned"
   ];
 
   res.locals.serviceScheduleOptions = SERVICE_SCHEDULE_OPTIONS;
+  res.locals.requestStatuses = REQUEST_STATUSES;
   res.locals.budgetMin = BUDGET_MIN;
   res.locals.budgetMax = BUDGET_MAX;
   res.locals.dailyBudgetMin = DAILY_BUDGET_MIN;
@@ -1405,6 +1442,13 @@ app.post("/request-care", (req, res) => {
     return res.redirect("/request-care");
   }
   
+  // Validate service schedule (new standardized validation)
+  const scheduleValidation = validateServiceSchedule(serviceSchedule);
+  if (!scheduleValidation.valid) {
+    setFlash(req, "error", scheduleValidation.error);
+    return res.redirect("/request-care");
+  }
+  
   // Validate duration
   const durationValidation = validateDuration(durationUnit, durationValue);
   if (durationValidation.error) {
@@ -1447,6 +1491,9 @@ app.post("/request-care", (req, res) => {
   // Store duration in structured format
   const durationString = `${durationValidation.durationValue} ${durationValidation.durationUnit}`;
   
+  // Default status is now "Requested" (new standardized status)
+  const defaultStatus = "Requested";
+  
   store.patients.push({
     id: patientId,
     requestId,
@@ -1464,7 +1511,7 @@ app.post("/request-care", (req, res) => {
     budgetMin: budgetValidation.budgetMin,
     budgetMax: budgetValidation.budgetMax,
     notes: req.body.notes || "",
-    status: "New",
+    status: defaultStatus,
     agentEmail: "",
     nurseId: null,
     nurseAmount: null,
@@ -1485,6 +1532,20 @@ app.post("/request-care", (req, res) => {
     createdAt: now()
   });
   writeStore(store);
+
+// Send confirmation email asynchronously (don't block request)
+  // Get service schedule label for email
+  const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find(s => s.value === serviceSchedule)?.label || serviceSchedule;
+  
+  sendRequestConfirmationEmail(email, fullName, {
+    requestId,
+    status: defaultStatus,
+    serviceSchedule: serviceScheduleLabel,
+    city,
+    createdAt: now()
+  }).catch(err => {
+    console.error("Failed to send confirmation email:", err.message);
+  });
 
   return res.redirect(`/request-success?requestId=${requestId}`);
 });

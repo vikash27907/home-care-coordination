@@ -1,8 +1,8 @@
 <%- include("../partials/head", { title }) %>
 
 <section class="form-section">
-  <h1>Track / Modify Your Request</h1>
-  <p>Enter your Request ID to view or update your care request details.</p>
+  <h1>Track Your Request</h1>
+  <p>Enter your Request ID to view the current status of your care request.</p>
 
   <form method="GET" action="/track-request" class="form-grid">
     <label class="full-width">
@@ -20,46 +20,190 @@
 
   <% if (locals.request) { %>
     <hr />
-    <h2>Editing Request: <%= request.requestId %></h2>
-    <form method="POST" action="/update-request" class="form-grid">
-      <input type="hidden" name="requestId" value="<%= request.requestId %>" />
+    <div class="request-details">
+      <h2>Request Details: <%= request.requestId %></h2>
       
-      <label>
-        Minimum Monthly Budget (₹)
-        <input name="budgetMin" type="number" min="5000" max="200000" step="100" value="<%= request.budgetMin %>" />
-      </label>
+      <!-- Status Badge -->
+      <div class="status-section">
+        <span class="status-badge status-<%= request.status.toLowerCase().replace(/\s+/g, '-') %>">
+          <%= request.status %>
+        </span>
+      </div>
       
-      <label>
-        Maximum Monthly Budget (₹)
-        <input name="budgetMax" type="number" min="5000" max="200000" step="100" value="<%= request.budgetMax %>" />
-      </label>
+      <div class="details-grid">
+        <div class="detail-card">
+          <h3>Personal Information</h3>
+          <table class="details-table">
+            <tr>
+              <td class="label">Full Name:</td>
+              <td><%= request.fullName %></td>
+            </tr>
+            <tr>
+              <td class="label">Email:</td>
+              <td><%= request.email %></td>
+            </tr>
+            <tr>
+              <td class="label">Phone:</td>
+              <td><%= request.phoneNumber %></td>
+            </tr>
+            <tr>
+              <td class="label">City:</td>
+              <td><%= request.city %></td>
+            </tr>
+          </table>
+        </div>
+        
+        <div class="detail-card">
+          <h3>Service Details</h3>
+          <table class="details-table">
+            <tr>
+              <td class="label">Service Schedule:</td>
+              <td><%= request.serviceSchedule %></td>
+            </tr>
+            <tr>
+              <td class="label">Duration:</td>
+              <td><%= request.duration || '-' %></td>
+            </tr>
+            <tr>
+              <td class="label">Budget Range:</td>
+              <td>
+                <% if (request.budgetMin || request.budgetMax) { %>
+                  ₹<%= request.budgetMin ? request.budgetMin.toLocaleString('en-IN') : '0' %> - ₹<%= request.budgetMax ? request.budgetMax.toLocaleString('en-IN') : '0' %>
+                <% } else { %>
+                  -
+                <% } %>
+              </td>
+            </tr>
+            <tr>
+              <td class="label">Notes:</td>
+              <td><%= request.notes || '-' %></td>
+            </tr>
+          </table>
+        </div>
+        
+        <div class="detail-card">
+          <h3>Request Timeline</h3>
+          <table class="details-table">
+            <tr>
+              <td class="label">Request ID:</td>
+              <td><strong><%= request.requestId %></strong></td>
+            </tr>
+            <tr>
+              <td class="label">Submitted:</td>
+              <td><%= request.createdAt ? new Date(request.createdAt).toLocaleString() : '-' %></td>
+            </tr>
+            <tr>
+              <td class="label">Last Updated:</td>
+              <td><%= request.updatedAt ? new Date(request.updatedAt).toLocaleString() : (request.createdAt ? new Date(request.createdAt).toLocaleString() : '-') %></td>
+            </tr>
+          </table>
+        </div>
+      </div>
       
-      <label class="full-width">
-        Duration
-        <select name="duration">
-          <% durationOptions.forEach(function(opt) { %>
-            <option value="<%= opt.value %>" <%= request.duration === opt.value ? 'selected' : '' %>><%= opt.label %></option>
-          <% }); %>
-        </select>
-      </label>
-      
-      <label class="full-width">
-        Care Requirement
-        <select name="careRequirement">
-          <% careRequirementOptions.forEach(function(opt) { %>
-            <option value="<%= opt.value %>" <%= request.careRequirement === opt.value ? 'selected' : '' %>><%= opt.label %></option>
-          <% }); %>
-        </select>
-      </label>
-      
-      <label class="full-width">
-        Notes
-        <textarea name="notes" rows="4"><%= request.notes %></textarea>
-      </label>
-      
-      <button type="submit" class="btn primary full-width">Update Request</button>
-    </form>
+      <div class="action-buttons">
+        <a href="/track-request" class="btn">Search Another Request</a>
+      </div>
+    </div>
   <% } %>
 </section>
+
+<style>
+.status-section {
+  margin: 20px 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  font-size: 16px;
+  color: white;
+}
+
+.status-requested {
+  background: #3498db;
+}
+
+.status-waiting-for-acceptance {
+  background: #9b59b6;
+}
+
+.status-agent-will-contact-you-soon {
+  background: #e67e22;
+}
+
+.status-nurse-will-be-assigned-shortly {
+  background: #f39c12;
+}
+
+.status-nurse-assigned {
+  background: #27ae60;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.detail-card {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.detail-card h3 {
+  margin-top: 0;
+  color: #667eea;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 10px;
+}
+
+.details-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.details-table tr {
+  border-bottom: 1px solid #eee;
+}
+
+.details-table tr:last-child {
+  border-bottom: none;
+}
+
+.details-table .label {
+  font-weight: bold;
+  color: #666;
+  padding: 8px 0;
+  width: 140px;
+}
+
+.details-table td {
+  padding: 8px 0;
+}
+
+.action-buttons {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.alert.error {
+  background: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 20px 0;
+}
+
+hr {
+  margin: 30px 0;
+  border: none;
+  border-top: 1px solid #ddd;
+}
+</style>
 
 <%- include("../partials/footer") %>

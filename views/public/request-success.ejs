@@ -2,19 +2,135 @@
 
 <section class="form-section">
   <div class="success-container">
+    <div class="success-icon">✓</div>
     <h1>Request Submitted Successfully</h1>
-    <p>Your request has been received. Please save this ID to track or modify your request.</p>
+    <p>Your care request has been received. Our team will review your requirements and contact you shortly.</p>
     
     <div class="request-id-display">
       <strong>Your Request ID:</strong>
       <span><%= requestId %></span>
     </div>
     
+    <div class="status-info">
+      <span class="status-badge status-requested">Requested</span>
+    </div>
+    
+    <div class="next-steps">
+      <h3>What happens next?</h3>
+      <ul>
+        <li>Our team will review your care requirements</li>
+        <li>An agent will contact you to discuss available options</li>
+        <li>We'll match you with a suitable nurse based on your needs</li>
+      </ul>
+    </div>
+    
     <div class="button-group">
       <a href="/request-care" class="btn">Submit Another Request</a>
-      <a href="/track-request?requestId=<%= requestId %>" class="btn primary">Track / Modify Request</a>
+      <a href="/track-request?requestId=<%= requestId %>" class="btn primary">Track Your Request</a>
+    </div>
+    
+    <div class="support-info">
+      <p>Need immediate assistance? <a href="tel:+919138913355">+91 9138913355</a></p>
     </div>
   </div>
 </section>
+
+<style>
+.success-container {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: #27ae60;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  margin: 0 auto 20px;
+}
+
+.request-id-display {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.request-id-display strong {
+  display: block;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.request-id-display span {
+  font-family: monospace;
+  font-size: 24px;
+  color: #667eea;
+  font-weight: bold;
+}
+
+.status-info {
+  margin: 20px 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: bold;
+  color: white;
+}
+
+.status-requested {
+  background: #3498db;
+}
+
+.next-steps {
+  text-align: left;
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.next-steps h3 {
+  margin-top: 0;
+  color: #333;
+}
+
+.next-steps ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.next-steps li {
+  margin: 10px 0;
+  color: #666;
+}
+
+.button-group {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin: 30px 0;
+}
+
+.support-info {
+  margin-top: 30px;
+  color: #999;
+  font-size: 14px;
+}
+
+.support-info a {
+  color: #667eea;
+}
+</style>
 
 <%- include("../partials/footer") %>

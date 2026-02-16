@@ -194,8 +194,84 @@ async function sendMail(mailOptions) {
   }
 }
 
+/**
+ * Send request confirmation email to user
+ * @param {string} email - Recipient email
+ * @param {string} name - Recipient name
+ * @param {object} requestDetails - Request details object
+ */
+async function sendRequestConfirmationEmail(email, name, requestDetails) {
+  const { requestId, status, serviceSchedule, city, createdAt } = requestDetails;
+  const trackUrl = `${APP_URL}/track-request?requestId=${requestId}`;
+  
+  const mailOptions = {
+    from: `"Prisha Home Care" <${FROM_EMAIL}>`,
+    to: email,
+    subject: `✅ Care Request Received - ${requestId}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px;">
+          <h1 style="color: white; margin: 0;">Prisha Home Care</h1>
+        </div>
+        <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">Hello ${name},</h2>
+          <p style="color: #666; font-size: 16px;">Your care request has been received successfully. Our team will review your requirements and get back to you shortly.</p>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #667eea; margin-top: 0;">Request Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; width: 140px;">Request ID:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 16px;">${requestId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Status:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                  <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px;">${status}</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Service Type:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${serviceSchedule}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">City:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${city}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">Submitted:</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${new Date(createdAt).toLocaleString()}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${trackUrl}" style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Track Your Request</a>
+          </div>
+          
+          <p style="color: #999; font-size: 14px;">You can track your request status anytime using your Request ID: <strong>${requestId}</strong></p>
+          
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          
+          <h4 style="color: #333; margin-bottom: 10px;">What's Next?</h4>
+          <ul style="color: #666; font-size: 14px; line-height: 1.8;">
+            <li>Our team will review your care requirements</li>
+            <li>An agent will contact you to discuss available options</li>
+            <li>We'll match you with a suitable nurse based on your needs</li>
+          </ul>
+          
+          <p style="color: #999; font-size: 12px; margin-top: 30px;">If you have any questions, please contact us at support@homecare.local or call +91 9138913355</p>
+        </div>
+      </div>
+    `
+  };
+  
+  return sendMail(mailOptions);
+}
+
 module.exports = {
   sendVerificationEmail,
   sendResetPasswordEmail,
-  sendConcernNotification
+  sendConcernNotification,
+  sendRequestConfirmationEmail
 };

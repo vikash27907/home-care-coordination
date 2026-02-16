@@ -43,20 +43,20 @@
       <input name="city" type="text" required />
     </label>
     
-    <!-- Service Schedule (Combined Care Type + Schedule) -->
+    <!-- Service Schedule (Standardized Options) -->
     <label class="full-width">
       Service Schedule <span class="required-indicator" title="Required"></span>
       <select name="serviceSchedule" id="serviceSchedule" required>
         <option value="">Select service schedule...</option>
-        <option value="full_time_day">Full-time Day Care</option>
-        <option value="night_shift">Night Shift Care</option>
-        <option value="24_hour_care">24-Hour Care (Live-in)</option>
-        <option value="icu_support">ICU Support</option>
-        <option value="post_surgery">Post-Surgery Care</option>
-        <option value="elderly_care">Elderly Care</option>
         <option value="one_time_visit">One-Time Visit</option>
+        <option value="8_hour_shift">8-Hour Shift</option>
+        <option value="12_hour_shift">12-Hour Shift</option>
+        <option value="day_shift">Day Shift</option>
+        <option value="night_shift">Night Shift</option>
+        <option value="24_hour_shift">24-Hour Shift</option>
+        <option value="live_in_care">Live-In Care</option>
       </select>
-      <small class="helper-text">e.g., Full-time Day Care, Night Shift Care, 24-Hour Care, ICU Support</small>
+      <small class="helper-text">Select the type of care service you need</small>
     </label>
     
     <!-- Service Duration - New Structured Format -->
