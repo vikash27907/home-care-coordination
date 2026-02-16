@@ -5,27 +5,11 @@ const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
-const { readStore, writeStore, nextId } = require("./src/store");
+const { readStore, writeStore, nextId, initializeStore } = require("./src/store");
 const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification } = require("./src/email");
+const { initializeDatabase } = require("./src/schema");
+const { pool } = require("./src/db");
 const fs = require("fs");
-
-// ============================================================
-// POSTGRESQL CONNECTION
-// ============================================================
-require('dotenv').config();
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false
-});
-
-// Test DB connection on startup
-pool.connect()
-  .then(() => console.log("✅ PostgreSQL Connected"))
-  .catch(err => console.error("❌ PostgreSQL Connection Error:", err));
 
 // ============================================================
 // MULTER CONFIGURATION FOR FILE UPLOADS
@@ -2955,7 +2939,20 @@ app.use((req, res) => {
 // ============================================================
 module.exports = { pool };
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Prisha Home Care running on http://localhost:${PORT}`);
-});
+// Initialize database tables and store before starting the server
+initializeDatabase()
+  .then(() => {
+    return initializeStore();
+  })
+  .then(() => {
+    app.listen(PORT, () => {
+      // eslint-disable-next-line no-console
+      console.log(`Prisha Home Care running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to initialize:", err);
+    process.exit(1);
+  });
+
+
