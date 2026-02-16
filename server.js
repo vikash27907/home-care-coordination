@@ -10,6 +10,24 @@ const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification }
 const fs = require("fs");
 
 // ============================================================
+// POSTGRESQL CONNECTION
+// ============================================================
+require('dotenv').config();
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : false
+});
+
+// Test DB connection on startup
+pool.connect()
+  .then(() => console.log("✅ PostgreSQL Connected"))
+  .catch(err => console.error("❌ PostgreSQL Connection Error:", err));
+
+// ============================================================
 // MULTER CONFIGURATION FOR FILE UPLOADS
 // ============================================================
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
@@ -111,17 +129,11 @@ const INDIA_PHONE_REGEX = /^[6-9]\d{9}$/;
 // Standard email validation regex
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// Duration options for care duration dropdown
-const DURATION_OPTIONS = [
-  { value: "1_day", label: "1 Day" },
-  { value: "3_days", label: "3 Days" },
-  { value: "7_days", label: "7 Days" },
-  { value: "15_days", label: "15 Days" },
-  { value: "1_month", label: "1 Month" },
-  { value: "3_months", label: "3 Months" },
-  { value: "6_months", label: "6 Months" },
-  { value: "1_year", label: "1 Year" },
-  { value: "custom", label: "Custom" }
+// Duration unit options for structured duration
+const DURATION_UNITS = [
+  { value: "days", label: "Days" },
+  { value: "months", label: "Months" },
+  { value: "years", label: "Years" }
 ];
 
 // Care requirement options
@@ -137,6 +149,36 @@ const CARE_REQUIREMENT_OPTIONS = [
 // Budget constraints (INR)
 const BUDGET_MIN = 5000;
 const BUDGET_MAX = 200000;
+const DAILY_BUDGET_MIN = 500;
+const DAILY_BUDGET_MAX = 5000;
+
+// Helper to calculate budget type based on duration
+function calculateBudgetType(durationUnit, durationValue) {
+  if (durationUnit === "days" && durationValue <= 15) {
+    return "daily";
+  }
+  return "monthly";
+}
+
+// Validate duration fields
+function validateDuration(durationUnit, durationValue) {
+  const validUnits = ["days", "months", "years"];
+  
+  if (!durationUnit || !validUnits.includes(durationUnit)) {
+    return { error: "Please select a valid duration unit." };
+  }
+  
+  const value = Number(durationValue);
+  if (isNaN(value) || value < 1) {
+    return { error: "Duration value must be at least 1." };
+  }
+  
+  return {
+    durationUnit,
+    durationValue: value,
+    budgetType: calculateBudgetType(durationUnit, value)
+  };
+}
 
 // Sanitization helper - removes potentially dangerous characters
 function sanitizeInput(value) {
@@ -1019,10 +1061,23 @@ app.use((req, res, next) => {
   res.locals.concernStatuses = CONCERN_STATUSES;
   res.locals.concernCategories = CONCERN_CATEGORIES;
   // Add validation options to all views
-  res.locals.durationOptions = DURATION_OPTIONS;
-  res.locals.careRequirementOptions = CARE_REQUIREMENT_OPTIONS;
+  res.locals.durationUnits = DURATION_UNITS;
+  // Service schedule options (combined care type + schedule)
+  const SERVICE_SCHEDULE_OPTIONS = [
+    { value: "full_time_day", label: "Full-time Day Care" },
+    { value: "night_shift", label: "Night Shift Care" },
+    { value: "24_hour_care", label: "24-Hour Care (Live-in)" },
+    { value: "icu_support", label: "ICU Support" },
+    { value: "post_surgery", label: "Post-Surgery Care" },
+    { value: "elderly_care", label: "Elderly Care" },
+    { value: "one_time_visit", label: "One-Time Visit" }
+  ];
+
+  res.locals.serviceScheduleOptions = SERVICE_SCHEDULE_OPTIONS;
   res.locals.budgetMin = BUDGET_MIN;
   res.locals.budgetMax = BUDGET_MAX;
+  res.locals.dailyBudgetMin = DAILY_BUDGET_MIN;
+  res.locals.dailyBudgetMax = DAILY_BUDGET_MAX;
   return next();
 });
 
@@ -1299,18 +1354,55 @@ app.get("/request-care", (req, res) => {
   res.render("public/request-care", { title: "Request Care", preferredNurse });
 });
 
+// Validate budget based on budget type
+function validateBudgetForDuration(budgetMin, budgetMax, budgetType) {
+  const min = budgetMin !== undefined && budgetMin !== "" ? Number(budgetMin) : null;
+  const max = budgetMax !== undefined && budgetMax !== "" ? Number(budgetMax) : null;
+
+  if (budgetType === "daily") {
+    // Daily budget constraints
+    if (min !== null && (isNaN(min) || min < DAILY_BUDGET_MIN)) {
+      return { error: `Daily budget must be at least ₹${DAILY_BUDGET_MIN.toLocaleString("en-IN")}.` };
+    }
+    if (max !== null && (isNaN(max) || max > DAILY_BUDGET_MAX)) {
+      return { error: `Daily budget cannot exceed ₹${DAILY_BUDGET_MAX.toLocaleString("en-IN")}.` };
+    }
+    if (min !== null && max !== null && max < min) {
+      return { error: "Maximum budget cannot be less than minimum budget." };
+    }
+  } else {
+    // Monthly budget constraints
+    if (min !== null && (isNaN(min) || min < BUDGET_MIN)) {
+      return { error: `Monthly budget must be at least ₹${BUDGET_MIN.toLocaleString("en-IN")}.` };
+    }
+    if (max !== null && (isNaN(max) || max > BUDGET_MAX)) {
+      return { error: `Monthly budget cannot exceed ₹${BUDGET_MAX.toLocaleString("en-IN")}.` };
+    }
+    if (min !== null && max !== null && max < min) {
+      return { error: "Maximum budget cannot be less than minimum budget." };
+    }
+  }
+
+  return {
+    budgetMin: min === null ? null : Number(min.toFixed(2)),
+    budgetMax: max === null ? null : Number(max.toFixed(2)),
+    budgetType
+  };
+}
+
 app.post("/request-care", (req, res) => {
   const fullName = String(req.body.fullName || "").trim();
   const email = normalizeEmail(req.body.email);
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
-  const careRequirement = String(req.body.careRequirement || "").trim();
-  const duration = String(req.body.duration || "").trim();
-  const budget = validateBudget(req.body.budgetMin, req.body.budgetMax);
-  const preferredNurseIdRaw = String(req.body.preferredNurseId || "").trim();
-
+  const serviceSchedule = String(req.body.serviceSchedule || "").trim();
+  
+  // New structured duration fields
+  const durationUnit = String(req.body.durationUnit || "").trim();
+  const durationValue = req.body.durationValue;
+  
   // Validate required fields
-  if (!fullName || !email || !phoneNumber || !city || !careRequirement || !duration) {
+  if (!fullName || !email || !phoneNumber || !city || !serviceSchedule) {
     setFlash(req, "error", "Please complete all required fields.");
     return res.redirect("/request-care");
   }
@@ -1329,12 +1421,25 @@ app.post("/request-care", (req, res) => {
     return res.redirect("/request-care");
   }
   
-  // Validate budget
-  if (budget.error) {
-    setFlash(req, "error", budget.error);
+  // Validate duration
+  const durationValidation = validateDuration(durationUnit, durationValue);
+  if (durationValidation.error) {
+    setFlash(req, "error", durationValidation.error);
+    return res.redirect("/request-care");
+  }
+  
+  // Validate budget based on calculated budget type
+  const budgetValidation = validateBudgetForDuration(
+    req.body.budgetMin, 
+    req.body.budgetMax, 
+    durationValidation.budgetType
+  );
+  if (budgetValidation.error) {
+    setFlash(req, "error", budgetValidation.error);
     return res.redirect("/request-care");
   }
 
+  const preferredNurseIdRaw = String(req.body.preferredNurseId || "").trim();
   const preferredNurseId = preferredNurseIdRaw ? Number.parseInt(preferredNurseIdRaw, 10) : Number.NaN;
 
   const store = readNormalizedStore();
@@ -1354,6 +1459,10 @@ app.post("/request-care", (req, res) => {
 
   const patientId = nextId(store, "patient");
   const requestId = generateRequestId(store);
+  
+  // Store duration in structured format
+  const durationString = `${durationValidation.durationValue} ${durationValidation.durationUnit}`;
+  
   store.patients.push({
     id: patientId,
     requestId,
@@ -1362,10 +1471,14 @@ app.post("/request-care", (req, res) => {
     email,
     phoneNumber,
     city,
-    careRequirement,
-    duration,
-    budgetMin: budget.budgetMin,
-    budgetMax: budget.budgetMax,
+    serviceSchedule,
+    // Store new structured format
+    duration: durationString,
+    durationUnit: durationValidation.durationUnit,
+    durationValue: durationValidation.durationValue,
+    budgetType: durationValidation.budgetType,
+    budgetMin: budgetValidation.budgetMin,
+    budgetMax: budgetValidation.budgetMax,
     notes: req.body.notes || "",
     status: "New",
     agentEmail: "",
@@ -1458,7 +1571,7 @@ app.get("/track-request", (req, res) => {
 });
 
 app.post("/update-request", (req, res) => {
-  const { requestId, budgetMin, budgetMax, duration, careRequirement, notes } = req.body;
+  const { requestId, budgetMin, budgetMax, duration, serviceSchedule, notes } = req.body;
 
   if (!requestId) {
     setFlash(req, "error", "Invalid request ID.");
@@ -1512,7 +1625,7 @@ app.post("/update-request", (req, res) => {
   store.patients[requestIndex].budgetMin = budget.budgetMin;
   store.patients[requestIndex].budgetMax = budget.budgetMax;
   store.patients[requestIndex].duration = duration;
-  store.patients[requestIndex].careRequirement = careRequirement;
+  store.patients[requestIndex].serviceSchedule = serviceSchedule;
   store.patients[requestIndex].notes = notes;
 
   writeStore(store);
@@ -2836,6 +2949,11 @@ app.post("/admin/user/:id/delete", requireRole("admin"), (req, res) => {
 app.use((req, res) => {
   return res.status(404).render("shared/not-found", { title: "Page Not Found" });
 });
+
+// ============================================================
+// EXPORTS
+// ============================================================
+module.exports = { pool };
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
