@@ -1,9 +1,9 @@
 <%
-const currentPath = typeof currentPath !== 'undefined' ? currentPath : '';
-const pendingCount = typeof pendingNurses !== 'undefined' ? pendingNurses : 0;
-const pendingAgents = typeof pendingAgents !== 'undefined' ? pendingAgents : 0;
-const openConcerns = typeof openConcerns !== 'undefined' ? openConcerns : 0;
-const totalPending = pendingCount + pendingAgents;
+let safeCurrentPath = currentPath || '';
+let safePendingNurses = typeof pendingNurses !== 'undefined' ? pendingNurses : 0;
+let safePendingAgents = typeof pendingAgents !== 'undefined' ? pendingAgents : 0;
+let safeOpenConcerns = typeof openConcerns !== 'undefined' ? openConcerns : 0;
+let totalPending = safePendingNurses + safePendingAgents;
 %>
 
 <aside class="admin-sidebar">
@@ -15,12 +15,12 @@ const totalPending = pendingCount + pendingAgents;
   </div>
   
   <nav class="sidebar-nav">
-    <a href="/admin" class="nav-item <%= currentPath === '/admin' ? 'active' : '' %>">
+    <a href="/admin" class="nav-item <%= safeCurrentPath === '/admin' ? 'active' : '' %>">
       <span class="nav-icon">📊</span>
       <span class="nav-text">Dashboard</span>
     </a>
     
-    <a href="/admin/approvals" class="nav-item <%= currentPath.includes('approvals') ? 'active' : '' %>">
+    <a href="/admin/approvals" class="nav-item <%= safeCurrentPath.includes('approvals') ? 'active' : '' %>">
       <span class="nav-icon">⏳</span>
       <span class="nav-text">Pending Approvals</span>
       <% if (totalPending > 0) { %>
@@ -28,22 +28,22 @@ const totalPending = pendingCount + pendingAgents;
       <% } %>
     </a>
     
-    <a href="/admin/nurses" class="nav-item <%= currentPath.includes('nurses') ? 'active' : '' %>">
+    <a href="/admin/nurses" class="nav-item <%= safeCurrentPath.includes('nurses') ? 'active' : '' %>">
       <span class="nav-icon">👩‍⚕️</span>
       <span class="nav-text">Nurses</span>
     </a>
     
-    <a href="/admin/agents" class="nav-item <%= currentPath.includes('agents') ? 'active' : '' %>">
+    <a href="/admin/agents" class="nav-item <%= safeCurrentPath.includes('agents') ? 'active' : '' %>">
       <span class="nav-icon">🏢</span>
       <span class="nav-text">Agents</span>
     </a>
     
-    <a href="/admin/patients" class="nav-item <%= currentPath.includes('patients') ? 'active' : '' %>">
+    <a href="/admin/patients" class="nav-item <%= safeCurrentPath.includes('patients') ? 'active' : '' %>">
       <span class="nav-icon">🏥</span>
       <span class="nav-text">Patients</span>
     </a>
     
-    <a href="/admin/concerns" class="nav-item <%= currentPath.includes('concerns') ? 'active' : '' %>">
+    <a href="/admin/concerns" class="nav-item <%= safeCurrentPath.includes('concerns') ? 'active' : '' %>">
       <span class="nav-icon">💬</span>
       <span class="nav-text">Concerns</span>
       <% if (openConcerns > 0) { %>
