@@ -1,0 +1,95 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <h1>Enter OTP</h1>
+  <p>We've sent a 6-digit OTP to your registered email address.</p>
+  <p>Please enter the OTP below to verify your identity.</p>
+
+  <% if (locals.flash && locals.flash.type === 'error') { %>
+    <div class="alert error">
+      <%= locals.flash.message %>
+    </div>
+  <% } %>
+
+  <form method="POST" action="/edit-request/<%= requestId %>/verify" class="form-grid">
+    <label class="full-width">
+      Enter 6-digit OTP
+      <input 
+        name="otp" 
+        type="text" 
+        maxlength="6" 
+        pattern="[0-9]{6}"
+        placeholder="123456"
+        required 
+        autofocus
+        autocomplete="one-time-code"
+      />
+      <small class="helper-text">OTP is valid for 5 minutes</small>
+    </label>
+    
+    <button type="submit" class="btn primary full-width">
+      Verify OTP
+    </button>
+  </form>
+
+  <div class="resend-section">
+    <p>Didn't receive the OTP?</p>
+    <form method="POST" action="/edit-request/<%= requestId %>/send-otp" style="display: inline;">
+      <button type="submit" class="btn secondary">Resend OTP</button>
+    </form>
+  </div>
+
+  <div class="form-footer">
+    <a href="/track-request?requestId=<%= requestId %>" class="btn">Cancel</a>
+  </div>
+</section>
+
+<style>
+.alert {
+  padding: 15px;
+  border-radius: 5px;
+  margin: 15px 0;
+}
+
+.alert.error {
+  background: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+}
+
+.helper-text {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.resend-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+.resend-section p {
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.form-footer {
+  margin-top: 30px;
+  text-align: center;
+}
+
+/* Make OTP input larger */
+input[name="otp"] {
+  font-size: 24px;
+  letter-spacing: 8px;
+  text-align: center;
+  max-width: 200px;
+  margin: 0 auto;
+  display: block;
+}
+</style>
+
+<%- include("../partials/footer") %>

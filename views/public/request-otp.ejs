@@ -1,0 +1,72 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section">
+  <h1>Verify Your Identity</h1>
+  <p>To edit your request, we need to verify your identity using a One-Time Password (OTP).</p>
+
+  <div class="card">
+    <h3>Request: <%= request.requestId %></h3>
+    <p>OTP will be sent to: <strong><%= request.email %></strong></p>
+  </div>
+
+  <% if (locals.flash && locals.flash.type === 'error') { %>
+    <div class="alert error">
+      <%= locals.flash.message %>
+    </div>
+  <% } %>
+
+  <% if (locals.flash && locals.flash.type === 'success') { %>
+    <div class="alert success">
+      <%= locals.flash.message %>
+    </div>
+  <% } %>
+
+  <form method="POST" action="/edit-request/<%= request.requestId %>/send-otp" class="form-grid">
+    <button type="submit" class="btn primary full-width">
+      Send OTP to My Email
+    </button>
+  </form>
+
+  <div class="form-footer">
+    <a href="/track-request?requestId=<%= request.requestId %>" class="btn">Back to Request</a>
+  </div>
+</section>
+
+<style>
+.card {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.card h3 {
+  margin-top: 0;
+  color: #667eea;
+}
+
+.alert {
+  padding: 15px;
+  border-radius: 5px;
+  margin: 15px 0;
+}
+
+.alert.error {
+  background: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+}
+
+.alert.success {
+  background: #efe;
+  border: 1px solid #cfc;
+  color: #3c3;
+}
+
+.form-footer {
+  margin-top: 20px;
+  text-align: center;
+}
+</style>
+
+<%- include("../partials/footer") %>

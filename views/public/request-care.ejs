@@ -1,8 +1,13 @@
 <%- include("../partials/head", { title }) %>
 
 <section class="form-section">
-  <h1>Patient Care Request</h1>
-  <p>Share your care needs and our coordination team will contact you with the next steps.</p>
+  <div class="section-header">
+    <div class="header-text">
+      <h1>Patient Care Request</h1>
+      <p>Share your care needs and our coordination team will contact you with the next steps.</p>
+    </div>
+    <a href="/track-request" class="btn btn-track">Already Registered? Track Your Request</a>
+  </div>
 
   <% if (preferredNurse) { %>
   <div class="card selected-nurse">
@@ -48,13 +53,11 @@
       Service Schedule <span class="required-indicator" title="Required"></span>
       <select name="serviceSchedule" id="serviceSchedule" required>
         <option value="">Select service schedule...</option>
-        <option value="one_time_visit">One-Time Visit</option>
-        <option value="8_hour_shift">8-Hour Shift</option>
-        <option value="12_hour_shift">12-Hour Shift</option>
-        <option value="day_shift">Day Shift</option>
-        <option value="night_shift">Night Shift</option>
-        <option value="24_hour_shift">24-Hour Shift</option>
-        <option value="live_in_care">Live-In Care</option>
+        <option value="8_hour_shift">8 Hour Shift</option>
+        <option value="12_hour_shift_day">12 Hour Shift (Day)</option>
+        <option value="12_hour_shift_night">12 Hour Shift (Night)</option>
+        <option value="24_hour_live_in">24 Hour Live-In</option>
+        <option value="one_time_visit">One-Time / Few Visits Required</option>
       </select>
       <small class="helper-text">Select the type of care service you need</small>
     </label>
@@ -290,6 +293,36 @@
 </script>
 
 <style>
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.header-text {
+  flex: 1;
+  min-width: 250px;
+}
+
+.btn-track {
+  background: #667eea;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.3s;
+}
+
+.btn-track:hover {
+  background: #5568d3;
+  color: white;
+}
+
 .duration-inputs,
 .budget-inputs {
   display: flex;

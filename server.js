@@ -263,16 +263,23 @@ const COMMISSION_TYPES = ["Percent", "Flat"];
 const DEFAULT_ADMIN_EMAIL = "admin@homecare.local";
 const DEFAULT_ADMIN_PASSWORD = "Admin@123";
 
-// Valid service schedule values (standardized)
+// Valid service schedule values (standardized) - matches request-care.ejs dropdown
 const VALID_SERVICE_SCHEDULES = [
-  "one_time_visit",
   "8_hour_shift",
-  "12_hour_shift",
-  "day_shift",
-  "night_shift",
-  "24_hour_shift",
-  "live_in_care"
+  "12_hour_shift_day",
+  "12_hour_shift_night",
+  "24_hour_live_in",
+  "one_time_visit"
 ];
+
+// Service schedule labels for display
+const SERVICE_SCHEDULE_LABELS = {
+  "8_hour_shift": "8 Hour Shift",
+  "12_hour_shift_day": "12 Hour Shift (Day)",
+  "12_hour_shift_night": "12 Hour Shift (Night)",
+  "24_hour_live_in": "24 Hour Live-In",
+  "one_time_visit": "One-Time / Few Visits Required"
+};
 
 // Helper function to validate service schedule
 function validateServiceSchedule(serviceSchedule) {
@@ -1073,23 +1080,21 @@ app.use((req, res, next) => {
   res.locals.concernCategories = CONCERN_CATEGORIES;
   // Add validation options to all views
   res.locals.durationUnits = DURATION_UNITS;
-// Service schedule options - standardized list
+// Service schedule options - standardized list (matches request-care.ejs)
   const SERVICE_SCHEDULE_OPTIONS = [
-    { value: "one_time_visit", label: "One-Time Visit" },
-    { value: "8_hour_shift", label: "8-Hour Shift" },
-    { value: "12_hour_shift", label: "12-Hour Shift" },
-    { value: "day_shift", label: "Day Shift" },
-    { value: "night_shift", label: "Night Shift" },
-    { value: "24_hour_shift", label: "24-Hour Shift" },
-    { value: "live_in_care", label: "Live-In Care" }
+    { value: "8_hour_shift", label: "8 Hour Shift" },
+    { value: "12_hour_shift_day", label: "12 Hour Shift (Day)" },
+    { value: "12_hour_shift_night", label: "12 Hour Shift (Night)" },
+    { value: "24_hour_live_in", label: "24 Hour Live-In" },
+    { value: "one_time_visit", label: "One-Time / Few Visits Required" }
   ];
 
   // Request status options - standardized
   const REQUEST_STATUSES = [
     "Requested",
     "Waiting for Acceptance",
-    "Agent Will Contact You Soon",
-    "Nurse Will Be Assigned Shortly",
+    "Agent Will Contact You",
+    "Nurse Will Be Assigned Soon",
     "Nurse Assigned"
   ];
 
@@ -2836,6 +2841,204 @@ app.post("/admin/concerns/:id/update", requireRole("admin"), (req, res) => {
 
   setFlash(req, "success", "Concern updated successfully.");
   return res.redirect(`/admin/concerns?status=${encodeURIComponent(statusFilter)}`);
+});
+
+// ============================================================
+// OTP VERIFICATION FOR REQUEST EDITS
+// ============================================================
+
+// In-memory OTP store (for production, use Redis or database)
+// Format: { requestId: { otp: "123456", expiresAt: Date } }
+const otpStore = new Map();
+
+// OTP expiry time in milliseconds (5 minutes)
+const OTP_EXPIRY_MS = 5 * 60 * 1000;
+
+/**
+ * Generate a 6-digit numeric OTP
+ */
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Store OTP for a request
+ */
+function storeOTP(requestId, otp) {
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+  otpStore.set(requestId, { otp, expiresAt });
+}
+
+/**
+ * Validate OTP for a request
+ */
+function validateOTP(requestId, otp) {
+  const record = otpStore.get(requestId);
+  if (!record) {
+    return { valid: false, error: "OTP expired or not found. Please request a new OTP." };
+  }
+  
+  if (new Date() > record.expiresAt) {
+    otpStore.delete(requestId);
+    return { valid: false, error: "OTP has expired. Please request a new OTP." };
+  }
+  
+  if (record.otp !== otp) {
+    return { valid: false, error: "Invalid OTP. Please try again." };
+  }
+  
+  // OTP is valid - delete it after successful verification
+  otpStore.delete(requestId);
+  return { valid: true };
+}
+
+/**
+ * Send OTP to user's email
+ */
+async function sendOTP(email, requestId, fullName) {
+  const otp = generateOTP();
+  storeOTP(requestId, otp);
+  
+  // For now, log the OTP (in production, send via email)
+  console.log(`OTP for request ${requestId}: ${otp}`);
+  
+  // Simulate successful OTP sending
+  return { success: true };
+}
+
+// Step 1: Request OTP for editing a request
+app.get("/edit-request/:requestId", (req, res) => {
+  const { requestId } = req.params;
+  
+  const store = readNormalizedStore();
+  const request = store.patients.find(p => p.requestId === requestId);
+  
+  if (!request) {
+    setFlash(req, "error", "Request not found.");
+    return res.redirect("/track-request");
+  }
+  
+  // Show OTP request form
+  res.render("public/request-otp", {
+    title: "Verify Your Identity",
+    requestId,
+    request
+  });
+});
+
+// Step 2: Send OTP to user's email
+app.post("/edit-request/:requestId/send-otp", async (req, res) => {
+  const { requestId } = req.params;
+  
+  const store = readNormalizedStore();
+  const request = store.patients.find(p => p.requestId === requestId);
+  
+  if (!request) {
+    setFlash(req, "error", "Request not found.");
+    return res.redirect("/track-request");
+  }
+  
+  // Send OTP to the registered email
+  const result = await sendOTP(request.email, requestId, request.fullName);
+  
+  if (result.success) {
+    setFlash(req, "success", `OTP sent to ${request.email}. Please check your inbox.`);
+    res.redirect(`/edit-request/${requestId}/verify`);
+  } else {
+    setFlash(req, "error", `Failed to send OTP: ${result.error}`);
+    res.redirect(`/edit-request/${requestId}`);
+  }
+});
+
+// Step 3: Verify OTP and show edit form
+app.get("/edit-request/:requestId/verify", (req, res) => {
+  const { requestId } = req.params;
+  
+  const store = readNormalizedStore();
+  const request = store.patients.find(p => p.requestId === requestId);
+  
+  if (!request) {
+    setFlash(req, "error", "Request not found.");
+    return res.redirect("/track-request");
+  }
+  
+  res.render("public/request-edit", {
+    title: "Edit Request",
+    request,
+    serviceScheduleOptions: SERVICE_SCHEDULE_OPTIONS
+  });
+});
+
+// Step 4: Verify OTP and process edit
+app.post("/edit-request/:requestId/verify", (req, res) => {
+  const { requestId } = req.params;
+  const { otp } = req.body;
+  
+  const otpValidation = validateOTP(requestId, otp);
+  
+  if (!otpValidation.valid) {
+    setFlash(req, "error", otpValidation.error);
+    return res.redirect(`/edit-request/${requestId}`);
+  }
+  
+  // OTP is valid - redirect to edit form with verification flag
+  res.redirect(`/edit-request/${requestId}/form`);
+});
+
+// Step 5: Show the actual edit form (after OTP verification)
+app.get("/edit-request/:requestId/form", (req, res) => {
+  const { requestId } = req.params;
+  
+  const store = readNormalizedStore();
+  const request = store.patients.find(p => p.requestId === requestId);
+  
+  if (!request) {
+    setFlash(req, "error", "Request not found.");
+    return res.redirect("/track-request");
+  }
+  
+  res.render("public/request-edit", {
+    title: "Edit Request",
+    request,
+    serviceScheduleOptions: SERVICE_SCHEDULE_OPTIONS,
+    verified: true
+  });
+});
+
+// Step 6: Process the edit request
+app.post("/edit-request/:requestId/update", (req, res) => {
+  const { requestId } = req.params;
+  const { serviceSchedule, duration, budgetMin, budgetMax, notes } = req.body;
+  
+  const store = readNormalizedStore();
+  const requestIndex = store.patients.findIndex(p => p.requestId === requestId);
+  
+  if (requestIndex === -1) {
+    setFlash(req, "error", "Request not found.");
+    return res.redirect("/track-request");
+  }
+  
+  const request = store.patients[requestIndex];
+  
+  // Validate budget
+  const budget = validateBudget(budgetMin, budgetMax);
+  if (budget.error) {
+    setFlash(req, "error", budget.error);
+    return res.redirect(`/edit-request/${requestId}/form`);
+  }
+  
+  // Update only allowed fields
+  request.serviceSchedule = serviceSchedule;
+  request.duration = duration;
+  request.budgetMin = budget.budgetMin;
+  request.budgetMax = budget.budgetMax;
+  request.notes = notes;
+  request.updatedAt = now();
+  
+  writeStore(store);
+  
+  setFlash(req, "success", "Your request has been updated successfully.");
+  res.redirect(`/track-request?requestId=${requestId}`);
 });
 
 // ============================================================
