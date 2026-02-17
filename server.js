@@ -5,11 +5,29 @@ const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
+const rateLimit = require("express-rate-limit");
 const { readStore, writeStore, nextId, initializeStore, getPatientByRequestId, createPatient } = require("./src/store");
 const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification, sendRequestConfirmationEmail } = require("./src/email");
 const { initializeDatabase } = require("./src/schema");
 const { pool } = require("./src/db");
 const fs = require("fs");
+
+// ============================================================
+// RATE LIMITING
+// ============================================================
+
+// Login rate limiter - 5 attempts per 15 minutes per IP
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts
+  message: "Too many login attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Don't rate limit health checks
+    return req.path === "/health" || req.path === "/healthz";
+  }
+});
 
 // ============================================================
 // MULTER CONFIGURATION FOR FILE UPLOADS
@@ -1743,7 +1761,7 @@ app.get("/login", (req, res) => {
   return res.render("auth/login", { title: "Login" });
 });
 
-app.post("/login", (req, res) => {
+app.post("/login", loginRateLimiter, (req, res) => {
   const identifierRaw = String(req.body.identifier || req.body.email || "").trim();
   const password = String(req.body.password || "");
   const normalizedEmail = normalizeEmail(identifierRaw);
@@ -2933,7 +2951,7 @@ app.get("/edit-request/:requestId", (req, res) => {
 });
 
 // Step 2: Send OTP to user's email
-app.post("/edit-request/:requestId/send-otp", async (req, res) => {
+app.post("/edit-request/:requestId/send-otp", loginRateLimiter, async (req, res) => {
   const { requestId } = req.params;
   
   const store = readNormalizedStore();
