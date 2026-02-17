@@ -3193,6 +3193,21 @@ app.post("/admin/user/:id/delete", requireRole("admin"), (req, res) => {
   return res.redirect("/admin");
 });
 
+// TEMPORARY ADMIN RESET ROUTE - REMOVE AFTER USE
+app.get("/force-admin-reset", (req, res) => {
+  const store = readNormalizedStore();
+  const admin = store.users.find((user) => user.role === "admin");
+  
+  if (!admin) {
+    return res.status(404).send("Admin user not found");
+  }
+  
+  admin.passwordHash = bcrypt.hashSync("NewAdmin@123", 10);
+  writeStore(store);
+  
+  res.type("text/plain").send("Admin password reset to NewAdmin@123");
+});
+
 // 404 handler
 app.use((req, res) => {
   return res.status(404).render("shared/not-found", { title: "Page Not Found" });
