@@ -260,8 +260,6 @@ const CONCERN_CATEGORIES = [
   "Other"
 ];
 const COMMISSION_TYPES = ["Percent", "Flat"];
-const DEFAULT_ADMIN_EMAIL = "admin@homecare.local";
-const DEFAULT_ADMIN_PASSWORD = "Admin@123";
 
 // Valid service schedule values (standardized) - matches request-care.ejs dropdown
 const VALID_SERVICE_SCHEDULES = [
@@ -1107,31 +1105,44 @@ app.use((req, res, next) => {
   return next();
 });
 
-function seedAdmin() {
-  const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL);
-  const adminPassword = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
-  const store = readNormalizedStore();
-  const exists = store.users.find((user) => user.email === adminEmail && user.role === "admin");
-  if (exists) {
-    return;
-  }
+// ============================================================
+// POSTGRESQL ADMIN MANAGEMENT
+// ============================================================
 
-  const userId = nextId(store, "user");
-  store.users.push({
-    id: userId,
-    fullName: "System Admin",
-    email: adminEmail,
-    phoneNumber: "",
-    passwordHash: bcrypt.hashSync(adminPassword, 10),
-    role: "admin",
-    status: "Approved",
-    createdAt: now()
-  });
-  writeStore(store);
+// Ensure admin exists in PostgreSQL - called during server startup
+async function ensureAdmin() {
+  const email = "vikash27907@gmail.com";
+  const password = "9661611495@Rajas";
 
-  if (IS_PRODUCTION && adminPassword === DEFAULT_ADMIN_PASSWORD) {
-    // eslint-disable-next-line no-console
-    console.warn("Security warning: default admin password is active in production.");
+  try {
+    // Check if admin exists in PostgreSQL
+    const existing = await pool.query(
+      "SELECT id FROM users WHERE role = 'admin'"
+    );
+
+    const hashed = bcrypt.hashSync(password, 10);
+
+    if (existing.rows.length > 0) {
+      // Update existing admin
+      await pool.query(
+        "UPDATE users SET email=$1, password_hash=$2, status='Approved' WHERE role='admin'",
+        [email, hashed]
+      );
+      console.log("Admin updated in PostgreSQL");
+    } else {
+      // Insert new admin
+      await pool.query(
+        `INSERT INTO users 
+          (full_name, email, password_hash, role, status, created_at) 
+         VALUES ($1,$2,$3,$4,$5,NOW())`,
+        ["System Admin", email, hashed, "admin", "Approved"]
+      );
+      console.log("Admin created in PostgreSQL");
+    }
+
+    console.log("Admin ensured in PostgreSQL");
+  } catch (error) {
+    console.error("Error ensuring admin:", error.message);
   }
 }
 
@@ -1317,7 +1328,8 @@ function createAgentUnderAgent(req, res, failRedirect) {
   return res.redirect("/agent-registration");
 }
 
-seedAdmin();
+// Commented out seedAdmin - now using ensureAdmin() for PostgreSQL
+// seedAdmin();
 
 // Health check routes - support both /health and /healthz
 app.get("/health", (req, res) => {
@@ -2757,8 +2769,8 @@ app.post("/concern/new", requireAuth, (req, res) => {
   );
   writeStore(store);
 
-  // Send notification to admin (async)
-  const adminEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
+  // Send notification to admin (async) - using PostgreSQL admin email
+  const adminEmail = "vikash27907@gmail.com";
   sendConcernNotification(adminEmail, {
     userName: user.fullName,
     role: user.role,
@@ -3223,7 +3235,10 @@ initializeDatabase()
   .then(() => {
     return initializeStore();
   })
-  .then(() => {
+  .then(async () => {
+    // Ensure admin exists in PostgreSQL after DB connection
+    await ensureAdmin();
+    
     app.listen(PORT, () => {
       // eslint-disable-next-line no-console
       console.log(`Prisha Home Care running on http://localhost:${PORT}`);
