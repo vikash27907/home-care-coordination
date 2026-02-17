@@ -1110,27 +1110,20 @@ app.use((req, res, next) => {
 // ============================================================
 
 // Ensure admin exists in PostgreSQL - called during server startup
+// ONLY creates admin if no admin exists - NEVER updates existing
 async function ensureAdmin() {
   const email = "vikash27907@gmail.com";
   const password = "9661611495@Rajas";
 
   try {
-    // Check if admin exists in PostgreSQL
+    // Check if admin exists in PostgreSQL - ONLY create if not exists
     const existing = await pool.query(
-      "SELECT id FROM users WHERE role = 'admin'"
+      "SELECT id FROM users WHERE role = 'admin' LIMIT 1"
     );
 
-    const hashed = bcrypt.hashSync(password, 10);
-
-    if (existing.rows.length > 0) {
-      // Update existing admin
-      await pool.query(
-        "UPDATE users SET email=$1, password_hash=$2, status='Approved' WHERE role='admin'",
-        [email, hashed]
-      );
-      console.log("Admin updated in PostgreSQL");
-    } else {
-      // Insert new admin
+    if (existing.rows.length === 0) {
+      // Insert new admin only if no admin exists
+      const hashed = bcrypt.hashSync(password, 10);
       await pool.query(
         `INSERT INTO users 
           (full_name, email, password_hash, role, status, created_at) 
@@ -1139,8 +1132,9 @@ async function ensureAdmin() {
       );
       console.log("Admin created in PostgreSQL");
     }
-
-    console.log("Admin ensured in PostgreSQL");
+    
+    // Always log verification complete
+    console.log("Admin verification complete.");
   } catch (error) {
     console.error("Error ensuring admin:", error.message);
   }
@@ -3203,21 +3197,6 @@ app.post("/admin/user/:id/delete", requireRole("admin"), (req, res) => {
   if (user.role === "nurse") return res.redirect("/admin/nurses");
   if (user.role === "agent") return res.redirect("/admin/agents");
   return res.redirect("/admin");
-});
-
-// TEMPORARY ADMIN RESET ROUTE - REMOVE AFTER USE
-app.get("/force-admin-reset", (req, res) => {
-  const store = readNormalizedStore();
-  const admin = store.users.find((user) => user.role === "admin");
-  
-  if (!admin) {
-    return res.status(404).send("Admin user not found");
-  }
-  
-  admin.passwordHash = bcrypt.hashSync("NewAdmin@123", 10);
-  writeStore(store);
-  
-  res.type("text/plain").send("Admin password reset to NewAdmin@123");
 });
 
 // 404 handler
