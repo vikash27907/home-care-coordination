@@ -21,7 +21,15 @@ const {
   // Concern helpers
   getConcernById, createConcern, updateConcern, deleteConcern, getConcerns
 } = require("./src/store");
-const { sendVerificationEmail, sendVerificationOtpEmail, sendResetPasswordEmail, sendConcernNotification, sendRequestConfirmationEmail } = require("./src/email");
+const {
+  sendVerificationEmail,
+  sendVerificationOtpEmail,
+  sendResetPasswordEmail,
+  sendConcernNotification,
+  sendRequestConfirmationEmail,
+  sendAdminCareRequestNotification,
+  sendAdminNurseSignupNotification
+} = require("./src/email");
 const { initializeDatabase } = require("./src/schema");
 const { pool } = require("./src/db");
 const { cloudinary } = require("./src/cloudinary");
@@ -1370,6 +1378,32 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     return res.redirect(failRedirect);
   }
 
+  try {
+    const skills = toArray(req.body.skills)
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    const experienceYears = Number.parseInt(req.body.experienceYears, 10);
+    const experienceMonths = Number.parseInt(req.body.experienceMonths, 10);
+    const availabilityStatus = String(req.body.availabilityStatus || "").trim();
+
+    const adminNurseEmailResult = await sendAdminNurseSignupNotification({
+      fullName,
+      email,
+      phone: phoneNumber,
+      city,
+      experienceYears: Number.isFinite(experienceYears) ? experienceYears : 0,
+      experienceMonths: Number.isFinite(experienceMonths) ? experienceMonths : 0,
+      skills,
+      availabilityStatus: availabilityStatus || "Not provided"
+    });
+
+    if (adminNurseEmailResult && adminNurseEmailResult.success === false) {
+      throw new Error(adminNurseEmailResult.error || "Unknown admin nurse notification email error");
+    }
+  } catch (error) {
+    console.error(`Admin nurse signup email failed for ${email}:`, error);
+  }
+
   // Send OTP email after both records are created successfully.
   if (requiresOtpVerification) {
     await sendVerificationOtpEmail(email, fullName, generatedOtp);
@@ -1634,14 +1668,14 @@ app.post("/request-care", async (req, res) => {
   }
 
   const patientId = nextId(store, "patient");
-  const requestId = generateRequestId(store);
+  const referenceId = generateRequestId(store);
   
   // Default status is "Requested"
   const defaultStatus = "Requested";
   
   const patient = {
     id: patientId,
-    requestId,
+    requestId: referenceId,
     userId: req.currentUser ? req.currentUser.id : null,
     fullName,
     email,
@@ -1674,21 +1708,55 @@ app.post("/request-care", async (req, res) => {
   
   await createPatient(patient);
 
-// Send confirmation email asynchronously (don't block request)
-  // Get service schedule label for email
-  const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find(s => s.value === serviceSchedule)?.label || serviceSchedule;
-  
-  sendRequestConfirmationEmail(email, fullName, {
-    requestId,
-    status: defaultStatus,
-    serviceSchedule: serviceScheduleLabel,
-    city,
-    createdAt: now()
-  }).catch(err => {
-    console.error("Failed to send confirmation email:", err.message);
-  });
+  // Send confirmation email asynchronously (do not block request submission).
+  const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((s) => s.value === serviceSchedule)?.label || serviceSchedule;
+  const userEmail = email;
+  const userName = fullName;
+  const preferredDate = String(req.body.preferredDate || "").trim();
+  const patientCondition = String(req.body.patientCondition || req.body.notes || "").trim();
 
-  return res.redirect(`/request-success?requestId=${requestId}`);
+  try {
+    const emailResult = await sendRequestConfirmationEmail(
+      userEmail,
+      userName,
+      referenceId,
+      {
+        serviceType: serviceScheduleLabel,
+        city,
+        preferredDate,
+        phone: phoneNumber,
+        patientCondition
+      }
+    );
+
+    if (emailResult && emailResult.success === false) {
+      throw new Error(emailResult.error || "Unknown email error");
+    }
+  } catch (error) {
+    console.error(`Email failed for reference ${referenceId}:`, error);
+  }
+
+  try {
+    const adminEmailResult = await sendAdminCareRequestNotification(referenceId, {
+      fullName,
+      email,
+      phone: phoneNumber,
+      city,
+      serviceType: serviceScheduleLabel,
+      preferredDate,
+      patientCondition,
+      budget,
+      duration
+    });
+
+    if (adminEmailResult && adminEmailResult.success === false) {
+      throw new Error(adminEmailResult.error || "Unknown admin notification email error");
+    }
+  } catch (error) {
+    console.error(`Admin notification failed for reference ${referenceId}:`, error);
+  }
+
+  return res.redirect(`/request-success?requestId=${referenceId}`);
 });
 
 app.get("/request-success", (req, res) => {
