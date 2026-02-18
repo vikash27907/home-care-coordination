@@ -4,45 +4,13 @@
  */
 
 require('dotenv').config();
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Email configuration
-const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
-const SMTP_PORT = process.env.SMTP_PORT || 587;
-const SMTP_USER = process.env.SMTP_USER || process.env.GMAIL_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || process.env.GMAIL_PASS || "";
-const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@homecare.local";
+const FROM_EMAIL = "support@prishahomecare.com";
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 const ADMIN_NOTIFICATION_EMAIL = "prishahomecare@gmail.com";
-
-// Create reusable transporter
-let transporter = null;
-
-function getTransporter() {
-  if (transporter) return transporter;
-  
-  if (!SMTP_USER || !SMTP_PASS) {
-    console.warn("Email credentials not configured. Emails will be logged only.");
-    transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      auth: null
-    });
-    return transporter;
-  }
-  
-  transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
-    auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS
-    }
-  });
-  
-  return transporter;
-}
 
 /**
  * Send verification email
@@ -170,26 +138,29 @@ async function sendConcernNotification(adminEmail, concern) {
  */
 async function sendMail(mailOptions) {
   try {
-    const transport = getTransporter();
-    
-    // Check if using ethereal (fake) transport
-    if (!SMTP_USER || !SMTP_PASS) {
-      console.log("📧 [EMAIL MOCK] Would send email:");
-      console.log("  To:", mailOptions.to);
-      console.log("  Subject:", mailOptions.subject);
-      // For testing, return a mock response
-      return { 
-        success: true, 
-        messageId: `mock-${Date.now()}`,
-        previewUrl: null
-      };
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not configured.");
     }
-    
-    const info = await transport.sendMail(mailOptions);
-    console.log("📧 Email sent:", info.messageId);
-    return { success: true, messageId: info.messageId };
+
+    const { data, error } = await resend.emails.send({
+      from: mailOptions.from || FROM_EMAIL,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+      text: mailOptions.text
+    });
+
+    if (error) {
+      throw new Error(error.message || "Resend API error");
+    }
+
+    console.log("Email sent via Resend:", data && data.id ? data.id : "unknown-id");
+    return {
+      success: true,
+      messageId: data && data.id ? data.id : null
+    };
   } catch (error) {
-    console.error("📧 Email error:", error.message);
+    console.error("Resend email error:", error.message);
     return { success: false, error: error.message };
   }
 }
@@ -400,7 +371,6 @@ async function sendAdminNurseSignupNotification(nurseDetails = {}) {
  */
 async function sendVerificationOtpEmail(toEmail, name, otp) {
   console.log('Attempting to send email to:', toEmail);
-  console.log('Using Gmail User:', process.env.SMTP_USER || process.env.GMAIL_USER);
   
   const mailOptions = {
     from: `"Prisha Home Care" <${FROM_EMAIL}>`,
