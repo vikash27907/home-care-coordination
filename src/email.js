@@ -81,18 +81,16 @@ async function sendVerificationEmail(email, name, token) {
 }
 
 /**
- * Send password reset email
+ * Send password reset OTP email
  * @param {string} email - Recipient email
  * @param {string} name - Recipient name
- * @param {string} token - Reset token
+ * @param {string} otp - 6-digit reset OTP
  */
-async function sendResetPasswordEmail(email, name, token) {
-  const resetUrl = `${APP_URL}/reset-password/${token}`;
-  
+async function sendResetPasswordEmail(email, name, otp) {
   const mailOptions = {
     from: `"Prisha Home Care" <${FROM_EMAIL}>`,
     to: email,
-    subject: "Password Reset - Prisha Home Care",
+    subject: "Password Reset OTP - Prisha Home Care",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px;">
@@ -100,15 +98,15 @@ async function sendResetPasswordEmail(email, name, token) {
         </div>
         <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
           <h2 style="color: #333;">Hello ${name},</h2>
-          <p style="color: #666; font-size: 16px;">We received a request to reset your password. Click the button below to create a new password.</p>
+          <p style="color: #666; font-size: 16px;">We received a request to reset your password. Use this 6-digit OTP to continue:</p>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Reset Password</a>
+            <div style="background: white; border-radius: 10px; padding: 16px 22px; display: inline-block;">
+              <span style="font-size: 34px; font-weight: 700; letter-spacing: 8px; color: #1f2937;">${otp}</span>
+            </div>
           </div>
-          <p style="color: #999; font-size: 14px;">Or copy and paste this link in your browser:</p>
-          <p style="color: #667eea; font-size: 12px; word-break: break-all;">${resetUrl}</p>
-          <p style="color: #999; font-size: 14px;">This link will expire in 15 minutes for security reasons.</p>
+          <p style="color: #999; font-size: 14px;">This OTP expires in 10 minutes.</p>
           <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-          <p style="color: #999; font-size: 12px;">If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+          <p style="color: #999; font-size: 12px;">If you did not request a password reset, please ignore this email and secure your account.</p>
         </div>
       </div>
     `

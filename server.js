@@ -133,6 +133,15 @@ const uploadProfileImage = multer({
   }
 });
 
+// Forgot-password rate limiter - protects against OTP abuse and enumeration attempts
+const forgotPasswordRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5,
+  message: "Too many password reset requests. Please try again in 10 minutes.",
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 const PROFILE_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
 const PROFILE_UPLOAD_ALLOWED_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
 const PROFILE_UPLOAD_ALLOWED_MIME_TYPES = new Set([
@@ -2922,13 +2931,16 @@ app.get("/forgot-password", (req, res) => {
   if (req.currentUser) {
     return res.redirect(redirectByRole(req.currentUser.role));
   }
-  return res.render("auth/forgot-password", { title: "Forgot Password" });
+  return res.render("auth/forgot-password", {
+    title: "Forgot Password",
+    prefillEmail: String(req.query.email || "").trim()
+  });
 });
 
-// Request password reset
-app.post("/forgot-password", (req, res) => {
+// Request password reset OTP
+app.post("/forgot-password", forgotPasswordRateLimiter, async (req, res) => {
   const emailInput = String(req.body.email || "").trim();
-  
+
   if (!emailInput) {
     setFlash(req, "error", "Please enter your email address.");
     return res.redirect("/forgot-password");
@@ -2941,109 +2953,216 @@ app.post("/forgot-password", (req, res) => {
   }
 
   const email = emailValidation.value;
-  const store = readNormalizedStore();
-  const user = store.users.find((item) => item.email === email);
 
-  if (user) {
-    // Generate reset token (15 minutes expiry)
-    const resetToken = generateToken();
-    const expiryDate = new Date();
-    expiryDate.setMinutes(expiryDate.getMinutes() + 15);
-    
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = expiryDate.toISOString();
-    writeStore(store);
+  req.session.canResetPassword = false;
+  req.session.resetUserId = null;
 
-    // Send reset email (async, don't wait)
-    sendResetPasswordEmail(user.email, user.fullName, resetToken).catch(err => {
-      console.error("Failed to send reset email:", err);
-    });
+  try {
+    const result = await pool.query(
+      `SELECT
+        u.id,
+        u.email,
+        COALESCE(n.full_name, a.full_name, 'User') AS full_name
+      FROM users u
+      LEFT JOIN nurses n ON n.user_id = u.id
+      LEFT JOIN agents a ON a.user_id = u.id
+      WHERE LOWER(u.email) = LOWER($1)
+      LIMIT 1`,
+      [email]
+    );
+
+    const user = result.rows[0] || null;
+    if (user) {
+      const resetOtp = generateOtp(); // always 6-digit numeric
+      const resetOtpHash = await bcrypt.hash(resetOtp, 12);
+      const resetOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      await pool.query(
+        `UPDATE users
+         SET reset_otp_hash = $1, reset_otp_expires = $2
+         WHERE id = $3`,
+        [resetOtpHash, resetOtpExpires, user.id]
+      );
+
+      // Send reset OTP email (async fire-and-forget)
+      sendResetPasswordEmail(user.email, user.full_name || "User", resetOtp).catch((error) => {
+        console.error("Failed to send reset OTP email:", error);
+      });
+    }
+  } catch (error) {
+    console.error("Forgot-password flow error:", error);
   }
 
   // Always show success to prevent email enumeration
-  setFlash(req, "success", "If an account exists with this email, you will receive a password reset link shortly.");
-  return res.redirect("/login");
+  setFlash(req, "success", "If an account exists with this email, a 6-digit OTP has been sent.");
+  return res.redirect(`/forgot-password/verify?email=${encodeURIComponent(email)}`);
 });
 
-// Reset password page
-app.get("/reset-password/:token", (req, res) => {
-  const token = String(req.params.token || "").trim();
-  
-  if (!token) {
-    setFlash(req, "error", "Invalid reset link.");
-    return res.redirect("/forgot-password");
+// OTP verification page for forgot-password flow
+app.get("/forgot-password/verify", (req, res) => {
+  if (req.currentUser) {
+    return res.redirect(redirectByRole(req.currentUser.role));
   }
 
-  const store = readNormalizedStore();
-  const user = store.users.find((item) => item.resetToken === token);
-
-  if (!user) {
-    setFlash(req, "error", "Invalid or expired reset link.");
-    return res.redirect("/forgot-password");
-  }
-
-  if (isResetTokenExpired(user.resetTokenExpiry)) {
-    // Clear expired token
-    user.resetToken = "";
-    user.resetTokenExpiry = "";
-    writeStore(store);
-    
-    setFlash(req, "error", "Reset link has expired. Please request a new one.");
-    return res.redirect("/forgot-password");
-  }
-
-  return res.render("auth/reset-password", { 
-    title: "Reset Password",
-    token: token 
+  return res.render("auth/verify-reset-otp", {
+    title: "Verify Reset OTP",
+    email: String(req.query.email || "").trim()
   });
 });
 
-// Process password reset
-app.post("/reset-password/:token", (req, res) => {
-  const token = String(req.params.token || "").trim();
+// Verify reset OTP and enable password reset session
+app.post("/forgot-password/verify", async (req, res) => {
+  const emailInput = String(req.body.email || "").trim();
+  const emailValidation = validateEmail(emailInput);
+  const fallbackRedirect = `/forgot-password/verify?email=${encodeURIComponent(emailInput)}`;
+
+  if (!emailValidation.valid) {
+    setFlash(req, "error", "Please enter a valid email address.");
+    return res.redirect("/forgot-password");
+  }
+
+  const otpFromInput = String(req.body.otp || "").trim();
+  const otpFromBoxes = [
+    req.body.otp1, req.body.otp2, req.body.otp3,
+    req.body.otp4, req.body.otp5, req.body.otp6
+  ].map((digit) => String(digit || "").trim()).join("");
+  const otp = otpFromInput || otpFromBoxes;
+
+  if (!/^\d{6}$/.test(otp)) {
+    setFlash(req, "error", "Please enter a valid 6-digit OTP.");
+    return res.redirect(fallbackRedirect);
+  }
+
+  try {
+    const userResult = await pool.query(
+      `SELECT id, reset_otp_hash, reset_otp_expires
+       FROM users
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [emailValidation.value]
+    );
+
+    const user = userResult.rows[0] || null;
+    if (!user || !user.reset_otp_hash || !user.reset_otp_expires) {
+      setFlash(req, "error", "Invalid or expired OTP.");
+      return res.redirect(fallbackRedirect);
+    }
+
+    if (new Date(user.reset_otp_expires) < new Date()) {
+      await pool.query(
+        `UPDATE users
+         SET reset_otp_hash = NULL, reset_otp_expires = NULL
+         WHERE id = $1`,
+        [user.id]
+      );
+      setFlash(req, "error", "OTP expired. Please request a new one.");
+      return res.redirect("/forgot-password");
+    }
+
+    const isOtpValid = await bcrypt.compare(otp, user.reset_otp_hash);
+    if (!isOtpValid) {
+      setFlash(req, "error", "Invalid or expired OTP.");
+      return res.redirect(fallbackRedirect);
+    }
+
+    // OTP verified: clear reset OTP and set secure reset session flags.
+    await pool.query(
+      `UPDATE users
+       SET reset_otp_hash = NULL, reset_otp_expires = NULL
+       WHERE id = $1`,
+      [user.id]
+    );
+
+    req.session.canResetPassword = true;
+    req.session.resetUserId = user.id;
+
+    setFlash(req, "success", "OTP verified. Please set your new password.");
+    return res.redirect("/reset-password");
+  } catch (error) {
+    console.error("Reset OTP verification error:", error);
+    setFlash(req, "error", "Unable to verify OTP right now. Please try again.");
+    return res.redirect(fallbackRedirect);
+  }
+});
+
+// Reset password page - only available after OTP verification session
+app.get("/reset-password", (req, res) => {
+  if (!req.session.canResetPassword || !req.session.resetUserId) {
+    setFlash(req, "error", "Unauthorized password reset attempt.");
+    return res.redirect("/forgot-password");
+  }
+  return res.render("auth/reset-password", {
+    title: "Reset Password"
+  });
+});
+
+// Process password reset (OTP session protected)
+app.post("/reset-password", async (req, res) => {
+  if (!req.session.canResetPassword || !req.session.resetUserId) {
+    setFlash(req, "error", "Unauthorized password reset attempt.");
+    return res.redirect("/forgot-password");
+  }
+
   const newPassword = String(req.body.password || "");
   const confirmPassword = String(req.body.confirmPassword || "");
 
-  if (!token || !newPassword || !confirmPassword) {
+  if (!newPassword || !confirmPassword) {
     setFlash(req, "error", "All fields are required.");
-    return res.redirect(`/reset-password/${token}`);
+    return res.redirect("/reset-password");
   }
 
   if (newPassword !== confirmPassword) {
     setFlash(req, "error", "Passwords do not match.");
-    return res.redirect(`/reset-password/${token}`);
+    return res.redirect("/reset-password");
   }
 
   if (newPassword.length < 6) {
     setFlash(req, "error", "Password must be at least 6 characters.");
-    return res.redirect(`/reset-password/${token}`);
+    return res.redirect("/reset-password");
   }
 
-  const store = readNormalizedStore();
-  const user = store.users.find((item) => item.resetToken === token);
-
-  if (!user) {
-    setFlash(req, "error", "Invalid reset link.");
+  const resetUserId = Number(req.session.resetUserId);
+  if (!Number.isInteger(resetUserId) || resetUserId <= 0) {
+    setFlash(req, "error", "Unauthorized password reset attempt.");
     return res.redirect("/forgot-password");
   }
 
-  if (isResetTokenExpired(user.resetTokenExpiry)) {
-    user.resetToken = "";
-    user.resetTokenExpiry = "";
-    writeStore(store);
-    
-    setFlash(req, "error", "Reset link has expired. Please request a new one.");
-    return res.redirect("/forgot-password");
+  try {
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1,
+           reset_otp_hash = NULL,
+           reset_otp_expires = NULL
+       WHERE id = $2`,
+      [passwordHash, resetUserId]
+    );
+  } catch (error) {
+    console.error("Password reset update error:", error);
+    setFlash(req, "error", "Unable to reset password right now. Please try again.");
+    return res.redirect("/reset-password");
   }
 
-  // Update password
-  user.passwordHash = bcrypt.hashSync(newPassword, 10);
-  user.resetToken = "";
-  user.resetTokenExpiry = "";
-  writeStore(store);
+  req.session.canResetPassword = false;
+  req.session.resetUserId = null;
 
-  setFlash(req, "success", "Password reset successfully! Please log in with your new password.");
-  return res.redirect("/login");
+  return req.session.destroy((destroyError) => {
+    if (destroyError) {
+      console.error("Session destroy error after password reset:", destroyError);
+    }
+    return res.redirect("/login");
+  });
+});
+
+// Legacy reset-link flow disabled (OTP-only production flow)
+app.get("/reset-password/:token", (req, res) => {
+  setFlash(req, "error", "Reset link flow is disabled. Please request a 6-digit OTP.");
+  return res.redirect("/forgot-password");
+});
+
+app.post("/reset-password/:token", (req, res) => {
+  setFlash(req, "error", "Unauthorized password reset attempt.");
+  return res.redirect("/forgot-password");
 });
 
 // ============================================================

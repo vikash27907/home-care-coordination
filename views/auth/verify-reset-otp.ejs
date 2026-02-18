@@ -1,0 +1,185 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="ig-auth-shell">
+  <div class="ig-auth-card">
+    <h1>Verify OTP</h1>
+    <p>Enter the 6-digit OTP sent to your email.</p>
+
+    <form action="/forgot-password/verify" method="POST" class="ig-auth-form" id="verifyOtpForm" novalidate>
+      <input type="hidden" name="email" value="<%= email || '' %>" />
+      <input type="hidden" name="otp" id="otpCombined" />
+
+      <label for="otp1">OTP</label>
+      <div class="otp-row">
+        <input id="otp1" name="otp1" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" autocomplete="one-time-code" required />
+        <input id="otp2" name="otp2" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" required />
+        <input id="otp3" name="otp3" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" required />
+        <input id="otp4" name="otp4" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" required />
+        <input id="otp5" name="otp5" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" required />
+        <input id="otp6" name="otp6" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-box" required />
+      </div>
+
+      <button type="submit" class="ig-auth-btn">Verify OTP</button>
+    </form>
+
+    <p class="ig-auth-link-row"><a href="/forgot-password?email=<%= encodeURIComponent(email || '') %>">Use a different email</a></p>
+  </div>
+</section>
+
+<style>
+.ig-auth-shell {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: radial-gradient(circle at top, #f2f2f2 0%, #ffffff 60%);
+}
+
+.ig-auth-card {
+  width: 100%;
+  max-width: 430px;
+  background: #ffffff;
+  border: 1px solid #dbdbdb;
+  border-radius: 18px;
+  padding: 28px 24px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.08);
+}
+
+.ig-auth-card h1 {
+  margin: 0;
+  font-size: 1.65rem;
+  text-align: center;
+  color: #111111;
+}
+
+.ig-auth-card p {
+  margin: 8px 0 20px;
+  text-align: center;
+  color: #666666;
+}
+
+.ig-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ig-auth-form label {
+  font-size: 0.9rem;
+  color: #222222;
+  font-weight: 600;
+}
+
+.otp-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.otp-box {
+  height: 48px;
+  border: 1px solid #cfcfcf;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.otp-box:focus {
+  border-color: #111111;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.ig-auth-btn {
+  margin-top: 6px;
+  height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: #111111;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ig-auth-btn:hover {
+  background: #000000;
+}
+
+.ig-auth-link-row {
+  margin: 16px 0 0;
+  font-size: 0.92rem;
+}
+
+.ig-auth-link-row a {
+  color: #111111;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .ig-auth-card {
+    padding: 22px 16px;
+    border-radius: 14px;
+  }
+
+  .otp-row {
+    gap: 6px;
+  }
+
+  .otp-box {
+    height: 44px;
+    font-size: 1.1rem;
+  }
+}
+</style>
+
+<script>
+const otpInputs = Array.from(document.querySelectorAll(".otp-box"));
+const otpCombined = document.getElementById("otpCombined");
+const otpForm = document.getElementById("verifyOtpForm");
+
+otpInputs.forEach((input, index) => {
+  input.addEventListener("input", (event) => {
+    const value = event.target.value.replace(/\D/g, "");
+    event.target.value = value;
+    if (value && index < otpInputs.length - 1) {
+      otpInputs[index + 1].focus();
+    }
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Backspace" && !event.target.value && index > 0) {
+      otpInputs[index - 1].focus();
+    }
+  });
+
+  input.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const pasted = (event.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+    pasted.split("").forEach((digit, idx) => {
+      if (otpInputs[idx]) otpInputs[idx].value = digit;
+    });
+    const nextIndex = Math.min(pasted.length, otpInputs.length - 1);
+    otpInputs[nextIndex].focus();
+  });
+});
+
+otpForm.addEventListener("submit", (event) => {
+  const otp = otpInputs.map((input) => input.value.trim()).join("");
+  if (!/^\d{6}$/.test(otp)) {
+    event.preventDefault();
+    otpInputs[0].focus();
+    return;
+  }
+  otpCombined.value = otp;
+});
+
+if (otpInputs.length > 0) {
+  otpInputs[0].focus();
+}
+</script>
+
+<%- include("../partials/footer") %>

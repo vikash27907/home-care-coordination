@@ -19,9 +19,18 @@ async function initializeDatabase() {
         verification_token TEXT,
         reset_token TEXT,
         reset_token_expiry TIMESTAMP,
+        reset_otp_hash TEXT,
+        reset_otp_expires TIMESTAMP,
         otp_code VARCHAR(6),
         otp_expiry TIMESTAMP
       )
+    `);
+
+    // Ensure reset OTP columns exist on already-deployed databases
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS reset_otp_hash TEXT,
+      ADD COLUMN IF NOT EXISTS reset_otp_expires TIMESTAMP
     `);
 
     // Create nurses table - stores only profile-specific data, auth via users table
