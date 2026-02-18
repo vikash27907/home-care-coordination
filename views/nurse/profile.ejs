@@ -21,6 +21,13 @@ function getDisplayAadhar(aadhar) {
 const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 %>
 
+<% if (nurse.status === 'Pending') { %>
+<div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 15px 20px; margin: 20px; border-radius: 8px; text-align: center;">
+  <strong>⚠️ Your profile is under review.</strong><br>
+  You can complete your details below, but you cannot accept jobs yet.
+</div>
+<% } %>
+
 <!-- Dashboard Header with Profile Summary -->
 <section class="dashboard-header">
   <div class="profile-header-container">

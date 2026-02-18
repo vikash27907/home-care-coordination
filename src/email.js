@@ -3,13 +3,14 @@
  * Handles sending verification and password reset emails
  */
 
+require('dotenv').config();
 const nodemailer = require("nodemailer");
 
 // Email configuration
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const SMTP_PORT = process.env.SMTP_PORT || 587;
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
+const SMTP_USER = process.env.SMTP_USER || process.env.GMAIL_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || process.env.GMAIL_PASS || "";
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@homecare.local";
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 
@@ -273,12 +274,15 @@ async function sendRequestConfirmationEmail(email, name, requestDetails) {
  * Send OTP verification email for nurse registration
  * @param {string} email - Recipient email
  * @param {string} name - Recipient name
- * @param {string} otp - 6-digit OTP code
+ * @param {string} otp - 4-digit OTP code
  */
-async function sendVerificationOtpEmail(email, name, otp) {
+async function sendVerificationOtpEmail(toEmail, name, otp) {
+  console.log('Attempting to send email to:', toEmail);
+  console.log('Using Gmail User:', process.env.SMTP_USER || process.env.GMAIL_USER);
+  
   const mailOptions = {
     from: `"Prisha Home Care" <${FROM_EMAIL}>`,
-    to: email,
+    to: toEmail,
     subject: "Your Verification OTP - Prisha Home Care",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

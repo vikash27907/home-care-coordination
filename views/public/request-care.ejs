@@ -62,29 +62,39 @@
       <small class="helper-text">Select the type of care service you need</small>
     </label>
     
-    <!-- Duration Type -->
+    <!-- Duration -->
     <label class="full-width">
-      Duration Type <span class="required-indicator" title="Required"></span>
-      <select name="durationType" id="durationType" required>
-        <option value="">Select duration...</option>
-        <option value="Days">Days</option>
-        <option value="Months">Months</option>
-        <option value="Years">Years</option>
-      </select>
+      Duration <span class="required-indicator" title="Required"></span>
+      <div class="duration-inputs" style="display: flex; gap: 10px; align-items: center;">
+        <input 
+          type="number" 
+          name="durationValue" 
+          id="durationValue" 
+          min="1" 
+          required 
+          placeholder="Enter number"
+          style="width: 120px;"
+        />
+        <select name="durationUnit" id="durationUnit" required style="flex: 1;">
+          <option value="">Select Unit</option>
+          <option value="days">Days</option>
+          <option value="months">Months</option>
+        </select>
+      </div>
     </label>
     
     <!-- Budget -->
-    <label class="full-width">
-      <span id="budgetLabel">Budget (INR)</span> <span class="required-indicator" title="Required"></span>
-      <input 
-        name="budget" 
-        type="number" 
-        min="1" 
-        step="100"
-        placeholder="Enter your budget"
+    <div class="form-group">
+      <label for="budget" id="budgetLabel">Budget (INR)</label>
+      <input
+        type="number"
+        id="budget"
+        name="budget"
+        class="form-control"
         required
+        placeholder="Enter your budget"
       />
-    </label>
+    </div>
     
     <!-- Notes -->
     <label class="full-width">
@@ -99,17 +109,28 @@
   </form>
 
   <script>
-    document.getElementById('durationType').addEventListener('change', function() {
-      const budgetLabel = document.getElementById('budgetLabel');
-      if (this.value === 'Days') {
-        budgetLabel.textContent = 'Per Day Budget (INR)';
-      } else if (this.value === 'Months') {
-        budgetLabel.textContent = 'Monthly Budget (INR)';
-      } else if (this.value === 'Years') {
-        budgetLabel.textContent = 'Yearly Budget (INR)';
-      } else {
-        budgetLabel.textContent = 'Budget (INR)';
+    document.addEventListener("DOMContentLoaded", function () {
+      const durationUnitSelect = document.getElementById("durationUnit");
+      const budgetLabel = document.getElementById("budgetLabel");
+
+      function updateBudgetLabel() {
+        const unit = durationUnitSelect.value;
+
+        if (unit === "days") {
+          budgetLabel.innerText = "Per Day Budget (INR)";
+        } else if (unit === "months") {
+          budgetLabel.innerText = "Monthly Budget (INR)";
+        } else if (unit === "years") {
+          budgetLabel.innerText = "Monthly Budget (INR)";
+        } else {
+          budgetLabel.innerText = "Budget (INR)";
+        }
       }
+
+      durationUnitSelect.addEventListener("change", updateBudgetLabel);
+
+      // Run once on page load
+      updateBudgetLabel();
     });
   </script>
 

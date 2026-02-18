@@ -13,6 +13,7 @@ let storeCache = {
 };
 
 let isInitialized = false;
+const DEFAULT_NURSE_GENDER = 'Not Specified';
 
 /**
  * Initialize store from database (called on server startup)
@@ -137,29 +138,22 @@ async function persistStoreToDb(store) {
     // Insert users
     for (const user of store.users || []) {
       await client.query(`
-        INSERT INTO users (id, full_name, email, phone_number, password_hash, role, status, created_at, email_verified, verification_token, reset_token, reset_token_expiry)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO users (id, email, phone_number, password_hash, role, status, created_at, email_verified, otp_code, otp_expiry)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `, [
-        user.id, user.fullName, user.email, user.phoneNumber, user.passwordHash, user.role, user.status, 
-        user.createdAt, user.emailVerified || false, user.verificationToken || '', user.resetToken || '', user.resetTokenExpiry || null
+        user.id, user.email, user.phoneNumber, user.passwordHash, user.role, user.status,
+        user.createdAt, user.emailVerified || false, user.otpCode || '', user.otpExpiry || null
       ]);
     }
 
-    // Insert nurses
+    // Insert nurses (profile-specific columns only)
     for (const nurse of store.nurses || []) {
       await client.query(`
-        INSERT INTO nurses (id, user_id, full_name, email, phone_number, city, experience_years, skills, public_skills, availability, status, 
-          agent_email, agent_emails, profile_image_url, profile_image_path, public_bio, is_available, public_show_city, public_show_experience,
-          referral_code, referred_by_nurse_id, referral_commission_percent, resume_url, certificate_url, aadhar_number, address, work_city, custom_skills, education_level, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
+        INSERT INTO nurses (id, user_id, full_name, city, gender, status, profile_image_path, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [
-        nurse.id, nurse.userId, nurse.fullName, nurse.email, nurse.phoneNumber, nurse.city, nurse.experienceYears,
-        nurse.skills || [], nurse.publicSkills || [], nurse.availability || [], nurse.status,
-        nurse.agentEmail || '', nurse.agentEmails || [], nurse.profileImageUrl || '', nurse.profileImagePath || '', 
-        nurse.publicBio || '', nurse.isAvailable !== false, nurse.publicShowCity !== false, nurse.publicShowExperience !== false,
-        nurse.referralCode || '', nurse.referredByNurseId, nurse.referralCommissionPercent || 5, 
-        nurse.resumeUrl || '', nurse.certificateUrl || '', nurse.aadharNumber || '', nurse.address || '', 
-        nurse.workCity || '', nurse.customSkills || [], nurse.educationLevel || '', nurse.createdAt
+        nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
+        nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png', nurse.createdAt
       ]);
     }
 
@@ -257,7 +251,7 @@ async function verifyStorageConnection() {
 function transformUserFromDB(row) {
   return {
     id: row.id,
-    fullName: row.full_name,
+    fullName: row.profile_full_name || row.nurse_full_name || row.agent_full_name || row.full_name || '',
     email: row.email,
     phoneNumber: row.phone_number || '',
     passwordHash: row.password_hash,
@@ -265,9 +259,8 @@ function transformUserFromDB(row) {
     status: row.status,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
     emailVerified: row.email_verified || false,
-    verificationToken: row.verification_token || '',
-    resetToken: row.reset_token || '',
-    resetTokenExpiry: row.reset_token_expiry ? new Date(row.reset_token_expiry).toISOString() : ''
+    otpCode: row.otp_code || '',
+    otpExpiry: row.otp_expiry ? new Date(row.otp_expiry).toISOString() : ''
   };
 }
 
@@ -276,8 +269,9 @@ function transformNurseFromDB(row) {
     id: row.id,
     userId: row.user_id,
     fullName: row.full_name,
-    email: row.email,
-    phoneNumber: row.phone_number || '',
+    gender: row.gender || DEFAULT_NURSE_GENDER,
+    email: row.user_email || row.email || '',
+    phoneNumber: row.user_phone || row.phone_number || '',
     city: row.city || '',
     experienceYears: row.experience_years || 0,
     skills: row.skills || [],
@@ -383,7 +377,17 @@ function transformConcernFromDB(row) {
 // Users
 async function getUsers() {
   try {
-    const result = await pool.query('SELECT * FROM users ORDER BY id');
+    const result = await pool.query(`
+      SELECT
+        u.*,
+        n.full_name AS nurse_full_name,
+        a.full_name AS agent_full_name,
+        COALESCE(n.full_name, a.full_name) AS profile_full_name
+      FROM users u
+      LEFT JOIN nurses n ON n.user_id = u.id
+      LEFT JOIN agents a ON a.user_id = u.id
+      ORDER BY u.id
+    `);
     return result.rows.map(transformUserFromDB);
   } catch (error) {
     console.error('Error getting users:', error);
@@ -393,7 +397,18 @@ async function getUsers() {
 
 async function getUserById(id) {
   try {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    const result = await pool.query(`
+      SELECT
+        u.*,
+        n.full_name AS nurse_full_name,
+        a.full_name AS agent_full_name,
+        COALESCE(n.full_name, a.full_name) AS profile_full_name
+      FROM users u
+      LEFT JOIN nurses n ON n.user_id = u.id
+      LEFT JOIN agents a ON a.user_id = u.id
+      WHERE u.id = $1
+      LIMIT 1
+    `, [id]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting user by id:', error);
@@ -403,7 +418,18 @@ async function getUserById(id) {
 
 async function getUserByEmail(email) {
   try {
-    const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    const result = await pool.query(`
+      SELECT
+        u.*,
+        n.full_name AS nurse_full_name,
+        a.full_name AS agent_full_name,
+        COALESCE(n.full_name, a.full_name) AS profile_full_name
+      FROM users u
+      LEFT JOIN nurses n ON n.user_id = u.id
+      LEFT JOIN agents a ON a.user_id = u.id
+      WHERE LOWER(u.email) = LOWER($1)
+      LIMIT 1
+    `, [email]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting user by email:', error);
@@ -414,13 +440,13 @@ async function getUserByEmail(email) {
 async function createUser(user) {
   try {
     const result = await pool.query(`
-      INSERT INTO users (id, full_name, email, phone_number, password_hash, role, status, created_at, email_verified, verification_token, reset_token, reset_token_expiry)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO users (email, phone_number, password_hash, role, status, email_verified, otp_code, otp_expiry, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
-      user.id, user.fullName, user.email, user.phoneNumber || '', user.passwordHash, user.role || 'user',
-      user.status || 'Approved', user.createdAt || new Date().toISOString(),
-      user.emailVerified || false, user.verificationToken || '', user.resetToken || '', user.resetTokenExpiry || null
+      user.email, user.phoneNumber || '', user.passwordHash, user.role || 'user',
+      user.status || 'Pending', user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
+      user.createdAt || new Date().toISOString()
     ]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
   } catch (error) {
@@ -437,9 +463,9 @@ async function updateUser(id, updates) {
 
     for (const [key, value] of Object.entries(updates)) {
       const dbKey = {
-        fullName: 'full_name', phoneNumber: 'phone_number', passwordHash: 'password_hash',
+        email: 'email', phoneNumber: 'phone_number', passwordHash: 'password_hash',
         role: 'role', status: 'status', emailVerified: 'email_verified',
-        verificationToken: 'verification_token', resetToken: 'reset_token', resetTokenExpiry: 'reset_token_expiry'
+        otpCode: 'otp_code', otpExpiry: 'otp_expiry'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);
@@ -475,7 +501,12 @@ async function deleteUser(id) {
 // Nurses
 async function getNurses() {
   try {
-    const result = await pool.query('SELECT * FROM nurses ORDER BY id');
+    const result = await pool.query(`
+      SELECT n.*, u.email AS user_email, u.phone_number AS user_phone
+      FROM nurses n
+      JOIN users u ON n.user_id = u.id
+      ORDER BY n.id
+    `);
     return result.rows.map(transformNurseFromDB);
   } catch (error) {
     console.error('Error getting nurses:', error);
@@ -485,7 +516,13 @@ async function getNurses() {
 
 async function getNurseById(id) {
   try {
-    const result = await pool.query('SELECT * FROM nurses WHERE id = $1', [id]);
+    const result = await pool.query(`
+      SELECT n.*, u.email AS user_email, u.phone_number AS user_phone
+      FROM nurses n
+      JOIN users u ON n.user_id = u.id
+      WHERE n.id = $1
+      LIMIT 1
+    `, [id]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting nurse by id:', error);
@@ -495,7 +532,13 @@ async function getNurseById(id) {
 
 async function getNurseByEmail(email) {
   try {
-    const result = await pool.query('SELECT * FROM nurses WHERE LOWER(email) = LOWER($1)', [email]);
+    const result = await pool.query(`
+      SELECT n.*, u.email AS user_email, u.phone_number AS user_phone
+      FROM nurses n
+      JOIN users u ON n.user_id = u.id
+      WHERE LOWER(u.email) = LOWER($1)
+      LIMIT 1
+    `, [email]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting nurse by email:', error);
@@ -506,19 +549,13 @@ async function getNurseByEmail(email) {
 async function createNurse(nurse) {
   try {
     const result = await pool.query(`
-      INSERT INTO nurses (id, user_id, full_name, email, phone_number, city, experience_years, skills, public_skills, availability, status,
-        agent_email, agent_emails, profile_image_url, profile_image_path, public_bio, is_available, public_show_city, public_show_experience,
-        referral_code, referred_by_nurse_id, referral_commission_percent, resume_url, certificate_url, aadhar_number, address, work_city, custom_skills, education_level, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+      INSERT INTO nurses (user_id, full_name, city, gender, status, profile_image_path, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `, [
-      nurse.id, nurse.userId, nurse.fullName, nurse.email, nurse.phoneNumber, nurse.city, nurse.experienceYears,
-      nurse.skills || [], nurse.publicSkills || [], nurse.availability || [], nurse.status || 'Pending',
-      nurse.agentEmail || '', nurse.agentEmails || [], nurse.profileImageUrl || '', nurse.profileImagePath || '',
-      nurse.publicBio || '', nurse.isAvailable !== false, nurse.publicShowCity !== false, nurse.publicShowExperience !== false,
-      nurse.referralCode || '', nurse.referredByNurseId, nurse.referralCommissionPercent || 5,
-      nurse.resumeUrl || '', nurse.certificateUrl || '', nurse.aadharNumber || '', nurse.address || '',
-      nurse.workCity || '', nurse.customSkills || [], nurse.educationLevel || '', nurse.createdAt || new Date().toISOString()
+      nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
+      nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+      nurse.createdAt || new Date().toISOString()
     ]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
   } catch (error) {
@@ -535,15 +572,11 @@ async function updateNurse(id, updates) {
 
     for (const [key, value] of Object.entries(updates)) {
       const dbKey = {
-        fullName: 'full_name', phoneNumber: 'phone_number', city: 'city', experienceYears: 'experience_years',
-        skills: 'skills', publicSkills: 'public_skills', availability: 'availability', status: 'status',
-        agentEmail: 'agent_email', agentEmails: 'agent_emails', profileImageUrl: 'profile_image_url',
-        profileImagePath: 'profile_image_path', publicBio: 'public_bio', isAvailable: 'is_available',
-        publicShowCity: 'public_show_city', publicShowExperience: 'public_show_experience',
-        referralCode: 'referral_code', referredByNurseId: 'referred_by_nurse_id',
-        referralCommissionPercent: 'referral_commission_percent', resumeUrl: 'resume_url',
-        certificateUrl: 'certificate_url', aadharNumber: 'aadhar_number', address: 'address',
-        workCity: 'work_city', customSkills: 'custom_skills', educationLevel: 'education_level'
+        fullName: 'full_name',
+        city: 'city',
+        gender: 'gender',
+        status: 'status',
+        profileImagePath: 'profile_image_path'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);

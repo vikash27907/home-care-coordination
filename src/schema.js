@@ -9,7 +9,6 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        full_name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         phone_number VARCHAR(15),
         password_hash TEXT NOT NULL,
@@ -30,8 +29,9 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS nurses (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        full_name VARCHAR(255) NOT NULL,
         city TEXT,
-        gender VARCHAR(10) NOT NULL,
+        gender VARCHAR(20) NOT NULL DEFAULT 'Not Specified',
         experience_years INTEGER DEFAULT 0,
         skills TEXT[],
         public_skills TEXT[],

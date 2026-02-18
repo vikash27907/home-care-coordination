@@ -1,78 +1,180 @@
-<%- include("../partials/head", { title }) %>
+<%- include('../partials/head') %>
 
-<section class="form-section">
-  <h1>Enter OTP</h1>
-  <p>We've sent a 6-digit OTP to your registered email address.</p>
-  <p>Please enter the OTP below to verify your identity.</p>
-
-  <% if (locals.flash && locals.flash.type === 'error') { %>
-    <div class="alert error">
-      <%= locals.flash.message %>
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Verify Your Email</h1>
+      <p class="subtitle">We sent a code to <strong><%= email %></strong></p>
     </div>
-  <% } %>
 
-  <form method="POST" action="/verify-otp" class="form-grid">
-    <input type="hidden" name="email" value="<%= email %>">
-    
-    <label class="full-width">
-      Enter 6-digit OTP
-      <input 
-        name="otp" 
-        type="text" 
-        maxlength="6" 
-        pattern="[0-9]{6}"
-        placeholder="123456"
-        required 
-        autofocus
-        autocomplete="one-time-code"
-      />
-      <small class="helper-text">OTP is valid for 10 minutes</small>
-    </label>
-    
-    <button type="submit" class="btn primary full-width">
-      Verify OTP
-    </button>
-  </form>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-error">
+        <%= error %>
+      </div>
+    <% } %>
 
-  <div class="form-footer">
-    <a href="/nurse-signup" class="btn">Back to Signup</a>
+    <% if (typeof success !== 'undefined' && success) { %>
+      <div class="alert alert-success">
+        <%= success %>
+      </div>
+    <% } %>
+
+    <form action="/verify-otp" method="POST" class="auth-form">
+      <input type="hidden" name="email" value="<%= email %>">
+      
+      <div class="form-group">
+        <label for="otp">Enter 4-digit OTP</label>
+        <input 
+          type="text" 
+          id="otp" 
+          name="otp" 
+          class="form-control" 
+          placeholder="Enter 4-digit code"
+          maxlength="4"
+          pattern="[0-9]{4}"
+          required
+          autocomplete="one-time-code"
+        >
+        <small class="form-hint">The OTP was sent to your email. Check your inbox (and spam folder).</small>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">
+        Verify
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>Didn't receive the code? <a href="/nurse-signup">Try again</a></p>
+    </div>
   </div>
-</section>
+</div>
 
 <style>
-.alert {
-  padding: 15px;
-  border-radius: 5px;
-  margin: 15px 0;
-}
+  .auth-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
 
-.alert.error {
-  background: #fee;
-  border: 1px solid #fcc;
-  color: #c33;
-}
+  .auth-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+  }
 
-.helper-text {
-  display: block;
-  margin-top: 4px;
-  color: #666;
-  font-size: 0.875rem;
-}
+  .auth-header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
 
-.form-footer {
-  margin-top: 30px;
-  text-align: center;
-}
+  .auth-header h1 {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 10px;
+  }
 
-/* Make OTP input larger */
-input[name="otp"] {
-  font-size: 24px;
-  letter-spacing: 8px;
-  text-align: center;
-  max-width: 200px;
-  margin: 0 auto;
-  display: block;
-}
+  .auth-header .subtitle {
+    color: #666;
+    font-size: 14px;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 500;
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+    text-align: center;
+    letter-spacing: 8px;
+    font-size: 24px;
+  }
+
+  .form-control:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  .form-hint {
+    display: block;
+    margin-top: 8px;
+    color: #999;
+    font-size: 12px;
+  }
+
+  .btn {
+    padding: 14px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 100%;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+  }
+
+  .alert {
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .alert-error {
+    background: #fee;
+    color: #c00;
+    border: 1px solid #fcc;
+  }
+
+  .alert-success {
+    background: #efe;
+    color: #080;
+    border: 1px solid #cfc;
+  }
+
+  .auth-footer {
+    text-align: center;
+    margin-top: 20px;
+    color: #666;
+    font-size: 14px;
+  }
+
+  .auth-footer a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .auth-footer a:hover {
+    text-decoration: underline;
+  }
 </style>
 
-<%- include("../partials/footer") %>
+<%- include('../partials/footer') %>
