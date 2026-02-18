@@ -396,7 +396,7 @@ async function sendVerificationOtpEmail(toEmail, name, otp) {
           
           <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
           
-          <p style="color: #999; font-size: 12px;">If you have any questions, please contact us at support@homecare.local or call +91 9138913355</p>
+          <p style="color: #999; font-size: 12px;">If you have any questions, please contact us at PrishaHomeCare@Gmail.com or call +91 9138913355</p>
         </div>
       </div>
     `
