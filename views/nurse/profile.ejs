@@ -1,64 +1,82 @@
 <%- include("../partials/head", { title }) %>
 
 <%
-// Calculate profile completion percentage
-let profileCompletion = 30; // Base: basic details already provided
-if (nurse.skills && nurse.skills.length > 0) profileCompletion += 15;
-if (nurse.availability && nurse.availability.length > 0) profileCompletion += 10;
-if (nurse.experienceYears && nurse.experienceYears > 0) profileCompletion += 10;
-if (nurse.profileImagePath || nurse.profileImageUrl) profileCompletion += 10;
-if (nurse.educationLevel) profileCompletion += 10;
-if (nurse.aadharNumber) profileCompletion += 10;
-if (nurse.resumeUrl) profileCompletion += 5;
+const profileImage = nurse.profileImagePath || nurse.profileImageUrl || "";
+const nurseName = String(nurse.fullName || "Nurse");
+const skills = Array.isArray(nurse.skills) ? nurse.skills : [];
+const qualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
+const workLocations = Array.isArray(nurse.workLocations) ? nurse.workLocations : [];
+const aadhaar = String(nurse.aadhaarNumber || nurse.aadharNumber || "").replace(/\D/g, "");
+const experienceYears = Number(nurse.experienceYears || 0);
+const experienceMonths = Number(nurse.experienceMonths || 0);
+const availabilityStatus = String(nurse.availabilityStatus || "").trim();
+const currentAddress = String(nurse.currentAddress || nurse.address || "").trim();
+const profileImageReady = Boolean(profileImage);
+const tenthCertReady = Boolean(nurse.tenthCertUrl);
+const highestCertReady = Boolean(nurse.highestCertUrl);
 
-// Helper to get display Aadhar (last 4 digits)
-function getDisplayAadhar(aadhar) {
-  if (!aadhar || aadhar.length < 4) return '----';
-  return '****-****-' + aadhar.slice(-4);
+const completionChecks = [
+  profileImageReady,
+  Boolean(nurse.city),
+  Boolean(currentAddress),
+  Boolean(workLocations.length),
+  Boolean(experienceYears || experienceMonths),
+  Boolean(availabilityStatus),
+  Boolean(skills.length),
+  Boolean(qualifications.length),
+  Boolean(nurse.resumeUrl),
+  tenthCertReady,
+  highestCertReady
+];
+const completedItems = completionChecks.filter(Boolean).length;
+const profileCompletion = Math.round((completedItems / completionChecks.length) * 100);
+const certsReadyForFullCompletion = tenthCertReady && highestCertReady;
+
+function maskAadhaar(value) {
+  if (!value || value.length < 4) return "Not provided";
+  return "XXXX-XXXX-" + value.slice(-4);
 }
-
-// Combine skills with custom skills
-const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 %>
 
-<% if (nurse.status === 'Pending') { %>
-<div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 15px 20px; margin: 20px; border-radius: 8px; text-align: center;">
-  <strong>⚠️ Your profile is under review.</strong><br>
-  You can complete your details below, but you cannot accept jobs yet.
-</div>
+<% if (nurse.status === "Pending") { %>
+<section class="notice notice-warning">
+  <strong>Your profile is under review.</strong>
+  <span>You can complete details now, but job actions stay locked until approval.</span>
+</section>
 <% } %>
 
-<!-- Dashboard Header with Profile Summary -->
 <section class="dashboard-header">
   <div class="profile-header-container">
     <div class="profile-avatar-large">
-      <% if (nurse.profileImagePath) { %>
-        <img src="<%= nurse.profileImagePath %>" alt="<%= nurse.fullName %>" />
-      <% } else if (nurse.profileImageUrl) { %>
-        <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %>" />
+      <% if (profileImage) { %>
+      <img src="<%= profileImage %>" alt="<%= nurseName %>" />
       <% } else { %>
-        <div class="avatar-fallback-large"><%= nurse.fullName.charAt(0).toUpperCase() %></div>
+      <div class="avatar-fallback-large"><%= nurseName.charAt(0).toUpperCase() %></div>
       <% } %>
     </div>
+
     <div class="profile-header-info">
-      <h1><%= nurse.fullName %></h1>
+      <h1><%= nurseName %></h1>
       <p class="profile-email"><%= nurse.email %></p>
-      <p class="profile-location"><%= nurse.city %><% if (nurse.workCity) { %> • <%= nurse.workCity %><% } %></p>
+      <p class="profile-location"><%= nurse.city || "City not set" %></p>
+      <% if (workLocations.length > 0) { %>
+      <p class="profile-subline">Works in: <%= workLocations.join(", ") %></p>
+      <% } %>
       <div class="profile-status">
         <span class="pill"><%= nurse.status %></span>
-        <span class="availability-badge <%= nurse.isAvailable ? 'available' : 'unavailable' %>">
-          <%= nurse.isAvailable ? 'Available' : 'Unavailable' %>
+        <span class="availability-badge <%= availabilityStatus === "Open for Work" ? "available" : "neutral" %>">
+          <%= availabilityStatus || "Availability not set" %>
         </span>
       </div>
     </div>
+
     <div class="profile-header-actions">
       <a href="/nurse/profile/edit" class="btn primary">Update Profile</a>
     </div>
   </div>
 </section>
 
-<!-- Profile Completion Indicator -->
-<div class="profile-completion">
+<section class="profile-completion">
   <div class="profile-completion-header">
     <span class="profile-completion-title">Profile Completion</span>
     <span class="profile-completion-percent"><%= profileCompletion %>%</span>
@@ -66,17 +84,19 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
   <div class="profile-completion-bar">
     <div class="profile-completion-fill" style="width: <%= profileCompletion %>%"></div>
   </div>
-</div>
+  <% if (!certsReadyForFullCompletion) { %>
+  <p class="completion-note">Upload both 10th marksheet and highest certificate to reach 100% completion.</p>
+  <% } %>
+</section>
 
-<!-- Main Profile Card -->
 <section class="profile-card profile-card-clean">
   <div class="profile-card-header">
-    <h2>Personal Information</h2>
+    <h2>Personal Details</h2>
   </div>
   <dl class="profile-details-grid">
     <div class="detail-item">
       <dt>Full Name</dt>
-      <dd><%= nurse.fullName %></dd>
+      <dd><%= nurseName %></dd>
     </div>
     <div class="detail-item">
       <dt>Email</dt>
@@ -84,115 +104,131 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
     </div>
     <div class="detail-item">
       <dt>Phone</dt>
-      <dd><%= nurse.phoneNumber %></dd>
+      <dd><%= nurse.phoneNumber || "-" %></dd>
+    </div>
+    <div class="detail-item">
+      <dt>Gender</dt>
+      <dd><%= nurse.gender || "Not Specified" %></dd>
     </div>
     <div class="detail-item">
       <dt>City</dt>
-      <dd><%= nurse.city %></dd>
+      <dd><%= nurse.city || "-" %></dd>
     </div>
-    <% if (nurse.workCity) { %>
     <div class="detail-item">
-      <dt>Work City</dt>
-      <dd><%= nurse.workCity %></dd>
+      <dt>Aadhaar</dt>
+      <dd><%= maskAadhaar(aadhaar) %></dd>
     </div>
-    <% } %>
-    <% if (nurse.address) { %>
     <div class="detail-item full-width">
-      <dt>Address</dt>
-      <dd><%= nurse.address %></dd>
+      <dt>Current Address</dt>
+      <dd><%= currentAddress || "-" %></dd>
     </div>
-    <% } %>
-    <% if (nurse.aadharNumber) { %>
-    <div class="detail-item">
-      <dt>Aadhar</dt>
-      <dd><%= getDisplayAadhar(nurse.aadharNumber) %></dd>
-    </div>
-    <% } %>
-    <div class="detail-item">
-      <dt>Experience</dt>
-      <dd><%= nurse.experienceYears || 0 %> years</dd>
-    </div>
-    <% if (nurse.educationLevel) { %>
-    <div class="detail-item">
-      <dt>Education</dt>
-      <dd><%= nurse.educationLevel %></dd>
-    </div>
-    <% } %>
   </dl>
 </section>
 
-<!-- Skills Section -->
 <section class="profile-card profile-card-clean">
   <div class="profile-card-header">
-    <h2>Skills</h2>
+    <h2>Professional Details</h2>
   </div>
-  <div class="skills-tags-container">
-    <% if (allSkills.length > 0) { %>
-      <% allSkills.forEach(function(skill) { %>
-        <span class="skill-tag"><%= skill %></span>
-      <% }); %>
-    <% } else { %>
-      <p class="no-data">No skills added yet. Update your profile to add skills.</p>
-    <% } %>
-  </div>
+  <dl class="profile-details-grid">
+    <div class="detail-item">
+      <dt>Experience</dt>
+      <dd><%= experienceYears %> year(s) <%= experienceMonths %> month(s)</dd>
+    </div>
+    <div class="detail-item">
+      <dt>Availability</dt>
+      <dd><%= availabilityStatus || "Not set" %></dd>
+    </div>
+    <div class="detail-item full-width">
+      <dt>Work Locations</dt>
+      <dd><%= workLocations.length ? workLocations.join(", ") : "-" %></dd>
+    </div>
+    <div class="detail-item full-width">
+      <dt>Qualifications</dt>
+      <dd>
+        <% if (qualifications.length) { %>
+        <div class="tags-wrap">
+          <% qualifications.forEach(function(item) { %>
+          <span class="skill-tag"><%= item %></span>
+          <% }); %>
+        </div>
+        <% } else { %>
+        -
+        <% } %>
+      </dd>
+    </div>
+    <div class="detail-item full-width">
+      <dt>Skills</dt>
+      <dd>
+        <% if (skills.length) { %>
+        <div class="tags-wrap">
+          <% skills.forEach(function(item) { %>
+          <span class="skill-tag"><%= item %></span>
+          <% }); %>
+        </div>
+        <% } else { %>
+        -
+        <% } %>
+      </dd>
+    </div>
+  </dl>
 </section>
 
-<!-- Availability Section -->
-<section class="profile-card profile-card-clean">
-  <div class="profile-card-header">
-    <h2>Availability</h2>
-  </div>
-  <div class="skills-tags-container">
-    <% if (nurse.availability && nurse.availability.length > 0) { %>
-      <% nurse.availability.forEach(function(avail) { %>
-        <span class="availability-tag"><%= avail %></span>
-      <% }); %>
-    <% } else { %>
-      <p class="no-data">No availability set. Update your profile to add availability.</p>
-    <% } %>
-  </div>
-</section>
-
-<!-- Documents Section -->
 <section class="profile-card profile-card-clean">
   <div class="profile-card-header">
     <h2>Documents</h2>
   </div>
   <div class="documents-grid">
     <div class="document-item">
-      <div class="document-icon">📄</div>
       <div class="document-info">
-        <dt>Resume</dt>
-        <% if (nurse.resumeUrl) { %>
-          <dd><a href="<%= nurse.resumeUrl %>" target="_blank" class="document-link">View Resume</a></dd>
+        <dt>Profile Picture</dt>
+        <% if (profileImage) { %>
+        <dd><a href="<%= profileImage %>" target="_blank" rel="noopener noreferrer" class="document-link">Open Profile File</a></dd>
         <% } else { %>
-          <dd class="no-document">Not uploaded</dd>
+        <dd class="no-document">Not uploaded</dd>
         <% } %>
       </div>
     </div>
     <div class="document-item">
-      <div class="document-icon">🎓</div>
       <div class="document-info">
-        <dt>Certificate</dt>
-        <% if (nurse.certificateUrl) { %>
-          <dd><a href="<%= nurse.certificateUrl %>" target="_blank" class="document-link">View Certificate</a></dd>
+        <dt>Resume</dt>
+        <% if (nurse.resumeUrl) { %>
+        <dd><a href="<%= nurse.resumeUrl %>" target="_blank" rel="noopener noreferrer" class="document-link">Open Resume</a></dd>
         <% } else { %>
-          <dd class="no-document">Not uploaded</dd>
+        <dd class="no-document">Not uploaded</dd>
+        <% } %>
+      </div>
+    </div>
+    <div class="document-item">
+      <div class="document-info">
+        <dt>10th Marksheet</dt>
+        <% if (nurse.tenthCertUrl) { %>
+        <dd><a href="<%= nurse.tenthCertUrl %>" target="_blank" rel="noopener noreferrer" class="document-link">Open 10th Marksheet</a></dd>
+        <% } else { %>
+        <dd class="no-document">Missing (required for 100%)</dd>
+        <% } %>
+      </div>
+    </div>
+    <div class="document-item">
+      <div class="document-info">
+        <dt>Highest Certificate</dt>
+        <% if (nurse.highestCertUrl) { %>
+        <dd><a href="<%= nurse.highestCertUrl %>" target="_blank" rel="noopener noreferrer" class="document-link">Open Highest Certificate</a></dd>
+        <% } else { %>
+        <dd class="no-document">Missing (required for 100%)</dd>
         <% } %>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Referral Section -->
 <section class="profile-card profile-card-clean">
   <div class="profile-card-header">
-    <h2>Referral & Earnings</h2>
+    <h2>Referral and Earnings</h2>
   </div>
   <dl class="profile-details-grid">
     <div class="detail-item">
       <dt>Referral Code</dt>
-      <dd><code class="referral-code"><%= nurse.referralCode %></code></dd>
+      <dd><code class="referral-code"><%= nurse.referralCode || "-" %></code></dd>
     </div>
     <div class="detail-item">
       <dt>Referral Link</dt>
@@ -200,10 +236,10 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
     </div>
     <div class="detail-item">
       <dt>Total Earnings</dt>
-      <dd class="earnings-amount">₹<%= referralTotal.toFixed(2) %></dd>
+      <dd class="earnings-amount">INR <%= Number(referralTotal || 0).toFixed(2) %></dd>
     </div>
   </dl>
-  
+
   <% if (referredNurses.length > 0) { %>
   <div class="referred-nurses-section">
     <h3>Referred Nurses (<%= referredNurses.length %>)</h3>
@@ -221,7 +257,7 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
           <tr>
             <td><%= item.fullName %></td>
             <td><span class="pill"><%= item.status %></span></td>
-            <td><%= item.createdAt.slice(0, 10) %></td>
+            <td><%= item.createdAt ? String(item.createdAt).slice(0, 10) : "-" %></td>
           </tr>
           <% }); %>
         </tbody>
@@ -231,7 +267,6 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
   <% } %>
 </section>
 
-<!-- Assigned Agents -->
 <% if (assignedAgents.length > 0) { %>
 <section class="profile-card profile-card-clean">
   <div class="profile-card-header">
@@ -252,12 +287,27 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 <% } %>
 
 <style>
-/* Profile Header Styles */
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notice-warning {
+  background: #fff8e8;
+  border-color: #f4cf7c;
+  color: #6d4b00;
+}
+
 .profile-header-container {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 1.5rem;
+  gap: 1.25rem;
+  padding: 1.25rem;
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
   border-radius: 16px;
   border: 1px solid var(--line, #d7e4f2);
@@ -265,12 +315,12 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 }
 
 .profile-avatar-large {
-  width: 100px;
-  height: 100px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   overflow: hidden;
+  border: 2px solid var(--primary, #2563eb);
   flex-shrink: 0;
-  border: 3px solid var(--primary, #2563eb);
 }
 
 .profile-avatar-large img {
@@ -285,10 +335,10 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--primary, #2563eb) 0%, #1d4ed8 100%);
-  color: white;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
 }
 
 .profile-header-info {
@@ -296,33 +346,28 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 }
 
 .profile-header-info h1 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.75rem;
-  color: var(--ink, #102a44);
+  margin: 0 0 0.2rem;
 }
 
-.profile-email {
-  margin: 0 0 0.25rem 0;
+.profile-email,
+.profile-location,
+.profile-subline {
+  margin: 0.12rem 0;
   color: var(--muted, #4f6880);
-  font-size: 0.95rem;
-}
-
-.profile-location {
-  margin: 0 0 0.5rem 0;
-  color: var(--muted, #4f6880);
-  font-size: 0.9rem;
 }
 
 .profile-status {
+  margin-top: 0.55rem;
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .availability-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
@@ -331,43 +376,80 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
   color: #166534;
 }
 
-.availability-badge.unavailable {
-  background: #fee2e2;
-  color: #991b1b;
+.availability-badge.neutral {
+  background: #eef2ff;
+  color: #1e3a8a;
 }
 
-.profile-header-actions {
-  flex-shrink: 0;
+.profile-completion {
+  margin-top: 1rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line, #d7e4f2);
+  border-radius: 12px;
+  background: #ffffff;
 }
 
-/* Clean Profile Card */
+.profile-completion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.profile-completion-title {
+  font-weight: 600;
+}
+
+.profile-completion-percent {
+  font-weight: 700;
+}
+
+.profile-completion-bar {
+  margin-top: 0.55rem;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.profile-completion-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8a6 0%, #22c55e 100%);
+}
+
+.completion-note {
+  margin: 0.6rem 0 0;
+  color: #7b4b00;
+  font-size: 0.9rem;
+}
+
 .profile-card-clean {
-  background: var(--surface, #ffffff);
+  margin-top: 1rem;
+  background: #ffffff;
   border: 1px solid var(--line, #d7e4f2);
   border-radius: 16px;
-  padding: 1.5rem;
-  margin-top: 1rem;
+  padding: 1.2rem;
   box-shadow: var(--shadow-card);
 }
 
 .profile-card-header {
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.85rem;
   border-bottom: 1px solid var(--line, #d7e4f2);
 }
 
 .profile-card-header h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   color: var(--ink, #102a44);
 }
 
-/* Profile Details Grid */
 .profile-details-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
   margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 
 .detail-item {
@@ -381,109 +463,67 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 }
 
 .detail-item dt {
-  font-size: 0.8rem;
-  color: var(--muted, #4f6880);
-  font-weight: 600;
+  margin: 0;
+  font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--muted, #4f6880);
 }
 
 .detail-item dd {
   margin: 0;
-  font-size: 1rem;
   color: var(--ink, #102a44);
   font-weight: 500;
 }
 
-.referral-code, .referral-link {
-  background: var(--surface-soft, #f5f9ff);
-  padding: 0.35rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  border: 1px solid var(--line, #d7e4f2);
-  word-break: break-all;
-}
-
-.earnings-amount {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--primary, #2563eb) !important;
-}
-
-/* Skills Tags */
-.skills-tags-container {
+.tags-wrap {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .skill-tag {
   display: inline-flex;
   align-items: center;
-  padding: 0.4rem 0.85rem;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
   border: 1px solid rgba(37, 99, 235, 0.2);
-  border-radius: 20px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1e40af;
   font-size: 0.85rem;
-  color: var(--primary-deep, #1e40af);
-  font-weight: 500;
 }
 
-.availability-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.85rem;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: 20px;
-  font-size: 0.85rem;
-  color: #047857;
-  font-weight: 500;
-}
-
-.no-data {
-  color: var(--muted, #4f6880);
-  font-size: 0.9rem;
-  font-style: italic;
-  margin: 0;
-}
-
-/* Documents Grid */
 .documents-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
 }
 
 .document-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--surface-soft, #f5f9ff);
-  border-radius: 12px;
   border: 1px solid var(--line, #d7e4f2);
-}
-
-.document-icon {
-  font-size: 1.5rem;
+  border-radius: 12px;
+  background: var(--surface-soft, #f5f9ff);
+  padding: 0.9rem;
 }
 
 .document-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
 }
 
 .document-info dt {
-  font-size: 0.8rem;
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--muted, #4f6880);
-  font-weight: 600;
 }
 
 .document-link {
   color: var(--primary, #2563eb);
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -492,73 +532,74 @@ const allSkills = [...(nurse.skills || []), ...(nurse.customSkills || [])];
 }
 
 .no-document {
-  color: var(--muted, #4f6880);
-  font-size: 0.9rem;
+  color: #8a2732;
 }
 
-/* Referred Nurses */
+.referral-code,
+.referral-link {
+  word-break: break-all;
+  background: var(--surface-soft, #f5f9ff);
+  border: 1px solid var(--line, #d7e4f2);
+  border-radius: 8px;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.88rem;
+}
+
+.earnings-amount {
+  font-weight: 700;
+  color: var(--primary, #2563eb) !important;
+}
+
 .referred-nurses-section {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
   border-top: 1px solid var(--line, #d7e4f2);
 }
 
 .referred-nurses-section h3 {
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.6rem;
   font-size: 1rem;
-  color: var(--ink, #102a44);
 }
 
-/* Agents List */
 .agents-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .agent-item {
   padding: 0.75rem;
-  background: var(--surface-soft, #f5f9ff);
-  border-radius: 10px;
   border: 1px solid var(--line, #d7e4f2);
+  border-radius: 10px;
+  background: var(--surface-soft, #f5f9ff);
 }
 
 .agent-info dt {
+  margin: 0 0 0.2rem;
   font-weight: 600;
-  color: var(--ink, #102a44);
-  margin-bottom: 0.15rem;
 }
 
 .agent-info dd {
   margin: 0;
-  font-size: 0.85rem;
   color: var(--muted, #4f6880);
 }
 
 .agent-region {
-  font-size: 0.8rem !important;
-  color: var(--primary, #2563eb) !important;
+  color: #1d4ed8 !important;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .profile-header-container {
     flex-direction: column;
+    align-items: stretch;
     text-align: center;
   }
-  
-  .profile-header-actions {
-    width: 100%;
-  }
-  
+
   .profile-header-actions .btn {
     width: 100%;
   }
-  
-  .profile-details-grid {
-    grid-template-columns: 1fr;
-  }
-  
+
+  .profile-details-grid,
   .documents-grid {
     grid-template-columns: 1fr;
   }

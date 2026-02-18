@@ -149,11 +149,33 @@ async function persistStoreToDb(store) {
     // Insert nurses (profile-specific columns only)
     for (const nurse of store.nurses || []) {
       await client.query(`
-        INSERT INTO nurses (id, user_id, full_name, city, gender, status, profile_image_path, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO nurses (
+          id, user_id, full_name, city, gender, status, profile_image_path,
+          aadhaar_number, experience_years, experience_months, availability_status,
+          work_locations, current_address, skills, qualifications, resume_url,
+          highest_cert_url, tenth_cert_url, created_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11,
+          $12, $13, $14, $15, $16,
+          $17, $18, $19
+        )
       `, [
         nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-        nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png', nurse.createdAt
+        nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+        nurse.aadhaarNumber || nurse.aadharNumber || '',
+        Number.parseInt(nurse.experienceYears, 10) || 0,
+        Number.parseInt(nurse.experienceMonths, 10) || 0,
+        nurse.availabilityStatus || '',
+        Array.isArray(nurse.workLocations) ? nurse.workLocations : [],
+        nurse.currentAddress || nurse.address || '',
+        Array.isArray(nurse.skills) ? nurse.skills : [],
+        Array.isArray(nurse.qualifications) ? nurse.qualifications : [],
+        nurse.resumeUrl || '',
+        nurse.highestCertUrl || '',
+        nurse.tenthCertUrl || '',
+        nurse.createdAt
       ]);
     }
 
@@ -273,8 +295,15 @@ function transformNurseFromDB(row) {
     email: row.user_email || row.email || '',
     phoneNumber: row.user_phone || row.phone_number || '',
     city: row.city || '',
-    experienceYears: row.experience_years || 0,
+    aadhaarNumber: row.aadhaar_number || row.aadhar_number || '',
+    aadharNumber: row.aadhaar_number || row.aadhar_number || '',
+    experienceYears: Number.parseInt(row.experience_years, 10) || 0,
+    experienceMonths: Number.parseInt(row.experience_months, 10) || 0,
+    availabilityStatus: row.availability_status || '',
+    workLocations: row.work_locations || [],
+    currentAddress: row.current_address || row.address || '',
     skills: row.skills || [],
+    qualifications: row.qualifications || [],
     publicSkills: row.public_skills || [],
     availability: row.availability || [],
     status: row.status || 'Pending',
@@ -290,9 +319,10 @@ function transformNurseFromDB(row) {
     referredByNurseId: row.referred_by_nurse_id,
     referralCommissionPercent: parseFloat(row.referral_commission_percent) || 5,
     resumeUrl: row.resume_url || '',
+    highestCertUrl: row.highest_cert_url || '',
+    tenthCertUrl: row.tenth_cert_url || '',
     certificateUrl: row.certificate_url || '',
-    aadharNumber: row.aadhar_number || '',
-    address: row.address || '',
+    address: row.current_address || row.address || '',
     workCity: row.work_city || '',
     customSkills: row.custom_skills || [],
     educationLevel: row.education_level || '',
@@ -576,7 +606,19 @@ async function updateNurse(id, updates) {
         city: 'city',
         gender: 'gender',
         status: 'status',
-        profileImagePath: 'profile_image_path'
+        profileImagePath: 'profile_image_path',
+        aadhaarNumber: 'aadhaar_number',
+        aadharNumber: 'aadhaar_number',
+        experienceYears: 'experience_years',
+        experienceMonths: 'experience_months',
+        availabilityStatus: 'availability_status',
+        workLocations: 'work_locations',
+        currentAddress: 'current_address',
+        skills: 'skills',
+        qualifications: 'qualifications',
+        resumeUrl: 'resume_url',
+        highestCertUrl: 'highest_cert_url',
+        tenthCertUrl: 'tenth_cert_url'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);
