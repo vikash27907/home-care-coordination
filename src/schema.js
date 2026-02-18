@@ -19,19 +19,19 @@ async function initializeDatabase() {
         email_verified BOOLEAN DEFAULT false,
         verification_token TEXT,
         reset_token TEXT,
-        reset_token_expiry TIMESTAMP
+        reset_token_expiry TIMESTAMP,
+        otp_code VARCHAR(6),
+        otp_expiry TIMESTAMP
       )
     `);
 
-    // Create nurses table
+    // Create nurses table - stores only profile-specific data, auth via users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS nurses (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        full_name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        phone_number VARCHAR(15),
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
         city TEXT,
+        gender VARCHAR(10) NOT NULL,
         experience_years INTEGER DEFAULT 0,
         skills TEXT[],
         public_skills TEXT[],
@@ -40,7 +40,7 @@ async function initializeDatabase() {
         agent_email VARCHAR(255),
         agent_emails TEXT[],
         profile_image_url TEXT,
-        profile_image_path TEXT,
+        profile_image_path TEXT NOT NULL DEFAULT '/images/default-male.png',
         public_bio TEXT,
         is_available BOOLEAN DEFAULT true,
         public_show_city BOOLEAN DEFAULT true,
@@ -89,9 +89,7 @@ async function initializeDatabase() {
         duration VARCHAR(50),
         duration_unit VARCHAR(20),
         duration_value INTEGER,
-        budget_type VARCHAR(20),
-        budget_min DECIMAL(12,2),
-        budget_max DECIMAL(12,2),
+        budget NUMERIC NOT NULL DEFAULT 0,
         notes TEXT,
         status VARCHAR(20) DEFAULT 'New',
         agent_email VARCHAR(255),

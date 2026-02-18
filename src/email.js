@@ -269,8 +269,49 @@ async function sendRequestConfirmationEmail(email, name, requestDetails) {
   return sendMail(mailOptions);
 }
 
+/**
+ * Send OTP verification email for nurse registration
+ * @param {string} email - Recipient email
+ * @param {string} name - Recipient name
+ * @param {string} otp - 6-digit OTP code
+ */
+async function sendVerificationOtpEmail(email, name, otp) {
+  const mailOptions = {
+    from: `"Prisha Home Care" <${FROM_EMAIL}>`,
+    to: email,
+    subject: "Your Verification OTP - Prisha Home Care",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px;">
+          <h1 style="color: white; margin: 0;">Prisha Home Care</h1>
+        </div>
+        <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">Hello ${name},</h2>
+          <p style="color: #666; font-size: 16px;">Thank you for registering with Prisha Home Care. Please use the following OTP to verify your email address.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <div style="background: white; padding: 20px; border-radius: 10px; display: inline-block;">
+              <span style="font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #667eea;">${otp}</span>
+            </div>
+          </div>
+          
+          <p style="color: #999; font-size: 14px;">This OTP will expire in 10 minutes.</p>
+          <p style="color: #999; font-size: 14px;">If you did not create this account, please ignore this email.</p>
+          
+          <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+          
+          <p style="color: #999; font-size: 12px;">If you have any questions, please contact us at support@homecare.local or call +91 9138913355</p>
+        </div>
+      </div>
+    `
+  };
+  
+  return sendMail(mailOptions);
+}
+
 module.exports = {
   sendVerificationEmail,
+  sendVerificationOtpEmail,
   sendResetPasswordEmail,
   sendConcernNotification,
   sendRequestConfirmationEmail

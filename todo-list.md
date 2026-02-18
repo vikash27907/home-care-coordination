@@ -1,68 +1,30 @@
-# Admin UI Redesign - Implementation Complete
+# Nurse Registration Refactoring - Task List
 
-## ✅ Completed Features
+## Phase 1: Database Schema Updates
+- [x] 1.1 Update nurses table schema - remove duplicate fields (full_name, email, phone_number, password)
+- [x] 1.2 Keep only user_id as foreign key reference in nurses table
 
-### 1. Admin Sidebar Navigation (views/admin/sidebar.ejs)
-- Medical-themed sidebar with dark blue gradient
-- Navigation items: Dashboard, Pending Approvals, Nurses, Agents, Patients, Concerns
-- Notification badges for pending items
-- Logout button
+## Phase 2: Server.js - Nurse Signup Logic
+- [x] 2.1 Modify createNurseUnderAgent function - Step 1: Insert into USERS table
+- [x] 2.2 Modify createNurseUnderAgent function - Step 2: Insert into NURSES table with user_id only
+- [x] 2.3 Remove password, email, full_name from nurse object creation
+- [x] 2.4 Implement default avatar logic (/images/default-male.png or /images/default-female.png)
+- [x] 2.5 Set status='Pending', email_verified=false, generate OTP
 
-### 2. Grid Card Layout
-- 3 columns on desktop
-- 2 columns on tablet
-- 1 column on mobile
-- Professional summary cards with hover effects
+## Phase 3: Multer Configuration
+- [x] 3.1 Add profile image upload middleware for profile edit (100KB limit)
+- [x] 3.2 Disable profile image upload during signup
 
-### 3. Nurse Card Component (views/admin/card-nurse.ejs)
-- Profile image with role badge overlay
-- Name and status badge
-- Email, phone, city, experience, skills count, registered date
-- Availability indicator with pulse animation
-- Click to view full profile
+## Phase 4: Login System Updates
+- [x] 4.1 Ensure login only checks USERS table with bcrypt.compare
+- [x] 4.2 Add dashboard access check: email_verified=true AND status='Approved'
+- [x] 4.3 Ensure admin and agent auth still work correctly
 
-### 4. Agent Card Component (views/admin/card-agent.ejs)
-- Similar layout to nurse cards
-- Building icon for agent role
-- Status and region info
+## Phase 5: Email Integration
+- [x] 5.1 Update sendVerificationEmail to support OTP mode
+- [x] 5.2 Ensure OTP email is sent after nurse signup
 
-### 5. Full Profile Page (views/admin/view-nurse.ejs)
-- Large avatar with role icon
-- Action buttons: Approve, Reject, Edit, Delete
-- Tabbed interface: Basic Info, Professional, Security
-- Edit mode toggle
-- Modal confirmations for reject/delete
-
-### 6. Nurses Management (views/admin/nurses.ejs)
-- Search bar (search by name, email, phone)
-- Status filter dropdown
-- Filter tabs (All, Pending, Approved, Rejected)
-- Quick stats showing counts
-- Card grid layout
-
-### 7. Agents Management (views/admin/agents.ejs)
-- Same features as nurses page
-- Card grid layout
-
-### 8. CSS Styling (public/styles.css)
-- Added admin grid layout styles
-- Medical theme colors
-- Responsive breakpoints
-- Modal styles
-- Status badge styles
-
-## Files Created/Modified
-1. views/admin/sidebar.ejs - ✅ New
-2. views/admin/layout.ejs - ✅ New
-3. views/admin/card-nurse.ejs - ✅ New
-4. views/admin/card-agent.ejs - ✅ New
-5. views/admin/view-nurse.ejs - ✅ New
-6. views/admin/nurses.ejs - ✅ Updated
-7. views/admin/agents.ejs - ✅ Updated
-8. public/styles.css - ✅ Updated
-
-## Next Steps (Optional)
-- Add admin dashboard with metrics
-- Create pending approvals page
-- Add agent full profile view
-- Enhance home page with medical theme
+## Phase 6: Cleanup and Verification
+- [x] 6.1 Remove any direct password checks against nurses table
+- [x] 6.2 Update any joins/queries to use users table for nurse auth data
+- [x] 6.3 Test the complete flow

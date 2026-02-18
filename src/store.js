@@ -186,7 +186,7 @@ async function persistStoreToDb(store) {
       `, [
         patient.id, patient.userId, patient.requestId, patient.fullName, patient.email, patient.phoneNumber, patient.city,
         patient.serviceSchedule || '', patient.duration || '', patient.durationUnit || '', patient.durationValue,
-        patient.budgetType || '', patient.budgetMin, patient.budgetMax, patient.notes || '', patient.status,
+        patient.budgetType || '', patient.budget || 0, patient.notes || '', patient.status,
         patient.agentEmail || '', patient.nurseId, patient.nurseAmount, patient.commissionType || 'Percent',
         patient.commissionValue || 0, patient.commissionAmount || 0, patient.nurseNetAmount,
         patient.referrerNurseId, patient.referralCommissionPercent || 0, patient.referralCommissionAmount || 0,

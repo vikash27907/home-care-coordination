@@ -7,7 +7,7 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const rateLimit = require("express-rate-limit");
 const { readStore, writeStore, nextId, initializeStore, getPatientByRequestId, createPatient } = require("./src/store");
-const { sendVerificationEmail, sendResetPasswordEmail, sendConcernNotification, sendRequestConfirmationEmail } = require("./src/email");
+const { sendVerificationEmail, sendVerificationOtpEmail, sendResetPasswordEmail, sendConcernNotification, sendRequestConfirmationEmail } = require("./src/email");
 const { initializeDatabase } = require("./src/schema");
 const { pool } = require("./src/db");
 const fs = require("fs");
@@ -44,16 +44,6 @@ const CERTIFICATES_DIR = path.join(UPLOAD_DIR, "certificates");
   }
 });
 
-// Storage configuration for profile images
-const profileStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, PROFILE_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, "profile-" + uniqueSuffix + ext);
-  }
-});
-
 // Storage configuration for resumes
 const resumeStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, RESUME_DIR),
@@ -61,6 +51,16 @@ const resumeStorage = multer.diskStorage({
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, "resume-" + uniqueSuffix + ext);
+  }
+});
+
+// Storage configuration for profile images (100KB limit)
+const profileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, PROFILE_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, "profile-" + uniqueSuffix + ext);
   }
 });
 
@@ -75,20 +75,6 @@ const certificateStorage = multer.diskStorage({
 });
 
 // Multer upload configurations
-const uploadProfile = multer({
-  storage: profileStorage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error("Only JPG, JPEG, and PNG images are allowed"));
-  }
-});
-
 const uploadResume = multer({
   storage: resumeStorage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -117,6 +103,21 @@ const uploadCertificate = multer({
   }
 });
 
+// Profile image upload - 100KB limit (only for profile edit, NOT for signup)
+const uploadProfileImage = multer({
+  storage: profileStorage,
+  limits: { fileSize: 100 * 1024 }, // 100KB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error("Only JPG, JPEG, and PNG files are allowed. Max size: 100KB"));
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -131,56 +132,6 @@ const INDIA_PHONE_REGEX = /^[6-9]\d{9}$/;
 // Standard email validation regex
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// Duration unit options for structured duration
-const DURATION_UNITS = [
-  { value: "days", label: "Days" },
-  { value: "months", label: "Months" },
-  { value: "years", label: "Years" }
-];
-
-// Care requirement options
-const CARE_REQUIREMENT_OPTIONS = [
-  { value: "8_hours_daily", label: "8 Hours Daily" },
-  { value: "12_hours_daily", label: "12 Hours Daily" },
-  { value: "24_hours_live_in", label: "24 Hours Live-in" },
-  { value: "one_time_visit", label: "One-Time Visit" },
-  { value: "night_shift_12", label: "Night Shift (12 Hours)" },
-  { value: "custom", label: "Custom" }
-];
-
-// Budget constraints (INR)
-const BUDGET_MIN = 5000;
-const BUDGET_MAX = 200000;
-const DAILY_BUDGET_MIN = 500;
-const DAILY_BUDGET_MAX = 5000;
-
-// Helper to calculate budget type based on duration
-function calculateBudgetType(durationUnit, durationValue) {
-  if (durationUnit === "days" && durationValue <= 15) {
-    return "daily";
-  }
-  return "monthly";
-}
-
-// Validate duration fields
-function validateDuration(durationUnit, durationValue) {
-  const validUnits = ["days", "months", "years"];
-  
-  if (!durationUnit || !validUnits.includes(durationUnit)) {
-    return { error: "Please select a valid duration unit." };
-  }
-  
-  const value = Number(durationValue);
-  if (isNaN(value) || value < 1) {
-    return { error: "Duration value must be at least 1." };
-  }
-  
-  return {
-    durationUnit,
-    durationValue: value,
-    budgetType: calculateBudgetType(durationUnit, value)
-  };
-}
 
 // Sanitization helper - removes potentially dangerous characters
 function sanitizeInput(value) {
@@ -221,29 +172,6 @@ function validateEmail(email) {
   return { valid: true, value: trimmed };
 }
 
-// Validate budget range
-function validateBudget(budgetMin, budgetMax) {
-  const min = budgetMin !== undefined && budgetMin !== "" ? Number(budgetMin) : null;
-  const max = budgetMax !== undefined && budgetMax !== "" ? Number(budgetMax) : null;
-
-  if (min !== null && (isNaN(min) || min < BUDGET_MIN)) {
-    return { error: `Budget must be at least ₹${BUDGET_MIN.toLocaleString("en-IN")}.` };
-  }
-  if (max !== null && (isNaN(max) || max > BUDGET_MAX)) {
-    return { error: `Budget cannot exceed ₹${BUDGET_MAX.toLocaleString("en-IN")}.` };
-  }
-  if (min !== null && max !== null && max < min) {
-    return { error: "Maximum budget cannot be less than minimum budget." };
-  }
-  if (min !== null && max !== null && (min < BUDGET_MIN || max > BUDGET_MAX)) {
-    return { error: `Budget must be between ₹${BUDGET_MIN.toLocaleString("en-IN")} and ₹${BUDGET_MAX.toLocaleString("en-IN")}.` };
-  }
-
-  return {
-    budgetMin: min === null ? null : Number(min.toFixed(2)),
-    budgetMax: max === null ? null : Number(max.toFixed(2))
-  };
-}
 
 // Validation middleware for request body
 function validateRequest(req, res, next) {
@@ -493,28 +421,6 @@ function calculateCommission(nurseAmount, commissionType, commissionValue) {
   };
 }
 
-function parseBudgetRange(budgetMinRaw, budgetMaxRaw) {
-  const budgetMinParsed = parseOptionalMoney(budgetMinRaw);
-  const budgetMaxParsed = parseOptionalMoney(budgetMaxRaw);
-
-  if (Number.isNaN(budgetMinParsed) || Number.isNaN(budgetMaxParsed)) {
-    return { error: "Please enter a valid budget range." };
-  }
-  const oneMissing = (budgetMinParsed === null && budgetMaxParsed !== null)
-    || (budgetMinParsed !== null && budgetMaxParsed === null);
-  if (oneMissing) {
-    return { error: "Budget range is optional, but when used both minimum and maximum are required." };
-  }
-  if (budgetMinParsed !== null && (budgetMinParsed < 0 || budgetMaxParsed < 0 || budgetMaxParsed < budgetMinParsed)) {
-    return { error: "Please enter a valid budget range." };
-  }
-
-  return {
-    budgetMin: budgetMinParsed === null ? null : Number(budgetMinParsed.toFixed(2)),
-    budgetMax: budgetMaxParsed === null ? null : Number(budgetMaxParsed.toFixed(2))
-  };
-}
-
 function now() {
   return new Date().toISOString();
 }
@@ -526,6 +432,11 @@ function now() {
 // Generate a secure random token
 function generateToken() {
   return crypto.randomBytes(32).toString("hex");
+}
+
+// Generate a 6-digit OTP
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // Generate a temporary password
@@ -906,30 +817,17 @@ function normalizeStoreShape(store) {
       }
     }
 
-    if (typeof patient.budgetMin === "undefined") {
-      patient.budgetMin = null;
+    if (typeof patient.budget === "undefined") {
+      patient.budget = 0;
       changed = true;
     }
-    if (typeof patient.budgetMax === "undefined") {
-      patient.budgetMax = null;
+    if (patient.budget === "" || Number.isNaN(patient.budget)) {
+      patient.budget = 0;
       changed = true;
     }
-    if (patient.budgetMin === "" || Number.isNaN(patient.budgetMin)) {
-      patient.budgetMin = null;
-      changed = true;
-    }
-    if (patient.budgetMax === "" || Number.isNaN(patient.budgetMax)) {
-      patient.budgetMax = null;
-      changed = true;
-    }
-    if (patient.budgetMin !== null && typeof patient.budgetMin !== "number") {
-      const parsedMin = Number.parseFloat(patient.budgetMin);
-      patient.budgetMin = Number.isNaN(parsedMin) ? null : Number(parsedMin.toFixed(2));
-      changed = true;
-    }
-    if (patient.budgetMax !== null && typeof patient.budgetMax !== "number") {
-      const parsedMax = Number.parseFloat(patient.budgetMax);
-      patient.budgetMax = Number.isNaN(parsedMax) ? null : Number(parsedMax.toFixed(2));
+    if (typeof patient.budget !== "number") {
+      const parsed = Number.parseFloat(patient.budget);
+      patient.budget = Number.isNaN(parsed) ? 0 : Number(parsed.toFixed(2));
       changed = true;
     }
 
@@ -1067,6 +965,12 @@ function requireApprovedNurse(req, res, next) {
     return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
   }
   const store = readNormalizedStore();
+  
+  // Check if account is approved
+  if (req.currentUser.status !== "Approved") {
+    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+  }
+  
   const nurseRecord = store.nurses.find((item) => item.userId === req.currentUser.id);
   if (!nurseRecord || nurseRecord.status !== "Approved") {
     return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
@@ -1094,8 +998,6 @@ app.use((req, res, next) => {
   res.locals.commissionTypes = COMMISSION_TYPES;
   res.locals.concernStatuses = CONCERN_STATUSES;
   res.locals.concernCategories = CONCERN_CATEGORIES;
-  // Add validation options to all views
-  res.locals.durationUnits = DURATION_UNITS;
 // Service schedule options - standardized list (matches request-care.ejs)
   const SERVICE_SCHEDULE_OPTIONS = [
     { value: "8_hour_shift", label: "8 Hour Shift" },
@@ -1116,10 +1018,6 @@ app.use((req, res, next) => {
 
   res.locals.serviceScheduleOptions = SERVICE_SCHEDULE_OPTIONS;
   res.locals.requestStatuses = REQUEST_STATUSES;
-  res.locals.budgetMin = BUDGET_MIN;
-  res.locals.budgetMax = BUDGET_MAX;
-  res.locals.dailyBudgetMin = DAILY_BUDGET_MIN;
-  res.locals.dailyBudgetMax = DAILY_BUDGET_MAX;
   return next();
 });
 
@@ -1165,19 +1063,18 @@ function createNurseUnderAgent(req, res, failRedirect) {
   const password = String(req.body.password || "");
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
-  const skills = toArray(req.body.skills);
-  const availability = toArray(req.body.availability);
-  const experienceYears = Number.parseInt(req.body.experienceYears, 10);
-  const profileImageUrl = String(req.body.profileImageUrl || "").trim();
-  const publicBio = String(req.body.publicBio || "").trim();
-  const isAvailable = creatorAgentEmail ? toBoolean(req.body.isAvailable) : true;
-  const publicShowCity = creatorAgentEmail ? toBoolean(req.body.publicShowCity) : true;
-  const publicShowExperience = creatorAgentEmail ? toBoolean(req.body.publicShowExperience) : true;
+  const gender = String(req.body.gender || "").trim();
   const referredByCode = String(req.body.referredByCode || "").trim().toUpperCase();
 
   // Validate required fields
-  if (!fullName || !emailInput || !password || !phoneNumber || !city || Number.isNaN(experienceYears)) {
+  if (!fullName || !emailInput || !phoneNumber || !city || !gender || !password) {
     setFlash(req, "error", "Please complete all required nurse details.");
+    return res.redirect(failRedirect);
+  }
+
+  // Validate gender must be Male or Female
+  if (!["Male", "Female"].includes(gender)) {
+    setFlash(req, "error", "Please select a valid gender.");
     return res.redirect(failRedirect);
   }
   
@@ -1216,6 +1113,9 @@ function createNurseUnderAgent(req, res, failRedirect) {
     referredByNurseId = referrer.id;
   }
 
+  // ============================================================
+  // STEP 1: Insert into USERS table (authentication)
+  // ============================================================
   const userId = nextId(store, "user");
   store.users.push({
     id: userId,
@@ -1224,31 +1124,31 @@ function createNurseUnderAgent(req, res, failRedirect) {
     phoneNumber,
     passwordHash: bcrypt.hashSync(password, 10),
     role: "nurse",
-    status: "Pending",
-    createdAt: now()
+    status: "Approved",
+    createdAt: now(),
+    emailVerified: false,
+    verificationToken: "",
+    resetTokenExpiry: ""
   });
 
+  // ============================================================
+  // STEP 2: Insert into NURSES table (profile data only)
+  // ============================================================
   const nurseId = nextId(store, "nurse");
   const usedCodes = new Set(store.nurses.map((nurse) => String(nurse.referralCode || "").toUpperCase()).filter(Boolean));
+  
+  // Default avatar based on gender
+  const defaultAvatar = gender === "Male" ? "/images/default-male.png" : "/images/default-female.png";
+  
   const nurse = {
     id: nurseId,
-    userId,
-    fullName,
-    email,
-    phoneNumber,
+    userId, // Foreign key to users table
     city,
-    skills,
-    publicSkills: [],
-    availability,
-    experienceYears,
-    status: "Pending",
+    gender,
+    status: "Approved",
     agentEmail: creatorAgentEmail,
     agentEmails: creatorAgentEmail ? [creatorAgentEmail] : [],
-    profileImageUrl,
-    publicBio,
-    isAvailable,
-    publicShowCity,
-    publicShowExperience,
+    profileImagePath: defaultAvatar, // Default avatar based on gender
     referralCode: generateReferralCode(usedCodes),
     referredByNurseId,
     referralCommissionPercent: REFERRAL_DEFAULT_PERCENT,
@@ -1257,13 +1157,18 @@ function createNurseUnderAgent(req, res, failRedirect) {
   store.nurses.push(nurse);
 
   writeStore(store);
+
+  // Auto-login after signup
+  req.session.userId = userId;
+  req.session.role = "nurse";
+
   if (creatorAgentEmail) {
-    setFlash(req, "success", "Nurse profile created under your account. Admin approval is required before nurse login.");
+    setFlash(req, "success", "Nurse profile created successfully.");
     return res.redirect("/agent");
   }
 
-  setFlash(req, "success", "Nurse signup submitted. Admin approval is required before login.");
-  return res.redirect("/nurse-signup");
+  setFlash(req, "success", "Account created successfully!");
+  return res.redirect("/nurse/profile");
 }
 
 function createAgentUnderAgent(req, res, failRedirect) {
@@ -1404,41 +1309,6 @@ app.get("/request-care", (req, res) => {
   res.render("public/request-care", { title: "Request Care", preferredNurse });
 });
 
-// Validate budget based on budget type
-function validateBudgetForDuration(budgetMin, budgetMax, budgetType) {
-  const min = budgetMin !== undefined && budgetMin !== "" ? Number(budgetMin) : null;
-  const max = budgetMax !== undefined && budgetMax !== "" ? Number(budgetMax) : null;
-
-  if (budgetType === "daily") {
-    // Daily budget constraints
-    if (min !== null && (isNaN(min) || min < DAILY_BUDGET_MIN)) {
-      return { error: `Daily budget must be at least ₹${DAILY_BUDGET_MIN.toLocaleString("en-IN")}.` };
-    }
-    if (max !== null && (isNaN(max) || max > DAILY_BUDGET_MAX)) {
-      return { error: `Daily budget cannot exceed ₹${DAILY_BUDGET_MAX.toLocaleString("en-IN")}.` };
-    }
-    if (min !== null && max !== null && max < min) {
-      return { error: "Maximum budget cannot be less than minimum budget." };
-    }
-  } else {
-    // Monthly budget constraints
-    if (min !== null && (isNaN(min) || min < BUDGET_MIN)) {
-      return { error: `Monthly budget must be at least ₹${BUDGET_MIN.toLocaleString("en-IN")}.` };
-    }
-    if (max !== null && (isNaN(max) || max > BUDGET_MAX)) {
-      return { error: `Monthly budget cannot exceed ₹${BUDGET_MAX.toLocaleString("en-IN")}.` };
-    }
-    if (min !== null && max !== null && max < min) {
-      return { error: "Maximum budget cannot be less than minimum budget." };
-    }
-  }
-
-  return {
-    budgetMin: min === null ? null : Number(min.toFixed(2)),
-    budgetMax: max === null ? null : Number(max.toFixed(2)),
-    budgetType
-  };
-}
 
 app.post("/request-care", (req, res) => {
   const fullName = String(req.body.fullName || "").trim();
@@ -1446,10 +1316,6 @@ app.post("/request-care", (req, res) => {
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
   const serviceSchedule = String(req.body.serviceSchedule || "").trim();
-  
-  // New structured duration fields
-  const durationUnit = String(req.body.durationUnit || "").trim();
-  const durationValue = req.body.durationValue;
   
   // Validate required fields
   if (!fullName || !email || !phoneNumber || !city || !serviceSchedule) {
@@ -1471,28 +1337,24 @@ app.post("/request-care", (req, res) => {
     return res.redirect("/request-care");
   }
   
-  // Validate service schedule (new standardized validation)
+  // Validate service schedule
   const scheduleValidation = validateServiceSchedule(serviceSchedule);
   if (!scheduleValidation.valid) {
     setFlash(req, "error", scheduleValidation.error);
     return res.redirect("/request-care");
   }
-  
-  // Validate duration
-  const durationValidation = validateDuration(durationUnit, durationValue);
-  if (durationValidation.error) {
-    setFlash(req, "error", durationValidation.error);
+
+  // Parse duration type and budget
+  const durationType = String(req.body.durationType || "").trim();
+  const budget = Number(req.body.budget);
+
+  if (!durationType || !["Days", "Months", "Years"].includes(durationType)) {
+    setFlash(req, "error", "Please select duration type.");
     return res.redirect("/request-care");
   }
-  
-  // Validate budget based on calculated budget type
-  const budgetValidation = validateBudgetForDuration(
-    req.body.budgetMin, 
-    req.body.budgetMax, 
-    durationValidation.budgetType
-  );
-  if (budgetValidation.error) {
-    setFlash(req, "error", budgetValidation.error);
+
+  if (!budget || isNaN(budget) || budget <= 0) {
+    setFlash(req, "error", "Please enter a valid budget.");
     return res.redirect("/request-care");
   }
 
@@ -1517,10 +1379,7 @@ app.post("/request-care", (req, res) => {
   const patientId = nextId(store, "patient");
   const requestId = generateRequestId(store);
   
-  // Store duration in structured format
-  const durationString = `${durationValidation.durationValue} ${durationValidation.durationUnit}`;
-  
-  // Default status is now "Requested" (new standardized status)
+  // Default status is "Requested"
   const defaultStatus = "Requested";
   
   store.patients.push({
@@ -1532,13 +1391,6 @@ app.post("/request-care", (req, res) => {
     phoneNumber,
     city,
     serviceSchedule,
-    // Store new structured format
-    duration: durationString,
-    durationUnit: durationValidation.durationUnit,
-    durationValue: durationValidation.durationValue,
-    budgetType: durationValidation.budgetType,
-    budgetMin: budgetValidation.budgetMin,
-    budgetMax: budgetValidation.budgetMax,
     notes: req.body.notes || "",
     status: defaultStatus,
     agentEmail: "",
@@ -1558,6 +1410,8 @@ app.post("/request-care", (req, res) => {
     transferMarginAmount: 0,
     lastTransferredAt: "",
     lastTransferredBy: "",
+    durationType: durationType,
+    budget: budget,
     createdAt: now()
   });
   writeStore(store);
@@ -1645,17 +1499,11 @@ app.get("/track-request", (req, res) => {
 });
 
 app.post("/update-request", (req, res) => {
-  const { requestId, budgetMin, budgetMax, duration, serviceSchedule, notes } = req.body;
+  const { requestId, duration, serviceSchedule, notes } = req.body;
 
   if (!requestId) {
     setFlash(req, "error", "Invalid request ID.");
     return res.redirect("/track-request");
-  }
-
-  const budget = validateBudget(budgetMin, budgetMax);
-  if (budget.error) {
-    setFlash(req, "error", budget.error);
-    return res.redirect(`/track-request?requestId=${requestId}`);
   }
 
   const store = readNormalizedStore();
@@ -1696,8 +1544,6 @@ app.post("/update-request", (req, res) => {
     return res.redirect("/track-request");
   }
 
-  store.patients[requestIndex].budgetMin = budget.budgetMin;
-  store.patients[requestIndex].budgetMax = budget.budgetMax;
   store.patients[requestIndex].duration = duration;
   store.patients[requestIndex].serviceSchedule = serviceSchedule;
   store.patients[requestIndex].notes = notes;
@@ -1730,6 +1576,47 @@ app.post("/nurse-signup", (req, res) => {
     return res.redirect(redirectByRole(req.currentUser.role));
   }
   return createNurseUnderAgent(req, res, "/nurse-signup");
+});
+
+app.get("/verify-otp", (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    setFlash(req, "error", "Invalid request. Please try again.");
+    return res.redirect("/nurse-signup");
+  }
+  res.render("public/verify-otp", {
+    title: "Verify OTP",
+    email
+  });
+});
+
+app.post("/verify-otp", (req, res) => {
+  const { email, otp } = req.body;
+  const store = readNormalizedStore();
+  const user = store.users.find(u => u.email === email);
+
+  if (!user || user.verificationToken !== otp || new Date() > new Date(user.resetTokenExpiry)) {
+    setFlash(req, "error", "Invalid or expired OTP. Please try again.");
+    return res.redirect(`/verify-otp?email=${encodeURIComponent(email)}`);
+  }
+
+  user.emailVerified = true;
+  user.verificationToken = "";
+  user.resetTokenExpiry = "";
+  user.status = "Approved";
+
+  const nurse = store.nurses.find(n => n.userId === user.id);
+  if (nurse) {
+    nurse.status = "Approved";
+  }
+
+  writeStore(store);
+
+  req.session.userId = user.id;
+  req.session.role = user.role;
+
+  setFlash(req, "success", "Email verified successfully! Welcome to your dashboard.");
+  return res.redirect("/nurse/dashboard");
 });
 
 app.get("/agent-registration", (req, res) => {
@@ -1776,8 +1663,8 @@ app.post("/login", loginRateLimiter, (req, res) => {
     return res.redirect("/login");
   }
 
-  // Check if email is verified for nurses and agents
-  if ((user.role === "nurse" || user.role === "agent") && !user.emailVerified) {
+  // Check if email is verified for agents only (not for nurses)
+  if (user.role === "agent" && !user.emailVerified) {
     setFlash(req, "error", "Please verify your email before logging in. Check your inbox for the verification link.");
     return res.redirect("/login");
   }
@@ -2083,10 +1970,10 @@ app.post("/agent/patients/new", requireRole("agent"), requireApprovedAgent, (req
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
   const careRequirement = String(req.body.careRequirement || "").trim();
-  const duration = String(req.body.duration || "").trim();
-  const budget = parseBudgetRange(req.body.budgetMin, req.body.budgetMax);
+  const durationType = String(req.body.durationType || "").trim();
+  const budget = Number(req.body.budget);
 
-  if (!fullName || !email || !phoneNumber || !city || !careRequirement || !duration) {
+  if (!fullName || !email || !phoneNumber || !city || !careRequirement || !durationType) {
     setFlash(req, "error", "Please complete all required patient fields.");
     return res.redirect("/agent/patients/new");
   }
@@ -2094,8 +1981,12 @@ app.post("/agent/patients/new", requireRole("agent"), requireApprovedAgent, (req
     setFlash(req, "error", "Please enter a valid phone number.");
     return res.redirect("/agent/patients/new");
   }
-  if (budget.error) {
-    setFlash(req, "error", budget.error);
+  if (!budget || isNaN(budget) || budget <= 0) {
+    setFlash(req, "error", "Please enter a valid budget.");
+    return res.redirect("/agent/patients/new");
+  }
+  if (!["Days", "Months", "Years"].includes(durationType)) {
+    setFlash(req, "error", "Please select a valid duration type.");
     return res.redirect("/agent/patients/new");
   }
 
@@ -2108,9 +1999,8 @@ app.post("/agent/patients/new", requireRole("agent"), requireApprovedAgent, (req
     phoneNumber,
     city,
     careRequirement,
-    duration,
-    budgetMin: budget.budgetMin,
-    budgetMax: budget.budgetMax,
+    durationType: durationType,
+    budget: budget,
     status: "New",
     agentEmail: req.currentUser.email,
     nurseId: null,
@@ -2196,8 +2086,8 @@ app.post("/agent/patients/:id/financials", requireRole("agent"), requireApproved
     setFlash(req, "error", "Commission cannot exceed nurse amount.");
     return res.redirect("/agent");
   }
-  if (typeof patient.budgetMax === "number" && roundedNurseAmount > patient.budgetMax) {
-    setFlash(req, "error", "Nurse amount should be within patient budget range.");
+  if (typeof patient.budget === "number" && roundedNurseAmount > patient.budget) {
+    setFlash(req, "error", "Nurse amount should be within patient budget.");
     return res.redirect("/agent");
   }
 
@@ -3032,7 +2922,7 @@ app.get("/edit-request/:requestId/form", (req, res) => {
 // Step 6: Process the edit request
 app.post("/edit-request/:requestId/update", (req, res) => {
   const { requestId } = req.params;
-  const { serviceSchedule, duration, budgetMin, budgetMax, notes } = req.body;
+  const { serviceSchedule, duration, notes } = req.body;
   
   const store = readNormalizedStore();
   const requestIndex = store.patients.findIndex(p => p.requestId === requestId);
@@ -3044,18 +2934,9 @@ app.post("/edit-request/:requestId/update", (req, res) => {
   
   const request = store.patients[requestIndex];
   
-  // Validate budget
-  const budget = validateBudget(budgetMin, budgetMax);
-  if (budget.error) {
-    setFlash(req, "error", budget.error);
-    return res.redirect(`/edit-request/${requestId}/form`);
-  }
-  
   // Update only allowed fields
   request.serviceSchedule = serviceSchedule;
   request.duration = duration;
-  request.budgetMin = budget.budgetMin;
-  request.budgetMax = budget.budgetMax;
   request.notes = notes;
   request.updatedAt = now();
   

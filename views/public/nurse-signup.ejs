@@ -3,7 +3,7 @@
 <section class="form-section narrow">
   <h1>Nurse Signup Application</h1>
   <p>Your profile will be created with <strong>Pending</strong> status until verification is complete.</p>
-  <form method="POST" action="/nurse-signup" class="form-grid" id="nurseSignupForm" enctype="multipart/form-data">
+  <form method="POST" action="/nurse-signup" class="form-grid" id="nurseSignupForm">
     <label>
       Full Name <span class="required-indicator" title="Required"></span>
       <input name="fullName" type="text" required />
@@ -32,28 +32,14 @@
       <input name="city" type="text" required />
     </label>
     
-    <!-- Profile Image Upload (Optional) -->
-    <div class="full-width">
-      <label>Profile Photo (Optional)</label>
-      <div class="file-upload-container" id="profileImageUpload">
-        <input 
-          type="file" 
-          name="profileImage" 
-          id="profileImageInput"
-          accept="image/*"
-          data-max-size="2097152"
-        />
-        <label for="profileImageInput" class="file-upload-label">
-          <span class="upload-icon">📷</span>
-          <span>Click to upload profile photo</span>
-          <small class="file-info">Max size: 2MB (JPG, PNG)</small>
-        </label>
-        <div class="file-upload-preview" id="profileImagePreview" style="display: none;">
-          <img id="profileImageImg" src="" alt="Profile Preview" />
-          <button type="button" class="file-remove" onclick="removeProfileImage()">✕</button>
-        </div>
-      </div>
-    </div>
+    <label>
+      Gender <span class="required-indicator" title="Required"></span>
+      <select name="gender" required>
+        <option value="">Select Gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+      </select>
+    </label>
     
     <!-- Password Field with Show Toggle -->
     <label class="full-width">
@@ -63,15 +49,15 @@
           name="password" 
           type="password" 
           id="passwordInput"
-          minlength="6" 
+          minlength="8" 
           required
-          placeholder="Minimum 6 characters"
+          placeholder="Minimum 8 characters"
         />
         <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Show password">
           👁
         </button>
       </div>
-      <small class="helper-text">Minimum 6 characters required</small>
+      <small class="helper-text">Minimum 8 characters required</small>
     </label>
 
     <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
@@ -100,45 +86,15 @@
     }
   }
   
-  // Profile image preview
-  document.getElementById('profileImageInput').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    const preview = document.getElementById('profileImagePreview');
-    const previewImg = document.getElementById('profileImageImg');
-    const container = document.getElementById('profileImageUpload');
-    
-    if (file) {
-      // Check file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        alert('File size must be less than 2MB');
-        this.value = '';
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        previewImg.src = e.target.result;
-        preview.style.display = 'flex';
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-  
-  function removeProfileImage() {
-    document.getElementById('profileImageInput').value = '';
-    document.getElementById('profileImagePreview').style.display = 'none';
-    document.getElementById('profileImageImg').src = '';
-  }
-  
   // Form submission with loading state
   document.getElementById('nurseSignupForm').addEventListener('submit', function(e) {
     const submitBtn = document.getElementById('submitBtn');
     const passwordInput = document.getElementById('passwordInput');
     
     // Validate password minimum length
-    if (passwordInput.value.length < 6) {
+    if (passwordInput.value.length < 8) {
       e.preventDefault();
-      alert('Password must be at least 6 characters');
+      alert('Password must be at least 8 characters');
       return;
     }
     

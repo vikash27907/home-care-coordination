@@ -11,7 +11,9 @@
     </div>
   <% } %>
 
-  <form method="POST" action="/edit-request/<%= requestId %>/verify" class="form-grid">
+  <form method="POST" action="/verify-otp" class="form-grid">
+    <input type="hidden" name="email" value="<%= email %>">
+    
     <label class="full-width">
       Enter 6-digit OTP
       <input 
@@ -24,7 +26,7 @@
         autofocus
         autocomplete="one-time-code"
       />
-      <small class="helper-text">OTP is valid for 5 minutes</small>
+      <small class="helper-text">OTP is valid for 10 minutes</small>
     </label>
     
     <button type="submit" class="btn primary full-width">
@@ -32,15 +34,8 @@
     </button>
   </form>
 
-  <div class="resend-section">
-    <p>Didn't receive the OTP?</p>
-    <form method="POST" action="/edit-request/<%= requestId %>/send-otp" style="display: inline;">
-      <button type="submit" class="btn secondary">Resend OTP</button>
-    </form>
-  </div>
-
   <div class="form-footer">
-    <a href="/track-request?requestId=<%= requestId %>" class="btn">Cancel</a>
+    <a href="/nurse-signup" class="btn">Back to Signup</a>
   </div>
 </section>
 
@@ -62,18 +57,6 @@
   margin-top: 4px;
   color: #666;
   font-size: 0.875rem;
-}
-
-.resend-section {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-  text-align: center;
-}
-
-.resend-section p {
-  color: #666;
-  margin-bottom: 10px;
 }
 
 .form-footer {

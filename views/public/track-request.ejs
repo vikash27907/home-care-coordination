@@ -62,13 +62,13 @@
             </tr>
             <tr>
               <td class="label">Duration:</td>
-              <td><%= request.duration || '-' %></td>
+              <td><%= request.durationType || '-' %></td>
             </tr>
             <tr>
-              <td class="label">Budget Range:</td>
+              <td class="label">Budget:</td>
               <td>
-                <% if (request.budgetMin || request.budgetMax) { %>
-                  ₹<%= request.budgetMin ? request.budgetMin.toLocaleString('en-IN') : '0' %> - ₹<%= request.budgetMax ? request.budgetMax.toLocaleString('en-IN') : '0' %>
+                <% if (request.budget) { %>
+                  ₹<%= request.budget.toLocaleString('en-IN') %>
                 <% } else { %>
                   -
                 <% } %>

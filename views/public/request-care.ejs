@@ -48,7 +48,7 @@
       <input name="city" type="text" required />
     </label>
     
-    <!-- Service Schedule (Standardized Options) -->
+    <!-- Service Schedule -->
     <label class="full-width">
       Service Schedule <span class="required-indicator" title="Required"></span>
       <select name="serviceSchedule" id="serviceSchedule" required>
@@ -62,59 +62,29 @@
       <small class="helper-text">Select the type of care service you need</small>
     </label>
     
-    <!-- Service Duration - New Structured Format -->
+    <!-- Duration Type -->
     <label class="full-width">
-      Service Duration <span class="required-indicator" title="Required"></span>
-      <div class="duration-inputs">
-        <input 
-          name="durationValue" 
-          type="number" 
-          min="1" 
-          placeholder="Enter value"
-          required
-          class="duration-value"
-        />
-        <select name="durationUnit" id="durationUnit" required>
-          <option value="">Select unit...</option>
-          <% durationUnits.forEach(function(unit) { %>
-            <option value="<%= unit.value %>"><%= unit.label %></option>
-          <% }); %>
-        </select>
-      </div>
-      <small class="helper-text">Enter duration (e.g., 8 Days, 3 Months, 1 Year)</small>
+      Duration Type <span class="required-indicator" title="Required"></span>
+      <select name="durationType" id="durationType" required>
+        <option value="">Select duration...</option>
+        <option value="Days">Days</option>
+        <option value="Months">Months</option>
+        <option value="Years">Years</option>
+      </select>
     </label>
     
-    <!-- Budget Range - Unified Fields -->
-    <div class="full-width" id="budgetSection">
-      <label id="budgetLabel">
-        Monthly Budget Range (₹) <span class="required-indicator" title="Required"></span>
-      </label>
-      <div class="budget-inputs">
-        <input 
-          name="budgetMin" 
-          type="number" 
-          id="budgetMin"
-          min="5000" 
-          max="200000"
-          step="100"
-          placeholder="Minimum"
-          required
-        />
-        <input 
-          name="budgetMax" 
-          type="number" 
-          id="budgetMax"
-          min="5000" 
-          max="200000"
-          step="100"
-          placeholder="Maximum"
-          required
-        />
-      </div>
-      <small class="helper-text" id="budgetHelper">
-        Enter your comfortable monthly budget range
-      </small>
-    </div>
+    <!-- Budget -->
+    <label class="full-width">
+      <span id="budgetLabel">Budget (INR)</span> <span class="required-indicator" title="Required"></span>
+      <input 
+        name="budget" 
+        type="number" 
+        min="1" 
+        step="100"
+        placeholder="Enter your budget"
+        required
+      />
+    </label>
     
     <!-- Notes -->
     <label class="full-width">
@@ -127,6 +97,21 @@
       <span class="spinner" style="display: none;"></span>
     </button>
   </form>
+
+  <script>
+    document.getElementById('durationType').addEventListener('change', function() {
+      const budgetLabel = document.getElementById('budgetLabel');
+      if (this.value === 'Days') {
+        budgetLabel.textContent = 'Per Day Budget (INR)';
+      } else if (this.value === 'Months') {
+        budgetLabel.textContent = 'Monthly Budget (INR)';
+      } else if (this.value === 'Years') {
+        budgetLabel.textContent = 'Yearly Budget (INR)';
+      } else {
+        budgetLabel.textContent = 'Budget (INR)';
+      }
+    });
+  </script>
 
   <aside class="urgent-support">
     <h2>Need Immediate Assistance?</h2>
@@ -145,152 +130,6 @@
     </div>
   </aside>
 </section>
-
-<script>
-(function() {
-  'use strict';
-
-  // Configuration
-  var CONFIG = {
-    DAILY_BUDGET_MIN: <%= dailyBudgetMin %>,
-    DAILY_BUDGET_MAX: <%= dailyBudgetMax %>,
-    MONTHLY_BUDGET_MIN: <%= budgetMin %>,
-    MONTHLY_BUDGET_MAX: <%= budgetMax %>
-  };
-
-  // DOM Elements
-  var elements = {
-    durationUnit: document.getElementById('durationUnit'),
-    durationValue: document.querySelector('input[name="durationValue"]'),
-    budgetMin: document.getElementById('budgetMin'),
-    budgetMax: document.getElementById('budgetMax'),
-    budgetLabel: document.getElementById('budgetLabel'),
-    budgetHelper: document.getElementById('budgetHelper'),
-    form: document.getElementById('requestCareForm'),
-    submitBtn: document.getElementById('submitBtn')
-  };
-
-  // Calculate budget type based on duration
-  function calculateBudgetType(unit, value) {
-    if (unit === 'days' && value <= 15) {
-      return 'daily';
-    }
-    return 'monthly';
-  }
-
-  // Update budget field constraints and labels
-  function updateBudgetConstraints() {
-    var unit = elements.durationUnit.value;
-    var value = parseInt(elements.durationValue.value, 10) || 0;
-    var budgetType = calculateBudgetType(unit, value);
-
-    if (budgetType === 'daily') {
-      // Update to daily budget
-      elements.budgetLabel.innerHTML = 'Daily Budget Range (₹) <span class="required-indicator" title="Required"></span>';
-      elements.budgetHelper.textContent = 'Daily budget: ₹' + CONFIG.DAILY_BUDGET_MIN.toLocaleString('en-IN') + ' – ₹' + CONFIG.DAILY_BUDGET_MAX.toLocaleString('en-IN');
-      
-      elements.budgetMin.setAttribute('min', CONFIG.DAILY_BUDGET_MIN);
-      elements.budgetMin.setAttribute('max', CONFIG.DAILY_BUDGET_MAX);
-      elements.budgetMax.setAttribute('min', CONFIG.DAILY_BUDGET_MIN);
-      elements.budgetMax.setAttribute('max', CONFIG.DAILY_BUDGET_MAX);
-      
-      // Clear if values are outside daily range
-      if (elements.budgetMin.value && (elements.budgetMin.value < CONFIG.DAILY_BUDGET_MIN || elements.budgetMin.value > CONFIG.DAILY_BUDGET_MAX)) {
-        elements.budgetMin.value = '';
-      }
-      if (elements.budgetMax.value && (elements.budgetMax.value < CONFIG.DAILY_BUDGET_MIN || elements.budgetMax.value > CONFIG.DAILY_BUDGET_MAX)) {
-        elements.budgetMax.value = '';
-      }
-    } else {
-      // Update to monthly budget
-      elements.budgetLabel.innerHTML = 'Monthly Budget Range (₹) <span class="required-indicator" title="Required"></span>';
-      elements.budgetHelper.textContent = 'Monthly budget: ₹' + CONFIG.MONTHLY_BUDGET_MIN.toLocaleString('en-IN') + ' – ₹' + CONFIG.MONTHLY_BUDGET_MAX.toLocaleString('en-IN');
-      
-      elements.budgetMin.setAttribute('min', CONFIG.MONTHLY_BUDGET_MIN);
-      elements.budgetMin.setAttribute('max', CONFIG.MONTHLY_BUDGET_MAX);
-      elements.budgetMax.setAttribute('min', CONFIG.MONTHLY_BUDGET_MIN);
-      elements.budgetMax.setAttribute('max', CONFIG.MONTHLY_BUDGET_MAX);
-      
-      // Clear if values are outside monthly range
-      if (elements.budgetMin.value && (elements.budgetMin.value < CONFIG.MONTHLY_BUDGET_MIN || elements.budgetMin.value > CONFIG.MONTHLY_BUDGET_MAX)) {
-        elements.budgetMin.value = '';
-      }
-      if (elements.budgetMax.value && (elements.budgetMax.value < CONFIG.MONTHLY_BUDGET_MIN || elements.budgetMax.value > CONFIG.MONTHLY_BUDGET_MAX)) {
-        elements.budgetMax.value = '';
-      }
-    }
-  }
-
-  // Validate budget range
-  function validateBudget() {
-    var unit = elements.durationUnit.value;
-    var value = parseInt(elements.durationValue.value, 10) || 0;
-    var budgetType = calculateBudgetType(unit, value);
-    var min = parseFloat(elements.budgetMin.value);
-    var max = parseFloat(elements.budgetMax.value);
-
-    if (budgetType === 'daily') {
-      if (min < CONFIG.DAILY_BUDGET_MIN || min > CONFIG.DAILY_BUDGET_MAX) {
-        return 'Daily budget must be between ₹' + CONFIG.DAILY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + CONFIG.DAILY_BUDGET_MAX.toLocaleString('en-IN');
-      }
-      if (max < CONFIG.DAILY_BUDGET_MIN || max > CONFIG.DAILY_BUDGET_MAX) {
-        return 'Daily budget must be between ₹' + CONFIG.DAILY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + CONFIG.DAILY_BUDGET_MAX.toLocaleString('en-IN');
-      }
-    } else {
-      if (min < CONFIG.MONTHLY_BUDGET_MIN || min > CONFIG.MONTHLY_BUDGET_MAX) {
-        return 'Monthly budget must be between ₹' + CONFIG.MONTHLY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + CONFIG.MONTHLY_BUDGET_MAX.toLocaleString('en-IN');
-      }
-      if (max < CONFIG.MONTHLY_BUDGET_MIN || max > CONFIG.MONTHLY_BUDGET_MAX) {
-        return 'Monthly budget must be between ₹' + CONFIG.MONTHLY_BUDGET_MIN.toLocaleString('en-IN') + ' and ₹' + CONFIG.MONTHLY_BUDGET_MAX.toLocaleString('en-IN');
-      }
-    }
-    
-    if (max < min) {
-      return 'Maximum budget cannot be less than minimum budget.';
-    }
-    
-    return null;
-  }
-
-  // Event Listeners
-  function initEventListeners() {
-    // Update budget when duration changes
-    elements.durationUnit.addEventListener('change', updateBudgetConstraints);
-    elements.durationValue.addEventListener('input', updateBudgetConstraints);
-
-    // Form submission validation
-    elements.form.addEventListener('submit', function(e) {
-      // Validate budget
-      var budgetError = validateBudget();
-      if (budgetError) {
-        e.preventDefault();
-        alert(budgetError);
-        return;
-      }
-
-      // Show loading state
-      elements.submitBtn.classList.add('loading');
-      elements.submitBtn.querySelector('.btn-text').textContent = 'Submitting...';
-      elements.submitBtn.querySelector('.spinner').style.display = 'inline-block';
-      elements.submitBtn.disabled = true;
-    });
-  }
-
-  // Initialize
-  function init() {
-    initEventListeners();
-    // Set initial budget constraints
-    updateBudgetConstraints();
-  }
-
-  // Run on DOM ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-})();
-</script>
 
 <style>
 .section-header {
@@ -323,24 +162,20 @@
   color: white;
 }
 
-.duration-inputs,
 .budget-inputs {
   display: flex;
   gap: 10px;
   margin-top: 8px;
-}
-
-.duration-value {
-  flex: 1;
-  max-width: 150px;
-}
-
-.duration-inputs select {
-  flex: 1;
+  align-items: center;
 }
 
 .budget-inputs input {
   flex: 1;
+}
+
+.budget-separator {
+  color: #666;
+  font-weight: 500;
 }
 
 .helper-text {
