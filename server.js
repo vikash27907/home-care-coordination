@@ -2567,6 +2567,30 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     return res.redirect("/nurse/profile");
   }
 
+  let profilePicDbColumn = "profile_image_path";
+  try {
+    const profilePicColumnResult = await pool.query(
+      `SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'nurses'
+          AND column_name = 'profile_pic_url'
+      ) AS has_profile_pic_url`
+    );
+    if (profilePicColumnResult.rows[0] && profilePicColumnResult.rows[0].has_profile_pic_url) {
+      profilePicDbColumn = "profile_pic_url";
+    }
+  } catch (error) {
+    // Fall back to profile_image_path when metadata lookup is unavailable.
+    profilePicDbColumn = "profile_image_path";
+  }
+
+  const normalizeArray = (val) => {
+    if (!val) return [];
+    return Array.isArray(val) ? val : [val];
+  };
+
   const city = String(req.body.city || "").trim();
   if (!city) {
     setFlash(req, "error", "City is required.");
@@ -2579,73 +2603,187 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     return res.redirect("/nurse/profile/edit");
   }
 
-  const experienceYears = Number.parseInt(req.body.experienceYears, 10);
+  const experienceYears = Number.parseInt(
+    req.body.experience_years ?? req.body.experienceYears,
+    10
+  );
   if (Number.isNaN(experienceYears) || experienceYears < 0 || experienceYears > 60) {
     setFlash(req, "error", "Experience years must be between 0 and 60.");
     return res.redirect("/nurse/profile/edit");
   }
 
-  const experienceMonths = Number.parseInt(req.body.experienceMonths, 10);
+  const experienceMonths = Number.parseInt(
+    req.body.experience_months ?? req.body.experienceMonths,
+    10
+  );
   if (Number.isNaN(experienceMonths) || experienceMonths < 0 || experienceMonths > 11) {
     setFlash(req, "error", "Experience months must be between 0 and 11.");
     return res.redirect("/nurse/profile/edit");
   }
 
-  const availabilityStatus = String(req.body.availabilityStatus || "").trim();
+  const availabilityStatus = String(req.body.availability_status || req.body.availabilityStatus || "").trim();
   if (!PROFILE_AVAILABILITY_STATUS_OPTIONS.includes(availabilityStatus)) {
     setFlash(req, "error", "Please select a valid availability status.");
     return res.redirect("/nurse/profile/edit");
   }
 
-  const workLocations = String(req.body.workLocationsRaw || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  const selectedSkills = toArray(req.body.skills)
+  const selectedSkills = normalizeArray(req.body.skills)
     .map((item) => String(item || "").trim())
     .filter((item) => PROFILE_SKILL_OPTIONS.includes(item));
 
-  const selectedQualifications = toArray(req.body.qualifications)
+  const selectedQualifications = normalizeArray(req.body.qualifications)
     .map((item) => String(item || "").trim())
     .filter((item) => PROFILE_QUALIFICATION_OPTIONS.includes(item));
 
-  const updates = {
-    city,
-    aadhaarNumber: aadhaarDigits,
-    experienceYears,
-    experienceMonths,
-    availabilityStatus,
-    workLocations,
-    currentAddress: String(req.body.currentAddress || "").trim(),
-    skills: selectedSkills,
-    qualifications: selectedQualifications
+  const workLocationsRaw = String(req.body.workLocationsRaw || "").trim();
+  const workLocationsInput = workLocationsRaw
+    ? workLocationsRaw.split(",").map((item) => item.trim())
+    : normalizeArray(req.body.work_locations).map((item) => String(item || "").trim());
+  const normalizedWorkLocations = normalizeArray(workLocationsInput).filter(Boolean);
+
+  const currentAddress = String(req.body.currentAddress || req.body.current_address || "").trim();
+
+  const updateData = {};
+  const setIfDefined = (key, value) => {
+    if (typeof value !== "undefined") {
+      updateData[key] = value;
+    }
   };
+
+  // Explicitly whitelisted profile fields only.
+  setIfDefined("city", city);
+  setIfDefined("current_address", currentAddress);
+  setIfDefined("availability_status", availabilityStatus);
+  setIfDefined("experience_years", experienceYears);
+  setIfDefined("experience_months", experienceMonths);
+  setIfDefined("aadhaar_number", aadhaarDigits);
+  setIfDefined("skills", selectedSkills);
+  setIfDefined("work_locations", normalizedWorkLocations);
+  setIfDefined("qualifications", selectedQualifications);
+
+  // Optional phone update belongs to users table.
+  const phoneInput = String(req.body.phone || "").trim();
+  let normalizedPhone = "";
+  if (phoneInput) {
+    const phoneValidation = validateIndiaPhone(phoneInput);
+    if (!phoneValidation.valid) {
+      setFlash(req, "error", phoneValidation.error);
+      return res.redirect("/nurse/profile/edit");
+    }
+    normalizedPhone = phoneValidation.value;
+  }
 
   const files = req.files || {};
   try {
     if (files.profilePic && files.profilePic[0]) {
       const uploadedProfilePic = await uploadBufferToCloudinary(files.profilePic[0], "home-care/nurses/profile");
-      updates.profileImagePath = uploadedProfilePic.secure_url;
+      setIfDefined(profilePicDbColumn, uploadedProfilePic.secure_url);
     }
     if (files.resume && files.resume[0]) {
       const uploadedResume = await uploadBufferToCloudinary(files.resume[0], "home-care/nurses/resume");
-      updates.resumeUrl = uploadedResume.secure_url;
+      setIfDefined("resume_url", uploadedResume.secure_url);
     }
     if (files.highestCert && files.highestCert[0]) {
       const uploadedHighest = await uploadBufferToCloudinary(files.highestCert[0], "home-care/nurses/highest-cert");
-      updates.highestCertUrl = uploadedHighest.secure_url;
+      setIfDefined("highest_cert_url", uploadedHighest.secure_url);
     }
     if (files.tenthCert && files.tenthCert[0]) {
       const uploadedTenth = await uploadBufferToCloudinary(files.tenthCert[0], "home-care/nurses/tenth-cert");
-      updates.tenthCertUrl = uploadedTenth.secure_url;
+      setIfDefined("tenth_cert_url", uploadedTenth.secure_url);
     }
   } catch (error) {
     setFlash(req, "error", "Failed to upload files to Cloudinary. Please try again.");
     return res.redirect("/nurse/profile/edit");
   }
 
-  const updatedNurse = await updateNurse(nurse.id, updates);
+  try {
+    if (normalizedPhone) {
+      await pool.query(
+        "UPDATE users SET phone_number = $1 WHERE id = $2",
+        [normalizedPhone, nurse.userId]
+      );
+    }
+
+    const pickValue = (key) => (
+      Object.prototype.hasOwnProperty.call(updateData, key) ? updateData[key] : null
+    );
+
+    if (profilePicDbColumn === "profile_pic_url") {
+      await pool.query(
+        `UPDATE nurses SET
+          city = COALESCE($1, city),
+          current_address = COALESCE($2, current_address),
+          availability_status = COALESCE($3, availability_status),
+          experience_years = COALESCE($4, experience_years),
+          experience_months = COALESCE($5, experience_months),
+          aadhaar_number = COALESCE($6, aadhaar_number),
+          skills = COALESCE($7, skills),
+          work_locations = COALESCE($8, work_locations),
+          qualifications = COALESCE($9, qualifications),
+          resume_url = COALESCE($10, resume_url),
+          highest_cert_url = COALESCE($11, highest_cert_url),
+          tenth_cert_url = COALESCE($12, tenth_cert_url),
+          profile_pic_url = COALESCE($13, profile_pic_url)
+        WHERE id = $14`,
+        [
+          pickValue("city"),
+          pickValue("current_address"),
+          pickValue("availability_status"),
+          pickValue("experience_years"),
+          pickValue("experience_months"),
+          pickValue("aadhaar_number"),
+          pickValue("skills"),
+          pickValue("work_locations"),
+          pickValue("qualifications"),
+          pickValue("resume_url"),
+          pickValue("highest_cert_url"),
+          pickValue("tenth_cert_url"),
+          pickValue("profile_pic_url"),
+          nurse.id
+        ]
+      );
+    } else {
+      await pool.query(
+        `UPDATE nurses SET
+          city = COALESCE($1, city),
+          current_address = COALESCE($2, current_address),
+          availability_status = COALESCE($3, availability_status),
+          experience_years = COALESCE($4, experience_years),
+          experience_months = COALESCE($5, experience_months),
+          aadhaar_number = COALESCE($6, aadhaar_number),
+          skills = COALESCE($7, skills),
+          work_locations = COALESCE($8, work_locations),
+          qualifications = COALESCE($9, qualifications),
+          resume_url = COALESCE($10, resume_url),
+          highest_cert_url = COALESCE($11, highest_cert_url),
+          tenth_cert_url = COALESCE($12, tenth_cert_url),
+          profile_image_path = COALESCE($13, profile_image_path)
+        WHERE id = $14`,
+        [
+          pickValue("city"),
+          pickValue("current_address"),
+          pickValue("availability_status"),
+          pickValue("experience_years"),
+          pickValue("experience_months"),
+          pickValue("aadhaar_number"),
+          pickValue("skills"),
+          pickValue("work_locations"),
+          pickValue("qualifications"),
+          pickValue("resume_url"),
+          pickValue("highest_cert_url"),
+          pickValue("tenth_cert_url"),
+          pickValue("profile_image_path"),
+          nurse.id
+        ]
+      );
+    }
+  } catch (error) {
+    console.error("Error updating nurse profile:", error);
+    setFlash(req, "error", "Unable to update profile right now. Please try again.");
+    return res.redirect("/nurse/profile/edit");
+  }
+
+  const updatedNurse = await getNurseById(nurse.id);
   if (!updatedNurse) {
     setFlash(req, "error", "Unable to update profile right now. Please try again.");
     return res.redirect("/nurse/profile/edit");
