@@ -7,6 +7,7 @@ const { pool } = require("../src/db");
 
 async function migrateNurseProfileColumns() {
   const client = await pool.connect();
+
   try {
     await client.query("BEGIN");
 
@@ -25,7 +26,6 @@ async function migrateNurseProfileColumns() {
       ADD COLUMN IF NOT EXISTS tenth_cert_url TEXT
     `);
 
-    // Safe defaults for new profile fields.
     await client.query(`
       UPDATE nurses
       SET experience_years = COALESCE(experience_years, 0),
@@ -37,18 +37,14 @@ async function migrateNurseProfileColumns() {
     `);
 
     await client.query("COMMIT");
-    // eslint-disable-next-line no-console
     console.log("Nurse profile migration complete.");
-    process.exit(0);
   } catch (error) {
     await client.query("ROLLBACK");
-    // eslint-disable-next-line no-console
     console.error("Nurse profile migration failed:", error);
-    process.exit(1);
+    throw error;
   } finally {
     client.release();
-    await pool.end();
   }
 }
 
-migrateNurseProfileColumns();
+module.exports = { migrateNurseProfileColumns };
