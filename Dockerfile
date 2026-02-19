@@ -1,3 +1,4 @@
+# Force rebuild - migration export fix
 FROM node:20-alpine
 
 WORKDIR /app
