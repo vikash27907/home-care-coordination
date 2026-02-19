@@ -55,14 +55,43 @@ const workLocationsRaw = (nurse.workLocations || []).join(", ");
     </label>
 
     <div class="full-width">
-      <h3>Skills</h3>
-      <div class="checkbox-grid">
-        <% skills.forEach(function(skill) { %>
-          <label class="check-item">
-            <input type="checkbox" name="skills" value="<%= skill %>" <%= selectedSkills.includes(skill) ? "checked" : "" %> />
-            <span><%= skill %></span>
-          </label>
+      <div class="skill-header">
+        <h3>Skills</h3>
+        <button type="button" id="editSkillsBtn" class="btn small">Edit</button>
+      </div>
+
+      <!-- Selected Skills Preview -->
+      <div id="selectedSkillsPreview" class="tags-wrap">
+        <% selectedSkills.forEach(function(skill) { %>
+          <span class="skill-tag">
+            <%= skill %>
+          </span>
         <% }) %>
+      </div>
+
+      <!-- Hidden Skill Editor Panel -->
+      <div id="skillEditor" class="skill-editor hidden">
+        
+        <input type="text" id="skillSearch" placeholder="Search or type to add skill..." />
+
+        <!-- Selected Skills -->
+        <div id="selectedSkillsContainer" class="tags-wrap">
+          <% selectedSkills.forEach(function(skill) { %>
+            <span class="skill-tag removable" data-value="<%= skill %>">
+              <%= skill %> <span class="remove-skill">&times;</span>
+              <input type="hidden" name="skills" value="<%= skill %>" />
+            </span>
+          <% }) %>
+        </div>
+
+        <!-- Available Skill Options -->
+        <div id="skillOptionsList" class="skill-options">
+          <% skills.forEach(function(skill) { %>
+            <div class="skill-option" data-value="<%= skill %>">
+              <%= skill %>
+            </div>
+          <% }) %>
+        </div>
       </div>
     </div>
 
@@ -175,6 +204,54 @@ const workLocationsRaw = (nurse.workLocations || []).join(", ");
   width: 18px;
   height: 18px;
 }
+.skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skill-editor {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #d7e4f2;
+  border-radius: 12px;
+  background: #f9fbff;
+}
+
+.hidden {
+  display: none;
+}
+
+.skill-options {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.skill-option {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #eef2ff;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.skill-option:hover {
+  background: #dbeafe;
+}
+
+.skill-tag.removable {
+  cursor: pointer;
+}
+
+.remove-skill {
+  margin-left: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
 .doc-note {
   margin: 0;
   color: #7b4b00;
@@ -224,6 +301,74 @@ document.getElementById("profileEditForm").addEventListener("submit", () => {
   submitBtn.disabled = true;
   submitBtn.textContent = "Saving...";
 });
+
+const editBtn = document.getElementById("editSkillsBtn");
+const skillEditor = document.getElementById("skillEditor");
+const skillSearch = document.getElementById("skillSearch");
+const options = document.querySelectorAll(".skill-option");
+const selectedContainer = document.getElementById("selectedSkillsContainer");
+
+if (editBtn) {
+  editBtn.addEventListener("click", () => {
+    skillEditor.classList.toggle("hidden");
+  });
+}
+
+function updatePreview() {
+  const preview = document.getElementById("selectedSkillsPreview");
+  preview.innerHTML = "";
+  selectedContainer.querySelectorAll(".skill-tag").forEach(tag => {
+    const span = document.createElement("span");
+    span.className = "skill-tag";
+    span.textContent = tag.dataset.value;
+    preview.appendChild(span);
+  });
+}
+
+function addSkill(value) {
+  if (selectedContainer.querySelectorAll(".skill-tag").length >= 20) {
+    alert("Maximum 20 skills allowed.");
+    return;
+  }
+
+  if (selectedContainer.querySelector(`[data-value="${value}"]`)) return;
+
+  const tag = document.createElement("span");
+  tag.className = "skill-tag removable";
+  tag.dataset.value = value;
+  tag.innerHTML = `${value} <span class="remove-skill">&times;</span>
+    <input type="hidden" name="skills" value="${value}" />`;
+
+  selectedContainer.appendChild(tag);
+  updatePreview();
+}
+
+options.forEach(option => {
+  option.addEventListener("click", () => {
+    addSkill(option.dataset.value);
+  });
+});
+
+if (skillSearch) {
+  skillSearch.addEventListener("input", (e) => {
+    const search = e.target.value.toLowerCase();
+    options.forEach(option => {
+      option.style.display =
+        option.dataset.value.toLowerCase().includes(search)
+          ? "block"
+          : "none";
+    });
+  });
+}
+
+if (selectedContainer) {
+  selectedContainer.addEventListener("click", (e) => {
+    if (e.target.classList.contains("remove-skill")) {
+      e.target.parentElement.remove();
+      updatePreview();
+    }
+  });
+}
 </script>
 
 <%- include("../partials/footer") %>
