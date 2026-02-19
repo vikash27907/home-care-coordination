@@ -1,0 +1,102 @@
+<%
+  const masterSkills = MASTER_SKILL_OPTIONS || [];
+  const initialSkills = Array.isArray(nurse.skills) ? nurse.skills : [];
+  const skillModuleId = "skill_" + Math.random().toString(36).substring(2, 9);
+%>
+
+<div class="skill-module">
+  <label>Skills</label>
+
+  <div class="selected-skills" id="<%= skillModuleId %>_selected"></div>
+
+  <input
+    type="text"
+    id="<%= skillModuleId %>_search"
+    placeholder="Search or type skill..."
+    autocomplete="off"
+  />
+
+  <div class="skill-dropdown" id="<%= skillModuleId %>_dropdown"></div>
+
+  <div id="<%= skillModuleId %>_hidden"></div>
+</div>
+
+<script>
+const masterSkillList = <%- JSON.stringify(masterSkills) %>;
+let currentSkills = <%- JSON.stringify(initialSkills) %>;
+const skillPrefix = "<%= skillModuleId %>";
+
+const tagsContainer = document.getElementById(skillPrefix + "_selected");
+const searchInputBox = document.getElementById(skillPrefix + "_search");
+const dropdownBox = document.getElementById(skillPrefix + "_dropdown");
+const hiddenContainer = document.getElementById(skillPrefix + "_hidden");
+
+function renderSkillTags() {
+  tagsContainer.innerHTML = "";
+  hiddenContainer.innerHTML = "";
+
+  currentSkills.forEach((skill) => {
+    const tag = document.createElement("span");
+    tag.className = "skill-tag";
+    tag.innerHTML = skill + " <button type=\"button\">&times;</button>";
+
+    tag.querySelector("button").addEventListener("click", () => {
+      currentSkills = currentSkills.filter((item) => item !== skill);
+      renderSkillTags();
+    });
+
+    tagsContainer.appendChild(tag);
+
+    const hiddenInput = document.createElement("input");
+    hiddenInput.type = "hidden";
+    hiddenInput.name = "skills";
+    hiddenInput.value = skill;
+    hiddenContainer.appendChild(hiddenInput);
+  });
+}
+
+function addSkill(skill) {
+  if (!currentSkills.includes(skill)) {
+    currentSkills.push(skill);
+    renderSkillTags();
+  }
+  searchInputBox.value = "";
+  dropdownBox.innerHTML = "";
+}
+
+function showSkillDropdown(value) {
+  dropdownBox.innerHTML = "";
+
+  const matches = masterSkillList.filter((skill) =>
+    skill.toLowerCase().includes(value.toLowerCase())
+  );
+
+  matches.forEach((skill) => {
+    const option = document.createElement("div");
+    option.className = "dropdown-item";
+    option.textContent = skill;
+    option.addEventListener("click", () => addSkill(skill));
+    dropdownBox.appendChild(option);
+  });
+
+  if (!matches.length && value.trim()) {
+    const customOption = document.createElement("div");
+    customOption.className = "dropdown-item";
+    customOption.textContent = `Add "${value.trim()}"`;
+    customOption.addEventListener("click", () => addSkill(value.trim()));
+    dropdownBox.appendChild(customOption);
+  }
+}
+
+searchInputBox.addEventListener("input", (event) => {
+  showSkillDropdown(event.target.value);
+});
+
+renderSkillTags();
+</script>
+
+<style>
+.skill-module { margin-top: 10px; }
+.selected-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.skill-dropdown { border: 1px solid #ddd; max-height: 160px; overflow-y: auto; background: white; }
+</style>

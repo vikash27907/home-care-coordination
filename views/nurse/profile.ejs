@@ -163,15 +163,12 @@ function maskAadhaar(value) {
     <div class="detail-item full-width">
       <dt>Qualifications</dt>
       <dd>
-        <% if (qualifications.length) { %>
-        <div class="tags-wrap">
-          <% qualifications.forEach(function(item) { %>
-          <span class="skill-tag"><%= item %></span>
-          <% }); %>
-        </div>
-        <% } else { %>
-        -
-        <% } %>
+        <form action="/nurse/profile/edit" method="POST">
+          <%- include("../partials/nurse-qualification-module", { nurse, qualificationOptions }) %>
+          <button type="submit" class="btn primary small" style="margin-top: 10px;">
+            Save Qualifications
+          </button>
+        </form>
       </dd>
     </div>
     <div class="detail-item full-width" id="skillsSection">

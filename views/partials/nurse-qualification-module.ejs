@@ -1,0 +1,106 @@
+<%
+  const masterQualifications = qualificationOptions || [];
+  const initialQualifications = Array.isArray(nurse.qualifications)
+    ? nurse.qualifications
+    : [];
+  const qualificationModuleId = "qual_" + Math.random().toString(36).substring(2, 9);
+%>
+
+<div class="qualification-module">
+  <label>Qualifications</label>
+
+  <div class="selected-qualifications" id="<%= qualificationModuleId %>_selected"></div>
+
+  <input
+    type="text"
+    id="<%= qualificationModuleId %>_search"
+    placeholder="Search or type qualification..."
+    autocomplete="off"
+  />
+
+  <div class="qualification-dropdown" id="<%= qualificationModuleId %>_dropdown"></div>
+
+  <div id="<%= qualificationModuleId %>_hidden"></div>
+</div>
+
+<script>
+const masterQualificationList = <%- JSON.stringify(masterQualifications) %>;
+let currentQualifications = <%- JSON.stringify(initialQualifications) %>;
+const qualificationPrefix = "<%= qualificationModuleId %>";
+
+const qualTagsContainer = document.getElementById(qualificationPrefix + "_selected");
+const qualSearchInput = document.getElementById(qualificationPrefix + "_search");
+const qualDropdown = document.getElementById(qualificationPrefix + "_dropdown");
+const qualHiddenContainer = document.getElementById(qualificationPrefix + "_hidden");
+
+function renderQualificationTags() {
+  qualTagsContainer.innerHTML = "";
+  qualHiddenContainer.innerHTML = "";
+
+  currentQualifications.forEach(q => {
+    const tag = document.createElement("span");
+    tag.className = "skill-tag";
+    tag.innerHTML = q + ' <button type="button">&times;</button>';
+
+    tag.querySelector("button").addEventListener("click", () => {
+      currentQualifications = currentQualifications.filter(item => item !== q);
+      renderQualificationTags();
+    });
+
+    qualTagsContainer.appendChild(tag);
+
+    const hiddenInput = document.createElement("input");
+    hiddenInput.type = "hidden";
+    hiddenInput.name = "qualifications";
+    hiddenInput.value = q;
+    qualHiddenContainer.appendChild(hiddenInput);
+  });
+}
+
+function addQualification(q) {
+  if (!currentQualifications.includes(q)) {
+    currentQualifications.push(q);
+    renderQualificationTags();
+  }
+  qualSearchInput.value = "";
+  qualDropdown.innerHTML = "";
+}
+
+function showQualificationDropdown(value) {
+  qualDropdown.innerHTML = "";
+
+  const matches = masterQualificationList.filter(q =>
+    q.toLowerCase().includes(value.toLowerCase())
+  );
+
+  matches.forEach(q => {
+    const option = document.createElement("div");
+    option.className = "dropdown-item";
+    option.textContent = q;
+    option.addEventListener("click", () => addQualification(q));
+    qualDropdown.appendChild(option);
+  });
+
+  if (!matches.length && value.trim()) {
+    const customOption = document.createElement("div");
+    customOption.className = "dropdown-item";
+    customOption.textContent = `Add "${value.trim()}"`;
+    customOption.addEventListener("click", () =>
+      addQualification(value.trim())
+    );
+    qualDropdown.appendChild(customOption);
+  }
+}
+
+qualSearchInput.addEventListener("input", e => {
+  showQualificationDropdown(e.target.value);
+});
+
+renderQualificationTags();
+</script>
+
+<style>
+.qualification-module { margin-top: 10px; }
+.selected-qualifications { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.qualification-dropdown { border: 1px solid #ddd; max-height: 160px; overflow-y: auto; background: white; }
+</style>

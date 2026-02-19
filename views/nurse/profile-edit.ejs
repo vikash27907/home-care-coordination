@@ -95,17 +95,7 @@ const workLocationsRaw = (nurse.workLocations || []).join(", ");
       </div>
     </div>
 
-    <div class="full-width">
-      <h3>Education / Qualifications</h3>
-      <div class="checkbox-grid">
-        <% qualifications.forEach(function(item) { %>
-          <label class="check-item">
-            <input type="checkbox" name="qualifications" value="<%= item %>" <%= selectedQualifications.includes(item) ? "checked" : "" %> />
-            <span><%= item %></span>
-          </label>
-        <% }) %>
-      </div>
-    </div>
+    <%- include("../partials/nurse-qualification-module", { nurse, qualificationOptions }) %>
 
     <div class="full-width">
       <h3>Documents (PDF/JPG/PNG, 2MB max each)</h3>
