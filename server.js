@@ -263,6 +263,40 @@ function validateEmail(email) {
   return { valid: true, value: trimmed };
 }
 
+// ============================================================
+// NURSE PROFILE COMPLETION HELPER
+// ============================================================
+function calculateProfileCompletion(nurse) {
+  let completion = 0;
+
+  // Profile Image (supports both legacy & new column names)
+  if (nurse.profile_pic_url || nurse.profile_image_path) completion += 10;
+
+  if (nurse.aadhaar_card_url) completion += 15;
+  if (nurse.skills && nurse.skills.length >= 3) completion += 15;
+  if (nurse.experience_years > 0 || nurse.experience_months > 0) completion += 10;
+  if (nurse.expected_salary) completion += 10;
+
+  if (
+    nurse.highest_cert_url ||
+    (nurse.additional_certificates &&
+      Array.isArray(nurse.additional_certificates) &&
+      nurse.additional_certificates.length > 0)
+  ) completion += 15;
+
+  if (
+    nurse.pan_india ||
+    (nurse.work_locations &&
+      Array.isArray(nurse.work_locations) &&
+      nurse.work_locations.length > 0)
+  ) completion += 10;
+
+  if (nurse.preferred_shift) completion += 5;
+  if (nurse.current_address) completion += 10;
+
+  return completion;
+}
+
 
 // Validation middleware for request body
 function validateRequest(req, res, next) {
