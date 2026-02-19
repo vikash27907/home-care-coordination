@@ -595,6 +595,7 @@ if (IS_PRODUCTION) {
 }
 
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -3168,17 +3169,19 @@ app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, as
       return res.status(404).json({ error: "Nurse not found" });
     }
 
-    let incomingSkills = Array.isArray(req.body.skills) ? req.body.skills : [];
+    const rawSkills = Array.isArray(req.body && req.body.skills)
+      ? req.body.skills
+      : (req.body && typeof req.body.skills !== "undefined" ? [req.body.skills] : []);
 
-    incomingSkills = incomingSkills
-      .map((s) => String(s || "").trim())
-      .filter(Boolean);
+    const cleanedSkills = (rawSkills || [])
+      .map((s) => String(s).trim())
+      .filter((s) => s.length > 0);
 
-    if (incomingSkills.length < 3) {
-      return res.status(400).json({ error: "Minimum 3 skills required." });
+    if (cleanedSkills.length < 3) {
+      return res.status(400).json({ error: "Minimum 3 skills required" });
     }
 
-    if (incomingSkills.length > 20) {
+    if (cleanedSkills.length > 20) {
       return res.status(400).json({ error: "Maximum 20 skills allowed." });
     }
 
@@ -3192,7 +3195,7 @@ app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, as
 
     const changed =
       JSON.stringify(safeSort(existing.skills)) !==
-      JSON.stringify(safeSort(incomingSkills));
+      JSON.stringify(safeSort(cleanedSkills));
 
     if (existing.profile_status === "approved" && changed) {
       if (existing.last_edit_request) {
@@ -3215,7 +3218,7 @@ app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, as
 
     await pool.query(
       "UPDATE nurses SET skills = $1 WHERE id = $2",
-      [incomingSkills, nurse.id]
+      [cleanedSkills, nurse.id]
     );
 
     const { rows: updatedRows } = await pool.query(
@@ -3231,7 +3234,7 @@ app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, as
       [completion, nurse.id]
     );
 
-    return res.json({ success: true, skills: incomingSkills });
+    return res.json({ success: true, skills: cleanedSkills });
   } catch (error) {
     console.error("Skills update error:", error);
     return res.status(500).json({ error: "Server error" });

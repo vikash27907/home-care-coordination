@@ -200,7 +200,6 @@ function maskAadhaar(value) {
           id="skillSearchInput"
           placeholder="Search or add skill..."
           class="skill-search-input"
-          oninput="filterSkillsList()"
         />
 
         <div id="selectedSkillsContainer" class="tags-wrap" style="margin-top:10px;"></div>
@@ -700,8 +699,10 @@ function maskAadhaar(value) {
 </style>
 
 <script>
-const ALL_SKILLS = <%- JSON.stringify(typeof profileSkillOptions !== "undefined" ? profileSkillOptions : []) %>;
+const MASTER_SKILL_OPTIONS = <%- JSON.stringify(typeof MASTER_SKILL_OPTIONS !== "undefined" ? MASTER_SKILL_OPTIONS : []) %>;
 let selectedSkills = <%- JSON.stringify(skills || []) %>;
+const searchInput = document.getElementById("skillSearchInput");
+const dropdown = document.getElementById("skillsDropdown");
 
 function toggleSkillsEdit() {
   const view = document.getElementById("skillsViewMode");
@@ -711,7 +712,13 @@ function toggleSkillsEdit() {
     edit.style.display = "block";
     view.style.display = "none";
     renderSelectedSkills();
-    renderSkillsDropdown(ALL_SKILLS);
+    if (searchInput) {
+      searchInput.value = "";
+    }
+    if (dropdown) {
+      dropdown.innerHTML = "";
+      MASTER_SKILL_OPTIONS.forEach((skill) => addDropdownOption(skill));
+    }
   } else {
     edit.style.display = "none";
     view.style.display = "block";
@@ -735,33 +742,36 @@ function removeSkill(index) {
   renderSelectedSkills();
 }
 
-function filterSkillsList() {
-  const query = document.getElementById("skillSearchInput").value.toLowerCase();
-  const filtered = ALL_SKILLS.filter(skill =>
-    skill.toLowerCase().includes(query)
-  );
-  renderSkillsDropdown(filtered, query);
+function addDropdownOption(text, isCustom = false) {
+  if (!dropdown) return;
+  const item = document.createElement("div");
+  item.className = "skill-option";
+  item.innerText = isCustom ? `+ Add "${text}"` : text;
+  item.onclick = () => addSkill(text);
+  dropdown.appendChild(item);
 }
 
-function renderSkillsDropdown(list, query = "") {
-  const dropdown = document.getElementById("skillsDropdown");
-  dropdown.innerHTML = "";
+if (searchInput) {
+  searchInput.addEventListener("input", function () {
+    if (!dropdown) return;
+    const query = this.value.toLowerCase().trim();
+    dropdown.innerHTML = "";
 
-  list.forEach(skill => {
-    const item = document.createElement("div");
-    item.className = "skill-option";
-    item.innerText = skill;
-    item.onclick = () => addSkill(skill);
-    dropdown.appendChild(item);
+    if (!query) {
+      MASTER_SKILL_OPTIONS.forEach(addDropdownOption);
+      return;
+    }
+
+    const matches = MASTER_SKILL_OPTIONS.filter(skill =>
+      skill.toLowerCase().includes(query)
+    );
+
+    if (matches.length > 0) {
+      matches.forEach(addDropdownOption);
+    } else {
+      addDropdownOption(this.value, true); // custom skill
+    }
   });
-
-  if (query && !list.includes(query) && !selectedSkills.includes(query)) {
-    const custom = document.createElement("div");
-    custom.className = "skill-option";
-    custom.innerText = `+ Add "${query}"`;
-    custom.onclick = () => addSkill(query);
-    dropdown.appendChild(custom);
-  }
 }
 
 function addSkill(skill) {
