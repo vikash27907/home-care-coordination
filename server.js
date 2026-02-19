@@ -589,6 +589,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 app.disable("x-powered-by");
 app.locals.MASTER_SKILL_OPTIONS = MASTER_SKILL_OPTIONS;
+app.locals.MASTER_QUALIFICATION_OPTIONS = PROFILE_QUALIFICATION_OPTIONS;
 
 if (IS_PRODUCTION) {
   app.set("trust proxy", 1);
