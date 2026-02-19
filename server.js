@@ -3743,6 +3743,11 @@ async function startServer() {
     const path = require("path");
     const migrationPath = path.resolve(__dirname, "scripts/migrate-profile.js");
     console.log("Resolved migration path:", migrationPath);
+    const fs = require("fs");
+    const fileContents = fs.readFileSync(migrationPath, "utf8");
+    console.log("=== MIGRATION FILE CONTENTS START ===");
+    console.log(fileContents);
+    console.log("=== MIGRATION FILE CONTENTS END ===");
 
     const migrationModule = require(migrationPath);
     console.log("Migration module export:", migrationModule);
