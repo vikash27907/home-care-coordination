@@ -38,6 +38,24 @@ function maskAadhaar(value) {
 }
 %>
 
+<%
+  const completion = nurse.profileCompletion || nurse.profile_completion || 0;
+  let barColor = '#198754'; // green
+  if (completion < 40) barColor = '#dc3545'; // red
+  else if (completion < 75) barColor = '#fd7e14'; // orange
+  else if (completion < 100) barColor = '#0d6efd'; // blue
+%>
+
+<div class="profile-completion-wrapper">
+  <h3>Profile Completion: <%= completion %>%</h3>
+  <div class="progress-bar-container">
+    <div
+      class="progress-bar-fill"
+      style="width: <%= completion %>%; background-color: <%= barColor %>;"
+    ></div>
+  </div>
+</div>
+
 <% if (nurse.status === "Pending") { %>
 <section class="notice notice-warning">
   <strong>Your profile is under review.</strong>
@@ -287,6 +305,23 @@ function maskAadhaar(value) {
 <% } %>
 
 <style>
+.profile-completion-wrapper {
+  margin-bottom: 20px;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 20px;
+  background: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  transition: width 0.3s ease-in-out;
+}
+
 .notice {
   margin: 0 0 1rem;
   padding: 0.9rem 1rem;
