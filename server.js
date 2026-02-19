@@ -3740,7 +3740,14 @@ module.exports = { pool };
 
 async function startServer() {
   try {
-    const { migrateNurseProfileColumns } = require("./scripts/migrate-profile");
+    const path = require("path");
+    const migrationPath = path.resolve(__dirname, "scripts/migrate-profile.js");
+    console.log("Resolved migration path:", migrationPath);
+
+    const migrationModule = require(migrationPath);
+    console.log("Migration module export:", migrationModule);
+
+    const { migrateNurseProfileColumns } = migrationModule;
     await migrateNurseProfileColumns();
     await initializeDatabase();
     await initializeStore();
