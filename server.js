@@ -1537,18 +1537,6 @@ app.get("/healthz", (req, res) => {
   res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
 });
 
-app.get("/test-cloudinary", async (req, res) => {
-  try {
-    const result = await cloudinary.uploader.upload(
-      "https://res.cloudinary.com/demo/image/upload/sample.jpg"
-    );
-    return res.json({ success: true, url: result.secure_url });
-  } catch (error) {
-    console.error("CLOUDINARY TEST ERROR:", error);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 app.get("/", (req, res) => {
   res.render("public/home", { title: "Prisha Home Care" });
 });
