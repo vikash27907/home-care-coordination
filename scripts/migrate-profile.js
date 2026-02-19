@@ -12,32 +12,36 @@ async function migrateNurseProfileColumns() {
     await client.query("BEGIN");
 
     // 1️⃣ Add missing columns (WITHOUT qualifications)
-    await client.query(`
-      ALTER TABLE nurses
-      ADD COLUMN IF NOT EXISTS aadhaar_number VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS experience_years INT,
-      ADD COLUMN IF NOT EXISTS experience_months INT,
-      ADD COLUMN IF NOT EXISTS availability_status VARCHAR(80),
-      ADD COLUMN IF NOT EXISTS work_locations TEXT[],
-      ADD COLUMN IF NOT EXISTS current_address TEXT,
-      ADD COLUMN IF NOT EXISTS skills TEXT[],
-      ADD COLUMN IF NOT EXISTS resume_url TEXT,
-      ADD COLUMN IF NOT EXISTS highest_cert_url TEXT,
-      ADD COLUMN IF NOT EXISTS tenth_cert_url TEXT,
-      ADD COLUMN IF NOT EXISTS aadhaar_card_url TEXT,
-      ADD COLUMN IF NOT EXISTS additional_certificates JSONB DEFAULT '[]'::jsonb,
-      ADD COLUMN IF NOT EXISTS expected_salary INT,
-      ADD COLUMN IF NOT EXISTS preferred_shift VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS preferred_duration VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS pan_india BOOLEAN DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS profile_status VARCHAR(50) DEFAULT 'draft',
-      ADD COLUMN IF NOT EXISTS profile_completion INT DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS admin_visible BOOLEAN DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS rejected_reason TEXT,
-      ADD COLUMN IF NOT EXISTS last_profile_update TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS last_edit_request TIMESTAMP
-    `);
+   // DO NOT touch qualifications anymore
+// It is already JSONB
+
+await client.query(`
+  ALTER TABLE nurses
+  ADD COLUMN IF NOT EXISTS aadhaar_number VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS experience_years INT,
+  ADD COLUMN IF NOT EXISTS experience_months INT,
+  ADD COLUMN IF NOT EXISTS availability_status VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS work_locations TEXT[],
+  ADD COLUMN IF NOT EXISTS current_address TEXT,
+  ADD COLUMN IF NOT EXISTS skills TEXT[],
+  ADD COLUMN IF NOT EXISTS resume_url TEXT,
+  ADD COLUMN IF NOT EXISTS highest_cert_url TEXT,
+  ADD COLUMN IF NOT EXISTS tenth_cert_url TEXT,
+  ADD COLUMN IF NOT EXISTS aadhaar_card_url TEXT,
+  ADD COLUMN IF NOT EXISTS additional_certificates JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS expected_salary INT,
+  ADD COLUMN IF NOT EXISTS preferred_shift VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS preferred_duration VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS pan_india BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS profile_status VARCHAR(50) DEFAULT 'draft',
+  ADD COLUMN IF NOT EXISTS profile_completion INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS admin_visible BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS rejected_reason TEXT,
+  ADD COLUMN IF NOT EXISTS last_profile_update TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS last_edit_request TIMESTAMP
+`);
+
 
     // 2️⃣ Check current datatype of qualifications
     const { rows } = await client.query(`
