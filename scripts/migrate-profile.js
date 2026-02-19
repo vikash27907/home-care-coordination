@@ -50,34 +50,45 @@ async function migrateNurseProfileColumns() {
     const dataType = rows[0]?.data_type;
 
     if (dataType === 'ARRAY') {
-      console.log("🔄 Upgrading qualifications from TEXT[] to JSONB...");
+  console.log("🔄 Upgrading qualifications from TEXT[] to JSONB...");
 
-      await client.query(`
-        ALTER TABLE nurses
-        ALTER COLUMN qualifications TYPE JSONB
-        USING (
-          (
-            SELECT COALESCE(
-              jsonb_agg(
-                jsonb_build_object(
-                  'name', q,
-                  'certificate_url', null,
-                  'verified', false
-                )
-              ),
-              '[]'::jsonb
+  // 1️⃣ Add temporary JSONB column
+  await client.query(`
+    ALTER TABLE nurses
+    ADD COLUMN qualifications_new JSONB DEFAULT '[]'::jsonb;
+  `);
+
+  // 2️⃣ Convert old TEXT[] data into JSONB
+  await client.query(`
+    UPDATE nurses
+    SET qualifications_new =
+      COALESCE(
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'name', q,
+              'certificate_url', null,
+              'verified', false
             )
-            FROM unnest(qualifications) AS q
           )
-        );
-      `);
-    } else if (!dataType) {
-      // Column doesn't exist at all
-      await client.query(`
-        ALTER TABLE nurses
-        ADD COLUMN qualifications JSONB DEFAULT '[]'::jsonb;
-      `);
-    }
+          FROM unnest(qualifications) AS q
+        ),
+        '[]'::jsonb
+      );
+  `);
+
+  // 3️⃣ Drop old column
+  await client.query(`
+    ALTER TABLE nurses DROP COLUMN qualifications;
+  `);
+
+  // 4️⃣ Rename new column
+  await client.query(`
+    ALTER TABLE nurses
+    RENAME COLUMN qualifications_new TO qualifications;
+  `);
+}
+
 
     // 3️⃣ Ensure JSONB default
     await client.query(`
