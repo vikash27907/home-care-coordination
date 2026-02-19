@@ -2820,6 +2820,46 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
       Object.prototype.hasOwnProperty.call(updateData, key) ? updateData[key] : null
     );
 
+    // 1. Fetch current nurse row from database
+    const { rows: existingRows } = await pool.query(
+      "SELECT * FROM nurses WHERE id = $1",
+      [nurse.id]
+    );
+    const existingNurse = existingRows[0] || {};
+
+    // Helper to safely sort arrays for comparison
+    const safeSort = (arr) => (Array.isArray(arr) ? [...arr].sort() : []);
+
+    // 2. Determine if any HARD fields changed (handling nulls and array order)
+    const hardFieldChanged =
+      (existingNurse.aadhaar_number || "") !== aadhaarDigits ||
+      (existingNurse.experience_years || 0) !== experienceYears ||
+      (existingNurse.experience_months || 0) !== experienceMonths ||
+      JSON.stringify(safeSort(existingNurse.skills)) !== JSON.stringify(safeSort(selectedSkills)) ||
+      JSON.stringify(safeSort(existingNurse.qualifications)) !== JSON.stringify(safeSort(selectedQualifications));
+
+    // 3. Apply cooldown and status lock
+    if (existingNurse.profile_status === "approved" && hardFieldChanged) {
+      if (existingNurse.last_edit_request) {
+        const daysSinceLastEdit =
+          (new Date() - new Date(existingNurse.last_edit_request)) / (1000 * 60 * 60 * 24);
+
+        if (daysSinceLastEdit < 7) {
+          setFlash(
+            req,
+            "error",
+            "You can request profile changes only once every 7 days after approval."
+          );
+          return res.redirect("/nurse/profile/edit");
+        }
+      }
+
+      await pool.query(
+        "UPDATE nurses SET profile_status = $1, last_edit_request = NOW() WHERE id = $2",
+        ["pending", nurse.id]
+      );
+    }
+
     if (profilePicDbColumn === "profile_pic_url") {
       await pool.query(
         `UPDATE nurses SET
