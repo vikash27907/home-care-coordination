@@ -174,18 +174,43 @@ function maskAadhaar(value) {
         <% } %>
       </dd>
     </div>
-    <div class="detail-item full-width">
-      <dt>Skills</dt>
-      <dd>
+    <div class="detail-item full-width" id="skillsSection">
+      <dt style="display:flex; justify-content:space-between; align-items:center;">
+        Skills
+        <button type="button" class="edit-btn" onclick="toggleSkillsEdit()">&#9998; Edit</button>
+      </dt>
+
+      <!-- VIEW MODE -->
+      <dd id="skillsViewMode">
         <% if (skills.length) { %>
-        <div class="tags-wrap">
-          <% skills.forEach(function(item) { %>
-          <span class="skill-tag"><%= item %></span>
-          <% }); %>
-        </div>
+          <div class="tags-wrap" id="skillsDisplayWrap">
+            <% skills.forEach(function(item) { %>
+              <span class="skill-tag"><%= item %></span>
+            <% }); %>
+          </div>
         <% } else { %>
-        -
+          -
         <% } %>
+      </dd>
+
+      <!-- EDIT MODE -->
+      <dd id="skillsEditMode" style="display:none;">
+        <input
+          type="text"
+          id="skillSearchInput"
+          placeholder="Search or add skill..."
+          class="skill-search-input"
+          oninput="filterSkillsList()"
+        />
+
+        <div id="selectedSkillsContainer" class="tags-wrap" style="margin-top:10px;"></div>
+
+        <div id="skillsDropdown" class="skills-dropdown"></div>
+
+        <div style="margin-top:10px;">
+          <button type="button" class="btn primary" onclick="saveSkills()">Save</button>
+          <button type="button" class="btn secondary" onclick="toggleSkillsEdit()">Cancel</button>
+        </div>
       </dd>
     </div>
   </dl>
@@ -529,6 +554,39 @@ function maskAadhaar(value) {
   font-size: 0.85rem;
 }
 
+.edit-btn {
+  background:none;
+  border:none;
+  color:#2563eb;
+  cursor:pointer;
+  font-size:14px;
+  font-weight:600;
+}
+
+.skill-search-input {
+  width:100%;
+  padding:8px;
+  border-radius:8px;
+  border:1px solid #cbd5e1;
+}
+
+.skills-dropdown {
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  max-height:200px;
+  overflow-y:auto;
+  margin-top:6px;
+}
+
+.skill-option {
+  padding:8px;
+  cursor:pointer;
+}
+
+.skill-option:hover {
+  background:#f1f5f9;
+}
+
 .documents-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -640,5 +698,106 @@ function maskAadhaar(value) {
   }
 }
 </style>
+
+<script>
+const ALL_SKILLS = <%- JSON.stringify(typeof profileSkillOptions !== "undefined" ? profileSkillOptions : []) %>;
+let selectedSkills = <%- JSON.stringify(skills || []) %>;
+
+function toggleSkillsEdit() {
+  const view = document.getElementById("skillsViewMode");
+  const edit = document.getElementById("skillsEditMode");
+
+  if (edit.style.display === "none") {
+    edit.style.display = "block";
+    view.style.display = "none";
+    renderSelectedSkills();
+    renderSkillsDropdown(ALL_SKILLS);
+  } else {
+    edit.style.display = "none";
+    view.style.display = "block";
+  }
+}
+
+function renderSelectedSkills() {
+  const container = document.getElementById("selectedSkillsContainer");
+  container.innerHTML = "";
+
+  selectedSkills.forEach((skill, index) => {
+    const chip = document.createElement("span");
+    chip.className = "skill-tag";
+    chip.innerHTML = `${skill} <span style="cursor:pointer; margin-left:6px;" onclick="removeSkill(${index})">&#10005;</span>`;
+    container.appendChild(chip);
+  });
+}
+
+function removeSkill(index) {
+  selectedSkills.splice(index, 1);
+  renderSelectedSkills();
+}
+
+function filterSkillsList() {
+  const query = document.getElementById("skillSearchInput").value.toLowerCase();
+  const filtered = ALL_SKILLS.filter(skill =>
+    skill.toLowerCase().includes(query)
+  );
+  renderSkillsDropdown(filtered, query);
+}
+
+function renderSkillsDropdown(list, query = "") {
+  const dropdown = document.getElementById("skillsDropdown");
+  dropdown.innerHTML = "";
+
+  list.forEach(skill => {
+    const item = document.createElement("div");
+    item.className = "skill-option";
+    item.innerText = skill;
+    item.onclick = () => addSkill(skill);
+    dropdown.appendChild(item);
+  });
+
+  if (query && !list.includes(query) && !selectedSkills.includes(query)) {
+    const custom = document.createElement("div");
+    custom.className = "skill-option";
+    custom.innerText = `+ Add "${query}"`;
+    custom.onclick = () => addSkill(query);
+    dropdown.appendChild(custom);
+  }
+}
+
+function addSkill(skill) {
+  if (selectedSkills.length >= 20) {
+    alert("Maximum 20 skills allowed.");
+    return;
+  }
+  if (!selectedSkills.includes(skill)) {
+    selectedSkills.push(skill);
+    renderSelectedSkills();
+  }
+}
+
+async function saveSkills() {
+  if (selectedSkills.length < 3) {
+    alert("Minimum 3 skills required.");
+    return;
+  }
+
+  const res = await fetch("/nurse/profile/skills", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ skills: selectedSkills })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.error || "Error updating skills.");
+    return;
+  }
+
+  location.reload();
+}
+</script>
 
 <%- include("../partials/footer") %>
