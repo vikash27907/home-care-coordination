@@ -2889,6 +2889,22 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
         ]
       );
     }
+
+    // Fetch updated raw nurse row
+    const { rows } = await pool.query(
+      "SELECT * FROM nurses WHERE id = $1",
+      [nurse.id]
+    );
+    const updatedRawNurse = rows[0];
+
+    // Calculate completion
+    const completion = calculateProfileCompletion(updatedRawNurse);
+
+    // Save completion
+    await pool.query(
+      "UPDATE nurses SET profile_completion = $1 WHERE id = $2",
+      [completion, nurse.id]
+    );
   } catch (error) {
     console.error("Error updating nurse profile:", error);
     setFlash(req, "error", "Unable to update profile right now. Please try again.");
