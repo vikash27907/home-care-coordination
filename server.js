@@ -3026,6 +3026,83 @@ app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, as
   }
 });
 
+app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
+  try {
+    const nurse = await getNurseById(req.nurseRecord.id);
+    if (!nurse) {
+      return res.status(404).json({ error: "Nurse not found" });
+    }
+
+    let incomingSkills = Array.isArray(req.body.skills) ? req.body.skills : [];
+
+    incomingSkills = incomingSkills
+      .map((s) => String(s || "").trim())
+      .filter(Boolean);
+
+    if (incomingSkills.length < 3) {
+      return res.status(400).json({ error: "Minimum 3 skills required." });
+    }
+
+    if (incomingSkills.length > 20) {
+      return res.status(400).json({ error: "Maximum 20 skills allowed." });
+    }
+
+    const { rows } = await pool.query(
+      "SELECT skills, profile_status, last_edit_request FROM nurses WHERE id = $1",
+      [nurse.id]
+    );
+
+    const existing = rows[0] || {};
+    const safeSort = (arr) => (Array.isArray(arr) ? [...arr].sort() : []);
+
+    const changed =
+      JSON.stringify(safeSort(existing.skills)) !==
+      JSON.stringify(safeSort(incomingSkills));
+
+    if (existing.profile_status === "approved" && changed) {
+      if (existing.last_edit_request) {
+        const days =
+          (new Date() - new Date(existing.last_edit_request)) /
+          (1000 * 60 * 60 * 24);
+        if (days < 7) {
+          return res.status(400).json({
+            error:
+              "You can request hard field changes only once every 7 days."
+          });
+        }
+      }
+
+      await pool.query(
+        "UPDATE nurses SET profile_status = $1, last_edit_request = NOW() WHERE id = $2",
+        ["pending", nurse.id]
+      );
+    }
+
+    await pool.query(
+      "UPDATE nurses SET skills = $1 WHERE id = $2",
+      [incomingSkills, nurse.id]
+    );
+
+    const { rows: updatedRows } = await pool.query(
+      "SELECT * FROM nurses WHERE id = $1",
+      [nurse.id]
+    );
+
+    const updatedNurse = updatedRows[0];
+    const completion = calculateProfileCompletion(updatedNurse);
+
+    await pool.query(
+      "UPDATE nurses SET profile_completion = $1 WHERE id = $2",
+      [completion, nurse.id]
+    );
+
+    return res.json({ success: true, skills: incomingSkills });
+  } catch (error) {
+    console.error("Skills update error:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.post("/nurse/profile/public", requireRole("nurse"), requireApprovedNurse, (req, res) => {
   const store = readNormalizedStore();
   const nurse = store.nurses.find((item) => item.id === req.nurseRecord.id);
