@@ -2882,6 +2882,60 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
   return res.redirect("/nurse/profile");
 });
 
+app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
+  const nurse = await getNurseById(req.nurseRecord.id);
+  if (!nurse) {
+    setFlash(req, "error", "Nurse profile not found.");
+    return res.redirect("/nurse/profile");
+  }
+
+  try {
+    const nurseResult = await pool.query(
+      `SELECT
+         (to_jsonb(n) ->> 'aadhaar_card_url') AS aadhaar_card_url,
+         n.skills
+       FROM nurses n
+       WHERE n.id = $1
+       LIMIT 1`,
+      [nurse.id]
+    );
+
+    const nurseRow = nurseResult.rows[0];
+    if (!nurseRow) {
+      setFlash(req, "error", "Nurse profile not found.");
+      return res.redirect("/nurse/profile");
+    }
+
+    const aadhaarCardUrl = String(nurseRow.aadhaar_card_url || "").trim();
+    const skills = Array.isArray(nurseRow.skills) ? nurseRow.skills : [];
+
+    if (!aadhaarCardUrl) {
+      setFlash(req, "error", "Aadhaar card upload is required before submitting profile.");
+      return res.redirect("/nurse/profile");
+    }
+
+    if (skills.length < 3) {
+      setFlash(req, "error", "Please add at least 3 skills before submitting profile.");
+      return res.redirect("/nurse/profile");
+    }
+
+    await pool.query(
+      `UPDATE nurses
+       SET profile_status = $1,
+           last_profile_update = NOW()
+       WHERE id = $2`,
+      ["pending", nurse.id]
+    );
+
+    setFlash(req, "success", "Profile submitted successfully.");
+    return res.redirect("/nurse/profile");
+  } catch (error) {
+    console.error("Error submitting nurse profile:", error);
+    setFlash(req, "error", "Unable to submit profile right now. Please try again.");
+    return res.redirect("/nurse/profile");
+  }
+});
+
 app.post("/nurse/profile/public", requireRole("nurse"), requireApprovedNurse, (req, res) => {
   const store = readNormalizedStore();
   const nurse = store.nurses.find((item) => item.id === req.nurseRecord.id);
