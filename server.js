@@ -210,7 +210,7 @@ function uploadBufferToCloudinary(file, folder) {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 // ============================================================
@@ -1537,6 +1537,18 @@ app.get("/healthz", (req, res) => {
   res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
 });
 
+app.get("/test-cloudinary", async (req, res) => {
+  try {
+    const result = await cloudinary.uploader.upload(
+      "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+    );
+    return res.json({ success: true, url: result.secure_url });
+  } catch (error) {
+    console.error("CLOUDINARY TEST ERROR:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get("/", (req, res) => {
   res.render("public/home", { title: "Prisha Home Care" });
 });
@@ -2769,7 +2781,8 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
       setIfDefined("tenth_cert_url", uploadedTenth.secure_url);
     }
   } catch (error) {
-    setFlash(req, "error", "Failed to upload files to Cloudinary. Please try again.");
+    console.error("CLOUDINARY UPLOAD ERROR:", error);
+    setFlash(req, "error", "Cloudinary upload failed. Please check server logs.");
     return res.redirect("/nurse/profile/edit");
   }
 
@@ -3725,23 +3738,24 @@ app.use((req, res) => {
 // ============================================================
 module.exports = { pool };
 
-// Initialize database tables and store before starting the server
-initializeDatabase()
-  .then(() => {
-    return initializeStore();
-  })
-  .then(async () => {
-    // Ensure admin exists in PostgreSQL after DB connection
+async function startServer() {
+  try {
+    const { migrateNurseProfileColumns } = require("./scripts/migrate-profile");
+    await migrateNurseProfileColumns();
+    await initializeDatabase();
+    await initializeStore();
     await ensureAdmin();
-    
-    app.listen(PORT, () => {
+
+    app.listen(PORT, "0.0.0.0", () => {
       // eslint-disable-next-line no-console
-      console.log(`Prisha Home Care running on http://localhost:${PORT}`);
+      console.log(`Prisha Home Care running on http://0.0.0.0:${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("Failed to initialize:", err);
+  } catch (error) {
+    console.error("Failed to initialize:", error);
     process.exit(1);
-  });
+  }
+}
+
+startServer();
 
 
