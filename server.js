@@ -2876,10 +2876,6 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     .map((item) => String(item || "").trim())
     .filter((item) => PROFILE_SKILL_OPTIONS.includes(item));
 
-  const selectedQualifications = normalizeArray(req.body.qualifications)
-    .map((item) => String(item || "").trim())
-    .filter((item) => PROFILE_QUALIFICATION_OPTIONS.includes(item));
-
   const workLocationsRaw = String(req.body.workLocationsRaw || "").trim();
   const workLocationsInput = workLocationsRaw
     ? workLocationsRaw.split(",").map((item) => item.trim())
@@ -2904,7 +2900,6 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
   setIfDefined("aadhaar_number", aadhaarDigits);
   setIfDefined("skills", selectedSkills);
   setIfDefined("work_locations", normalizedWorkLocations);
-  setIfDefined("qualifications", selectedQualifications);
 
   // Optional phone update belongs to users table.
   const phoneInput = String(req.body.phone || "").trim();
@@ -2919,63 +2914,6 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
   }
 
   const files = req.files || {};
-  
-  // Build qualifications array with individual certificate handling
-  // Format: [{ name: "GNM", certificate_url: "...", verified: false }, ...]
-  let qualificationsWithCerts = [];
-  
-  // Get existing qualifications from nurse to preserve certificate_url and verified status
-  const existingQualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
-  const existingQualMap = {};
-  existingQualifications.forEach(q => {
-    if (q && q.name) {
-      existingQualMap[q.name] = q;
-    }
-  });
-  
-  // Process selected qualifications
-  const selectedQualNames = selectedQualifications;
-  
-  // Check for certificate file uploads (dynamic field names: cert_GNM, cert_BSc_Nursing, etc.)
-  const certFiles = {};
-  if (Array.isArray(files)) {
-    files.forEach(file => {
-      if (file.fieldname && file.fieldname.startsWith("cert_")) {
-        const original = file.fieldname.replace("cert_", "");
-        const normalizedName = original.replace(/_/g, " ");
-        certFiles[normalizedName] = file;
-      }
-    });
-  }
-  
-  // Build qualifications array
-  for (const qualName of selectedQualNames) {
-    const existingQual = existingQualMap[qualName] || {};
-    let certUrl = existingQual.certificate_url || null;
-    let verified = existingQual.verified || false;
-    
-    // Check if a new certificate was uploaded for this qualification
-    const uploadedCertFile = certFiles[qualName];
-    
-    if (uploadedCertFile) {
-      try {
-        const uploadedCert = await uploadBufferToCloudinary(uploadedCertFile, "home-care/nurses/qualifications");
-        certUrl = uploadedCert.secure_url;
-        // Reset verification when certificate is replaced
-        verified = false;
-      } catch (certError) {
-        console.error("Certificate upload error for", qualName, ":", certError);
-        // Keep existing certificate if upload fails
-        certUrl = existingQual.certificate_url || null;
-      }
-    }
-    
-    qualificationsWithCerts.push({
-      name: qualName,
-      certificate_url: certUrl,
-      verified: verified
-    });
-  }
   
   try {
     if (files.profilePic && files.profilePic[0]) {
@@ -3000,8 +2938,6 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     return res.redirect("/nurse/profile/edit");
   }
   
-  // Set qualifications with individual certificates
-  setIfDefined("qualifications", qualificationsWithCerts);
 
   try {
     if (normalizedPhone) {
@@ -3025,24 +2961,12 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     // Helper to safely sort arrays for comparison
     const safeSort = (arr) => (Array.isArray(arr) ? [...arr].sort() : []);
 
-    // Extract qualification names for comparison (handle both old string array and new object array formats)
-    const existingQualNames = Array.isArray(existingNurse.qualifications)
-      ? existingNurse.qualifications.map(q => {
-          if (typeof q === 'string') return q;
-          if (q && q.name) return q.name;
-          return '';
-        }).filter(Boolean).sort()
-      : [];
-    const selectedQualNamesSorted = [...selectedQualifications].sort();
-    const qualificationsChanged = JSON.stringify(existingQualNames) !== JSON.stringify(selectedQualNamesSorted);
-
     // 2. Determine if any HARD fields changed (handling nulls and array order)
     const hardFieldChanged =
       (existingNurse.aadhaar_number || "") !== aadhaarDigits ||
       (existingNurse.experience_years || 0) !== experienceYears ||
       (existingNurse.experience_months || 0) !== experienceMonths ||
-      JSON.stringify(safeSort(existingNurse.skills)) !== JSON.stringify(safeSort(selectedSkills)) ||
-      qualificationsChanged;
+      JSON.stringify(safeSort(existingNurse.skills)) !== JSON.stringify(safeSort(selectedSkills));
 
     // 3. Apply cooldown and status lock
     if (existingNurse.profile_status === "approved" && hardFieldChanged) {
@@ -3159,16 +3083,6 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     Object.assign(cachedNurse, updatedNurse);
   }
 
-  // Check for new qualification system with certificates
-  const qualsWithCerts = updatedNurse.qualifications && Array.isArray(updatedNurse.qualifications) 
-    ? updatedNurse.qualifications.filter(q => q && q.certificate_url)
-    : [];
-  
-  if (qualsWithCerts.length === 0) {
-    setFlash(req, "success", "Profile updated. Upload at least one qualification certificate to reach 100% completion.");
-    return res.redirect("/nurse/profile");
-  }
-
   setFlash(req, "success", "Profile updated successfully.");
   return res.redirect("/nurse/profile");
 });
@@ -3226,123 +3140,6 @@ app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, as
     return res.redirect("/nurse/profile");
   }
 });
-
-
-
-      // Build safe lookup map
-      const qualificationLookup = {};
-      PROFILE_QUALIFICATION_OPTIONS.forEach(q => {
-        const safe = q.replace(/[^a-zA-Z0-9]/g, "_");
-        qualificationLookup[`cert_${safe}`] = q;
-      });
-
-      // Build file map
-      const fileMap = {};
-      (req.files || []).forEach(file => {
-        fileMap[file.fieldname] = file;
-      });
-
-      const updatedQualifications = [];
-
-      for (const qualName of selectedQualifications) {
-        const existingQual = existingQualifications.find(q => q.name === qualName);
-
-        let certificateUrl = existingQual ? existingQual.certificate_url : null;
-        let verified = existingQual ? Boolean(existingQual.verified) : false;
-
-        const safeKey = `cert_${qualName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-        if (fileMap[safeKey]) {
-          try {
-            const uploadResult = await uploadBufferToCloudinary(
-              fileMap[safeKey].buffer,
-              "home-care/nurses/qualifications"
-            );
-
-            certificateUrl = uploadResult.secure_url;
-            verified = false;
-          } catch (certError) {
-            console.error("Certificate upload error for", qualName, ":", certError);
-          }
-        }
-
-        updatedQualifications.push({
-          name: qualName,
-          certificate_url: certificateUrl || null,
-          verified
-        });
-      }
-
-      // --- DETERMINISTIC COMPARISON ---
-      function normalizeQualifications(arr = []) {
-        return arr
-          .map(q => ({
-            name: q.name,
-            certificate_url: q.certificate_url || null,
-            verified: Boolean(q.verified)
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
-
-      const normalizedExisting = normalizeQualifications(existingQualifications);
-      const normalizedUpdated = normalizeQualifications(updatedQualifications);
-
-      const qualificationsChanged =
-        JSON.stringify(normalizedExisting) !==
-        JSON.stringify(normalizedUpdated);
-
-      // --- 7 DAY COOLDOWN ---
-      if (
-        existingNurse.profile_status === "approved" &&
-        qualificationsChanged
-      ) {
-        if (existingNurse.last_edit_request) {
-          const days =
-            (new Date() - new Date(existingNurse.last_edit_request)) /
-            (1000 * 60 * 60 * 24);
-
-          if (days < 7) {
-            setFlash(
-              req,
-              "error",
-              "You can request profile changes only once every 7 days."
-            );
-            return res.redirect("/nurse/profile");
-          }
-        }
-
-        await pool.query(
-          "UPDATE nurses SET profile_status = $1, last_edit_request = NOW() WHERE id = $2",
-          ["pending", nurse.id]
-        );
-      }
-
-      await pool.query(
-        "UPDATE nurses SET qualifications = $1 WHERE id = $2",
-        [updatedQualifications, nurse.id]
-      );
-
-      // Update profile completion
-      const hasQualificationCertificate =
-        Array.isArray(updatedQualifications) &&
-        updatedQualifications.some(q => q.certificate_url);
-
-      if (hasQualificationCertificate) {
-        await pool.query(
-          "UPDATE nurses SET profile_completion = LEAST(100, profile_completion + 15) WHERE id = $1",
-          [nurse.id]
-        );
-      }
-
-      setFlash(req, "success", "Qualifications updated successfully.");
-      res.redirect("/nurse/profile");
-    } catch (error) {
-      console.error("Qualifications update error:", error);
-      setFlash(req, "error", "Unable to update qualifications. Please try again.");
-      res.redirect("/nurse/profile");
-    }
-  }
-);
 
 app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
   try {
