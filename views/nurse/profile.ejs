@@ -239,10 +239,51 @@ function maskAadhaar(value) {
         <% } %>
       </div>
 
-      <!-- Edit mode placeholder (hidden for now) -->
+      <!-- Edit mode with predefined qualifications form -->
       <div id="qualification-edit-mode" style="display:none;">
-        <!-- We will build this in STEP 2 -->
-        <p>Edit mode coming in next step...</p>
+
+        <form method="POST"
+              action="/nurse/profile/qualifications"
+              enctype="multipart/form-data"
+              class="qualification-form">
+
+          <h4>Predefined Qualifications</h4>
+
+          <% const predefined = [
+            "10th (SSC)",
+            "12th (HSC)",
+            "ANM",
+            "GNM",
+            "BSc Nursing",
+            "MSc Nursing"
+          ]; %>
+
+          <% predefined.forEach(function(option) { 
+               const safeName = option.replace(/[^a-zA-Z0-9]/g, "_"); %>
+
+            <div class="qualification-row">
+              <label class="qualification-label">
+                <input type="checkbox"
+                       name="predefined[]"
+                       value="<%= option %>">
+                <%= option %>
+              </label>
+
+              <input type="file"
+                     name="file_<%= safeName %>"
+                     accept=".jpg,.jpeg,.png,.pdf">
+            </div>
+
+          <% }) %>
+
+          <div style="margin-top:20px;">
+            <button type="submit" class="save-btn">
+              Save Qualifications
+            </button>
+          </div>
+
+        </form>
+
       </div>
     </div>
   </dl>
