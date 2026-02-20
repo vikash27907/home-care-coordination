@@ -143,6 +143,16 @@ router.post(
       [updatedQualifications, nurse.id]
     );
 
+    // If qualifications changed, also update user status to Pending
+    if (qualificationsChanged) {
+      await pool.query(
+        `UPDATE users 
+         SET status = 'Pending'
+         WHERE id = $1`,
+        [req.session.user.id]
+      );
+    }
+
     setFlash(req, "success", "Qualifications updated successfully.");
     res.redirect("/nurse/profile");
   }
