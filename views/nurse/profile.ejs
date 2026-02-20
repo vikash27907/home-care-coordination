@@ -172,12 +172,6 @@ function maskAadhaar(value) {
       <dt>Work Locations</dt>
       <dd><%= workLocations.length ? workLocations.join(", ") : "-" %></dd>
     </div>
-    <div class="detail-item full-width">
-      <dt>Qualifications</dt>
-      <dd>
-        <%- include("../partials/nurse-qualification-module", { nurse }) %>
-      </dd>
-    </div>
     <div class="detail-item full-width" id="skillsSection">
       <dt style="display:flex; justify-content:space-between; align-items:center;">
         Skills
