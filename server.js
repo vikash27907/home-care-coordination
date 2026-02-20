@@ -126,20 +126,7 @@ const uploadCertificate = multer({
   }
 });
 
-const uploadQualificationFiles = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 15
-  },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) return cb(null, true);
-    cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
-  }
-});
+
 
 // Profile image upload - 100KB limit (only for profile edit, NOT for signup)
 const uploadProfileImage = multer({
@@ -3240,58 +3227,7 @@ app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, as
   }
 });
 
-// ============================================================
-// DEDICATED QUALIFICATIONS ROUTE
-// ============================================================
 
-// Dedicated multer for qualification files
-const uploadQualificationFiles = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
-    files: 15
-  },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) return cb(null, true);
-    cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
-  }
-});
-
-// ============================================================
-// PROFILE_QUALIFICATION_OPTIONS already defined at line 576
-// ============================================================
-
-app.post(
-  "/nurse/profile/qualifications",
-  requireRole("nurse"),
-  requireApprovedNurse,
-  uploadQualificationFiles.any(),
-  async (req, res) => {
-    try {
-      const nurse = await getNurseById(req.nurseRecord.id);
-      if (!nurse) {
-        setFlash(req, "error", "Nurse profile not found.");
-        return res.redirect("/nurse/profile");
-      }
-
-      const { rows } = await pool.query(
-        "SELECT qualifications, profile_status, last_edit_request FROM nurses WHERE id = $1",
-        [nurse.id]
-      );
-
-      const existingNurse = rows[0];
-      const existingQualifications = Array.isArray(existingNurse.qualifications)
-        ? existingNurse.qualifications
-        : [];
-
-      const selectedQualifications = Array.isArray(req.body.qualifications)
-        ? req.body.qualifications
-        : req.body.qualifications
-        ? [req.body.qualifications]
-        : [];
 
       // Build safe lookup map
       const qualificationLookup = {};
