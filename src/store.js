@@ -168,10 +168,10 @@ async function persistStoreToDb(store) {
         Number.parseInt(nurse.experienceYears, 10) || 0,
         Number.parseInt(nurse.experienceMonths, 10) || 0,
         nurse.availabilityStatus || '',
-        Array.isArray(nurse.workLocations) ? nurse.workLocations : [],
+        JSON.stringify(Array.isArray(nurse.workLocations) ? nurse.workLocations : []),
         nurse.currentAddress || nurse.address || '',
-        Array.isArray(nurse.skills) ? nurse.skills : [],
-        Array.isArray(nurse.qualifications) ? nurse.qualifications : [],
+        JSON.stringify(Array.isArray(nurse.skills) ? nurse.skills : []),
+        JSON.stringify(Array.isArray(nurse.qualifications) ? nurse.qualifications : []),
         nurse.resumeUrl || '',
         nurse.createdAt
       ]);
