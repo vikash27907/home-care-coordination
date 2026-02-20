@@ -167,14 +167,7 @@ function maskAadhaar(value) {
     <div class="detail-item full-width">
       <dt>Qualifications</dt>
       <dd>
-        <form action="/nurse/profile/qualifications"
-      method="POST"
-      enctype="multipart/form-data"></form>
-          <%- include("../partials/nurse-qualification-module", { nurse }) %>
-          <button type="submit" class="btn primary small" style="margin-top: 10px;">
-            Save Qualifications
-          </button>
-        </form>
+        <%- include("../partials/nurse-qualification-module", { nurse }) %>
       </dd>
     </div>
     <div class="detail-item full-width" id="skillsSection">
