@@ -4054,6 +4054,103 @@ app.post("/admin/user/:id/delete", requireRole("admin"), (req, res) => {
   return res.redirect("/admin");
 });
 
+// Nurse Profile Qualifications Route
+const uploadQualificationFiles = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|pdf/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext && mime) return cb(null, true);
+    cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
+  }
+});
+
+app.post(
+  "/nurse/profile/qualifications",
+  requireRole("nurse"),
+  uploadQualificationFiles.any(),
+  async (req, res) => {
+    try {
+      const userId = req.session.userId;
+
+      const { rows } = await pool.query(
+        "SELECT qualifications FROM nurses WHERE user_id = $1",
+        [userId]
+      );
+
+      const existingQualifications = Array.isArray(rows[0]?.qualifications)
+        ? rows[0].qualifications
+        : [];
+
+      const selectedQualifications = Array.isArray(req.body.qualifications)
+        ? req.body.qualifications
+        : req.body.qualifications
+        ? [req.body.qualifications]
+        : [];
+
+      const fileMap = {};
+      (req.files || []).forEach(file => {
+        fileMap[file.fieldname] = file;
+      });
+
+      const updatedQualifications = [];
+
+      for (const qualName of selectedQualifications) {
+
+        const existingQual = existingQualifications.find(
+          q => q.name === qualName
+        );
+
+        let certificateUrl = existingQual
+          ? existingQual.certificate_url
+          : null;
+
+        let verified = existingQual
+          ? Boolean(existingQual.verified)
+          : false;
+
+        const safeKey =
+          "cert_" + qualName.replace(/[^a-zA-Z0-9]/g, "_");
+
+        const uploadedFile = fileMap[safeKey];
+
+        if (uploadedFile) {
+          const uploadResult = await uploadBufferToCloudinary(
+            uploadedFile.buffer,
+            "home-care/nurses/qualifications"
+          );
+
+          certificateUrl =
+            typeof uploadResult === "string"
+              ? uploadResult
+              : uploadResult.secure_url;
+
+          verified = false;
+        }
+
+        updatedQualifications.push({
+          name: qualName,
+          certificate_url: certificateUrl || null,
+          verified
+        });
+      }
+
+      await pool.query(
+        "UPDATE nurses SET qualifications = $1 WHERE user_id = $2",
+        [JSON.stringify(updatedQualifications), userId]
+      );
+
+      return res.redirect("/nurse/profile");
+
+    } catch (err) {
+      console.error("Qualification error:", err);
+      return res.status(500).send("Server error");
+    }
+  }
+);
+
 // 404 handler
 app.use((req, res) => {
   return res.status(404).render("shared/not-found", { title: "Page Not Found" });
