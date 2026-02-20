@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const { pool } = require("../src/db");
-const { requireRole, requireApprovedNurse } = require("../server"); // This is not ideal, but I will fix it later
-const { uploadQualificationFiles } = require("../server"); // This is not ideal, but I will fix it later
-const { setFlash, uploadBufferToCloudinary } = require("../server"); // This is not ideal, but I will fix it later
+const { requireRole, requireApprovedNurse } = require("../middlewares/auth");
+const { uploadQualificationFiles } = require("../utils/multer");
+const { setFlash } = require("../utils/flash");
+const { uploadBufferToCloudinary } = require("../utils/cloudinary");
 
 router.post(
   "/profile/qualifications",
