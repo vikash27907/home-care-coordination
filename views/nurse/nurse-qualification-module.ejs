@@ -1,0 +1,61 @@
+<%
+const currentQualifications = Array.isArray(nurse.qualifications)
+  ? nurse.qualifications
+  : [];
+
+const masterQualifications = [
+  "10th (SSC)",
+  "12th (HSC)",
+  "ANM",
+  "GNM",
+  "BSc Nursing",
+  "MSc Nursing"
+];
+%>
+
+<form 
+  action="/nurse/profile/qualifications" 
+  method="POST" 
+  enctype="multipart/form-data"
+  class="qualification-module"
+>
+<% masterQualifications.forEach(function(qual) {
+   const existingQual = currentQualifications.find(q => q.name === qual);
+   const isSelected = !!existingQual;
+   const safeName = qual.replace(/[^a-zA-Z0-9]/g, "_");
+%>
+
+<div class="qualification-item">
+  <label>
+    <input
+      type="checkbox"
+      name="qualifications"
+      value="<%= qual %>"
+      <%= isSelected ? "checked" : "" %>
+    />
+    <span><%= qual %></span>
+  </label>
+
+  <input
+    type="file"
+    name="cert_<%= safeName %>"
+    accept=".pdf,.jpg,.jpeg,.png"
+  />
+
+  <% if (existingQual && existingQual.certificate_url) { %>
+    <a href="<%= existingQual.certificate_url %>" target="_blank">
+      View Certificate
+    </a>
+
+    <% if (existingQual.verified) { %>
+      <span class="badge verified">Verified</span>
+    <% } else { %>
+      <span class="badge pending">Pending Verification</span>
+    <% } %>
+  <% } %>
+</div>
+
+<% }) %>
+
+<button type="submit">Save Qualifications</button>
+</form>

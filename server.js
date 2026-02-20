@@ -126,6 +126,21 @@ const uploadCertificate = multer({
   }
 });
 
+const uploadQualificationFiles = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 15
+  },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|pdf/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext && mime) return cb(null, true);
+    cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
+  }
+});
+
 // Profile image upload - 100KB limit (only for profile edit, NOT for signup)
 const uploadProfileImage = multer({
   storage: profileStorage,
@@ -171,12 +186,7 @@ const uploadNurseProfileFiles = multer({
     }
     return cb(new Error("Only PDF, JPG, and PNG files are allowed."));
   }
-}).fields([
-  { name: "profilePic", maxCount: 1 },
-  { name: "tenthCert", maxCount: 1 },
-  { name: "highestCert", maxCount: 1 },
-  { name: "resume", maxCount: 1 }
-]);
+}).any();
 
 function runMulterMiddleware(middleware, req, res) {
   return new Promise((resolve, reject) => {
@@ -277,12 +287,12 @@ function calculateProfileCompletion(nurse) {
   if (nurse.experience_years > 0 || nurse.experience_months > 0) completion += 10;
   if (nurse.expected_salary) completion += 10;
 
-  if (
-    nurse.highest_cert_url ||
-    (nurse.additional_certificates &&
-      Array.isArray(nurse.additional_certificates) &&
-      nurse.additional_certificates.length > 0)
-  ) completion += 15;
+  // Check for new qualification system with individual certificates
+  const hasQualificationCertificate =
+  Array.isArray(nurse.qualifications) &&
+  nurse.qualifications.some(q => q.certificate_url);
+
+  if (hasQualificationCertificate) completion += 15;
 
   if (
     nurse.pan_india ||
@@ -2922,6 +2932,64 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
   }
 
   const files = req.files || {};
+  
+  // Build qualifications array with individual certificate handling
+  // Format: [{ name: "GNM", certificate_url: "...", verified: false }, ...]
+  let qualificationsWithCerts = [];
+  
+  // Get existing qualifications from nurse to preserve certificate_url and verified status
+  const existingQualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
+  const existingQualMap = {};
+  existingQualifications.forEach(q => {
+    if (q && q.name) {
+      existingQualMap[q.name] = q;
+    }
+  });
+  
+  // Process selected qualifications
+  const selectedQualNames = selectedQualifications;
+  
+  // Check for certificate file uploads (dynamic field names: cert_GNM, cert_BSc_Nursing, etc.)
+  const certFiles = {};
+  if (Array.isArray(files)) {
+    files.forEach(file => {
+      if (file.fieldname && file.fieldname.startsWith("cert_")) {
+        const original = file.fieldname.replace("cert_", "");
+        const normalizedName = original.replace(/_/g, " ");
+        certFiles[normalizedName] = file;
+      }
+    });
+  }
+  
+  // Build qualifications array
+  for (const qualName of selectedQualNames) {
+    const existingQual = existingQualMap[qualName] || {};
+    let certUrl = existingQual.certificate_url || null;
+    let verified = existingQual.verified || false;
+    
+    // Check if a new certificate was uploaded for this qualification
+    const uploadedCertFile = certFiles[qualName];
+    
+    if (uploadedCertFile) {
+      try {
+        const uploadedCert = await uploadBufferToCloudinary(uploadedCertFile, "home-care/nurses/qualifications");
+        certUrl = uploadedCert.secure_url;
+        // Reset verification when certificate is replaced
+        verified = false;
+      } catch (certError) {
+        console.error("Certificate upload error for", qualName, ":", certError);
+        // Keep existing certificate if upload fails
+        certUrl = existingQual.certificate_url || null;
+      }
+    }
+    
+    qualificationsWithCerts.push({
+      name: qualName,
+      certificate_url: certUrl,
+      verified: verified
+    });
+  }
+  
   try {
     if (files.profilePic && files.profilePic[0]) {
       const uploadedProfilePic = await uploadBufferToCloudinary(files.profilePic[0], "home-care/nurses/profile");
@@ -2933,17 +3001,20 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     }
     if (files.highestCert && files.highestCert[0]) {
       const uploadedHighest = await uploadBufferToCloudinary(files.highestCert[0], "home-care/nurses/highest-cert");
-      setIfDefined("highest_cert_url", uploadedHighest.secure_url);
+      
     }
     if (files.tenthCert && files.tenthCert[0]) {
       const uploadedTenth = await uploadBufferToCloudinary(files.tenthCert[0], "home-care/nurses/tenth-cert");
-      setIfDefined("tenth_cert_url", uploadedTenth.secure_url);
+      
     }
   } catch (error) {
     console.error("CLOUDINARY UPLOAD ERROR:", error);
     setFlash(req, "error", "Cloudinary upload failed. Please check server logs.");
     return res.redirect("/nurse/profile/edit");
   }
+  
+  // Set qualifications with individual certificates
+  setIfDefined("qualifications", qualificationsWithCerts);
 
   try {
     if (normalizedPhone) {
@@ -2967,13 +3038,24 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     // Helper to safely sort arrays for comparison
     const safeSort = (arr) => (Array.isArray(arr) ? [...arr].sort() : []);
 
+    // Extract qualification names for comparison (handle both old string array and new object array formats)
+    const existingQualNames = Array.isArray(existingNurse.qualifications)
+      ? existingNurse.qualifications.map(q => {
+          if (typeof q === 'string') return q;
+          if (q && q.name) return q.name;
+          return '';
+        }).filter(Boolean).sort()
+      : [];
+    const selectedQualNamesSorted = [...selectedQualifications].sort();
+    const qualificationsChanged = JSON.stringify(existingQualNames) !== JSON.stringify(selectedQualNamesSorted);
+
     // 2. Determine if any HARD fields changed (handling nulls and array order)
     const hardFieldChanged =
       (existingNurse.aadhaar_number || "") !== aadhaarDigits ||
       (existingNurse.experience_years || 0) !== experienceYears ||
       (existingNurse.experience_months || 0) !== experienceMonths ||
       JSON.stringify(safeSort(existingNurse.skills)) !== JSON.stringify(safeSort(selectedSkills)) ||
-      JSON.stringify(safeSort(existingNurse.qualifications)) !== JSON.stringify(safeSort(selectedQualifications));
+      qualificationsChanged;
 
     // 3. Apply cooldown and status lock
     if (existingNurse.profile_status === "approved" && hardFieldChanged) {
@@ -3009,10 +3091,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           skills = COALESCE($7, skills),
           work_locations = COALESCE($8, work_locations),
           qualifications = COALESCE($9, qualifications),
-          resume_url = COALESCE($10, resume_url),
-          highest_cert_url = COALESCE($11, highest_cert_url),
-          tenth_cert_url = COALESCE($12, tenth_cert_url),
-          profile_pic_url = COALESCE($13, profile_pic_url)
+          resume_url = COALESCE($10, resume_url),          profile_pic_url = COALESCE($13, profile_pic_url)
         WHERE id = $14`,
         [
           pickValue("city"),
@@ -3025,9 +3104,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           pickValue("work_locations"),
           pickValue("qualifications"),
           pickValue("resume_url"),
-          pickValue("highest_cert_url"),
-          pickValue("tenth_cert_url"),
-          pickValue("profile_pic_url"),
+                    pickValue("profile_pic_url"),
           nurse.id
         ]
       );
@@ -3043,10 +3120,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           skills = COALESCE($7, skills),
           work_locations = COALESCE($8, work_locations),
           qualifications = COALESCE($9, qualifications),
-          resume_url = COALESCE($10, resume_url),
-          highest_cert_url = COALESCE($11, highest_cert_url),
-          tenth_cert_url = COALESCE($12, tenth_cert_url),
-          profile_image_path = COALESCE($13, profile_image_path)
+          resume_url = COALESCE($10, resume_url),          profile_image_path = COALESCE($13, profile_image_path)
         WHERE id = $14`,
         [
           pickValue("city"),
@@ -3059,9 +3133,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           pickValue("work_locations"),
           pickValue("qualifications"),
           pickValue("resume_url"),
-          pickValue("highest_cert_url"),
-          pickValue("tenth_cert_url"),
-          pickValue("profile_image_path"),
+                    pickValue("profile_image_path"),
           nurse.id
         ]
       );
@@ -3100,8 +3172,13 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     Object.assign(cachedNurse, updatedNurse);
   }
 
-  if (!updatedNurse.tenthCertUrl || !updatedNurse.highestCertUrl) {
-    setFlash(req, "success", "Profile updated. Upload both 10th marksheet and highest certificate to reach 100% completion.");
+  // Check for new qualification system with certificates
+  const qualsWithCerts = updatedNurse.qualifications && Array.isArray(updatedNurse.qualifications) 
+    ? updatedNurse.qualifications.filter(q => q && q.certificate_url)
+    : [];
+  
+  if (qualsWithCerts.length === 0) {
+    setFlash(req, "success", "Profile updated. Upload at least one qualification certificate to reach 100% completion.");
     return res.redirect("/nurse/profile");
   }
 
@@ -3162,6 +3239,174 @@ app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, as
     return res.redirect("/nurse/profile");
   }
 });
+
+// ============================================================
+// DEDICATED QUALIFICATIONS ROUTE
+// ============================================================
+
+// Dedicated multer for qualification files
+const uploadQualificationFiles = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+    files: 15
+  },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|pdf/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext && mime) return cb(null, true);
+    cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
+  }
+});
+
+// ============================================================
+// PROFILE_QUALIFICATION_OPTIONS already defined at line 576
+// ============================================================
+
+app.post(
+  "/nurse/profile/qualifications",
+  requireRole("nurse"),
+  requireApprovedNurse,
+  uploadQualificationFiles.any(),
+  async (req, res) => {
+    try {
+      const nurse = await getNurseById(req.nurseRecord.id);
+      if (!nurse) {
+        setFlash(req, "error", "Nurse profile not found.");
+        return res.redirect("/nurse/profile");
+      }
+
+      const { rows } = await pool.query(
+        "SELECT qualifications, profile_status, last_edit_request FROM nurses WHERE id = $1",
+        [nurse.id]
+      );
+
+      const existingNurse = rows[0];
+      const existingQualifications = Array.isArray(existingNurse.qualifications)
+        ? existingNurse.qualifications
+        : [];
+
+      const selectedQualifications = Array.isArray(req.body.qualifications)
+        ? req.body.qualifications
+        : req.body.qualifications
+        ? [req.body.qualifications]
+        : [];
+
+      // Build safe lookup map
+      const qualificationLookup = {};
+      PROFILE_QUALIFICATION_OPTIONS.forEach(q => {
+        const safe = q.replace(/[^a-zA-Z0-9]/g, "_");
+        qualificationLookup[`cert_${safe}`] = q;
+      });
+
+      // Build file map
+      const fileMap = {};
+      (req.files || []).forEach(file => {
+        fileMap[file.fieldname] = file;
+      });
+
+      const updatedQualifications = [];
+
+      for (const qualName of selectedQualifications) {
+        const existingQual = existingQualifications.find(q => q.name === qualName);
+
+        let certificateUrl = existingQual ? existingQual.certificate_url : null;
+        let verified = existingQual ? Boolean(existingQual.verified) : false;
+
+        const safeKey = `cert_${qualName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+        if (fileMap[safeKey]) {
+          try {
+            const uploadResult = await uploadBufferToCloudinary(
+              fileMap[safeKey].buffer,
+              "home-care/nurses/qualifications"
+            );
+
+            certificateUrl = uploadResult.secure_url;
+            verified = false;
+          } catch (certError) {
+            console.error("Certificate upload error for", qualName, ":", certError);
+          }
+        }
+
+        updatedQualifications.push({
+          name: qualName,
+          certificate_url: certificateUrl || null,
+          verified
+        });
+      }
+
+      // --- DETERMINISTIC COMPARISON ---
+      function normalizeQualifications(arr = []) {
+        return arr
+          .map(q => ({
+            name: q.name,
+            certificate_url: q.certificate_url || null,
+            verified: Boolean(q.verified)
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      const normalizedExisting = normalizeQualifications(existingQualifications);
+      const normalizedUpdated = normalizeQualifications(updatedQualifications);
+
+      const qualificationsChanged =
+        JSON.stringify(normalizedExisting) !==
+        JSON.stringify(normalizedUpdated);
+
+      // --- 7 DAY COOLDOWN ---
+      if (
+        existingNurse.profile_status === "approved" &&
+        qualificationsChanged
+      ) {
+        if (existingNurse.last_edit_request) {
+          const days =
+            (new Date() - new Date(existingNurse.last_edit_request)) /
+            (1000 * 60 * 60 * 24);
+
+          if (days < 7) {
+            setFlash(
+              req,
+              "error",
+              "You can request profile changes only once every 7 days."
+            );
+            return res.redirect("/nurse/profile");
+          }
+        }
+
+        await pool.query(
+          "UPDATE nurses SET profile_status = $1, last_edit_request = NOW() WHERE id = $2",
+          ["pending", nurse.id]
+        );
+      }
+
+      await pool.query(
+        "UPDATE nurses SET qualifications = $1 WHERE id = $2",
+        [updatedQualifications, nurse.id]
+      );
+
+      // Update profile completion
+      const hasQualificationCertificate =
+        Array.isArray(updatedQualifications) &&
+        updatedQualifications.some(q => q.certificate_url);
+
+      if (hasQualificationCertificate) {
+        await pool.query(
+          "UPDATE nurses SET profile_completion = LEAST(100, profile_completion + 15) WHERE id = $1",
+          [nurse.id]
+        );
+      }
+
+      setFlash(req, "success", "Qualifications updated successfully.");
+      res.redirect("/nurse/profile");
+    } catch (error) {
+      console.error("Qualifications update error:", error);
+      setFlash(req, "error", "Unable to update qualifications. Please try again.");
+      res.redirect("/nurse/profile");
+    }
+  }
+);
 
 app.post("/nurse/profile/skills", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
   try {
@@ -4106,4 +4351,8 @@ async function startServer() {
 
 startServer();
 
+
+
+const nurseRoutes = require('./routes/nurse');
+app.use('/nurse', nurseRoutes);
 

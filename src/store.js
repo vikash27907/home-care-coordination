@@ -153,13 +153,13 @@ async function persistStoreToDb(store) {
           id, user_id, full_name, city, gender, status, profile_image_path,
           aadhaar_number, experience_years, experience_months, availability_status,
           work_locations, current_address, skills, qualifications, resume_url,
-          highest_cert_url, tenth_cert_url, created_at
+          created_at
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11,
           $12, $13, $14, $15, $16,
-          $17, $18, $19
+          $17
         )
       `, [
         nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
@@ -173,8 +173,6 @@ async function persistStoreToDb(store) {
         Array.isArray(nurse.skills) ? nurse.skills : [],
         Array.isArray(nurse.qualifications) ? nurse.qualifications : [],
         nurse.resumeUrl || '',
-        nurse.highestCertUrl || '',
-        nurse.tenthCertUrl || '',
         nurse.createdAt
       ]);
     }
@@ -319,8 +317,6 @@ function transformNurseFromDB(row) {
     referredByNurseId: row.referred_by_nurse_id,
     referralCommissionPercent: parseFloat(row.referral_commission_percent) || 5,
     resumeUrl: row.resume_url || '',
-    highestCertUrl: row.highest_cert_url || '',
-    tenthCertUrl: row.tenth_cert_url || '',
     certificateUrl: row.certificate_url || '',
     address: row.current_address || row.address || '',
     workCity: row.work_city || '',
@@ -616,9 +612,7 @@ async function updateNurse(id, updates) {
         currentAddress: 'current_address',
         skills: 'skills',
         qualifications: 'qualifications',
-        resumeUrl: 'resume_url',
-        highestCertUrl: 'highest_cert_url',
-        tenthCertUrl: 'tenth_cert_url'
+        resumeUrl: 'resume_url'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);

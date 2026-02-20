@@ -4,7 +4,13 @@
 const profileImage = nurse.profileImagePath || nurse.profileImageUrl || "";
 const nurseName = String(nurse.fullName || "Nurse");
 const skills = Array.isArray(nurse.skills) ? nurse.skills : [];
+
+// Handle both old format (array of strings) and new format (array of objects)
 const qualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
+// New format: [{ name: "GNM", certificate_url: "...", verified: false }, ...]
+const qualificationsWithCerts = qualifications.filter(q => q && q.certificate_url);
+const hasQualWithCert = qualificationsWithCerts.length > 0;
+
 const workLocations = Array.isArray(nurse.workLocations) ? nurse.workLocations : [];
 const aadhaar = String(nurse.aadhaarNumber || nurse.aadharNumber || "").replace(/\D/g, "");
 const experienceYears = Number(nurse.experienceYears || 0);
@@ -12,6 +18,8 @@ const experienceMonths = Number(nurse.experienceMonths || 0);
 const availabilityStatus = String(nurse.availabilityStatus || "").trim();
 const currentAddress = String(nurse.currentAddress || nurse.address || "").trim();
 const profileImageReady = Boolean(profileImage);
+
+// Legacy certificate fields (for backward compatibility)
 const tenthCertReady = Boolean(nurse.tenthCertUrl);
 const highestCertReady = Boolean(nurse.highestCertUrl);
 
@@ -25,12 +33,11 @@ const completionChecks = [
   Boolean(skills.length),
   Boolean(qualifications.length),
   Boolean(nurse.resumeUrl),
-  tenthCertReady,
-  highestCertReady
+  hasQualWithCert || (tenthCertReady && highestCertReady) // Either new or legacy format
 ];
 const completedItems = completionChecks.filter(Boolean).length;
 const profileCompletion = Math.round((completedItems / completionChecks.length) * 100);
-const certsReadyForFullCompletion = tenthCertReady && highestCertReady;
+const certsReadyForFullCompletion = hasQualWithCert || (tenthCertReady && highestCertReady);
 
 function maskAadhaar(value) {
   if (!value || value.length < 4) return "Not provided";
@@ -100,7 +107,7 @@ function maskAadhaar(value) {
     <div class="profile-completion-fill" style="width: <%= profileCompletion %>%"></div>
   </div>
   <% if (!certsReadyForFullCompletion) { %>
-  <p class="completion-note">Upload both 10th marksheet and highest certificate to reach 100% completion.</p>
+  <p class="completion-note">Upload at least one qualification certificate to reach 100% completion.</p>
   <% } %>
 </section>
 
@@ -160,7 +167,9 @@ function maskAadhaar(value) {
     <div class="detail-item full-width">
       <dt>Qualifications</dt>
       <dd>
-        <form action="/nurse/profile/edit" method="POST">
+        <form action="/nurse/profile/qualifications"
+      method="POST"
+      enctype="multipart/form-data"></form>
           <%- include("../partials/nurse-qualification-module", { nurse }) %>
           <button type="submit" class="btn primary small" style="margin-top: 10px;">
             Save Qualifications

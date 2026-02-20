@@ -1,106 +1,192 @@
-<%
-  const masterQualifications = MASTER_QUALIFICATION_OPTIONS || [];
-  const initialQualifications = Array.isArray(nurse.qualifications)
-    ? nurse.qualifications
-    : [];
-  const qualificationModuleId = "qual_" + Math.random().toString(36).substring(2, 9);
+<%!
+const masterQualifications = [
+  "10th (SSC)",
+  "12th (HSC)",
+  "ANM",
+  "GNM",
+  "BSc Nursing",
+  "MSc Nursing"
+];
+
+const currentQualifications = Array.isArray(nurse.qualifications)
+  ? nurse.qualifications
+  : [];
 %>
 
-<div class="qualification-module">
-  <label>Qualifications</label>
+<form 
+  action="/nurse/profile/qualifications" 
+  method="POST" 
+  enctype="multipart/form-data"
+  class="qualification-module"
+>
+  <div class="qualifications-grid">
+    <% masterQualifications.forEach(function(qual) {
+       const existingQual = currentQualifications.find(q => q.name === qual);
+       const isSelected = !!existingQual;
+       const safeName = qual.replace(/[^a-zA-Z0-9]/g, "_");
+    %>
+    <div class="qualification-item">
+      <label class="qual-checkbox">
+        <input
+          type="checkbox"
+          name="qualifications"
+          value="<%= qual %>"
+          <%= isSelected ? "checked" : "" %>
+        />
+        <span class="qual-name"><%= qual %></span>
+      </label>
 
-  <div class="selected-qualifications" id="<%= qualificationModuleId %>_selected"></div>
+      <div class="cert-upload-section" style="display: <%= isSelected ? 'block' : 'none' %>;">
+        <input
+          type="file"
+          name="cert_<%= safeName %>"
+          accept=".pdf,.jpg,.jpeg,.png"
+          class="cert-file-input"
+          data-qual="<%= qual %>"
+        />
 
-  <input
-    type="text"
-    id="<%= qualificationModuleId %>_search"
-    placeholder="Search or type qualification..."
-    autocomplete="off"
-  />
+        <% if (existingQual && existingQual.certificate_url) { %>
+          <div class="cert-status">
+            <a href="<%= existingQual.certificate_url %>" target="_blank" class="cert-link">
+              View Certificate
+            </a>
+            <% if (existingQual.verified) { %>
+              <span class="badge verified">Verified</span>
+            <% } else { %>
+              <span class="badge pending">Pending Verification</span>
+            <% } %>
+          </div>
+        <% } else { %>
+          <span class="no-cert">No certificate uploaded</span>
+        <% } %>
+      </div>
+    </div>
+    <% }) %>
+  </div>
 
-  <div class="qualification-dropdown" id="<%= qualificationModuleId %>_dropdown"></div>
-
-  <div id="<%= qualificationModuleId %>_hidden"></div>
-</div>
+  <button type="submit" class="btn primary">Save Qualifications</button>
+</form>
 
 <script>
-const masterQualificationList = <%- JSON.stringify(masterQualifications) %>;
-let currentQualifications = <%- JSON.stringify(initialQualifications) %>;
-const qualificationPrefix = "<%= qualificationModuleId %>";
-
-const qualTagsContainer = document.getElementById(qualificationPrefix + "_selected");
-const qualSearchInput = document.getElementById(qualificationPrefix + "_search");
-const qualDropdown = document.getElementById(qualificationPrefix + "_dropdown");
-const qualHiddenContainer = document.getElementById(qualificationPrefix + "_hidden");
-
-function renderQualificationTags() {
-  qualTagsContainer.innerHTML = "";
-  qualHiddenContainer.innerHTML = "";
-
-  currentQualifications.forEach(q => {
-    const tag = document.createElement("span");
-    tag.className = "skill-tag";
-    tag.innerHTML = q + ' <button type="button">&times;</button>';
-
-    tag.querySelector("button").addEventListener("click", () => {
-      currentQualifications = currentQualifications.filter(item => item !== q);
-      renderQualificationTags();
+document.addEventListener('DOMContentLoaded', function() {
+  // Toggle certificate upload section based on checkbox
+  const checkboxes = document.querySelectorAll('input[name="qualifications"]');
+  
+  checkboxes.forEach(function(checkbox) {
+    checkbox.addEventListener('change', function() {
+      const item = this.closest('.qualification-item');
+      const certSection = item.querySelector('.cert-upload-section');
+      if (certSection) {
+        certSection.style.display = this.checked ? 'block' : 'none';
+      }
     });
-
-    qualTagsContainer.appendChild(tag);
-
-    const hiddenInput = document.createElement("input");
-    hiddenInput.type = "hidden";
-    hiddenInput.name = "qualifications";
-    hiddenInput.value = q;
-    qualHiddenContainer.appendChild(hiddenInput);
-  });
-}
-
-function addQualification(q) {
-  if (!currentQualifications.includes(q)) {
-    currentQualifications.push(q);
-    renderQualificationTags();
-  }
-  qualSearchInput.value = "";
-  qualDropdown.innerHTML = "";
-}
-
-function showQualificationDropdown(value) {
-  qualDropdown.innerHTML = "";
-
-  const matches = masterQualificationList.filter(q =>
-    q.toLowerCase().includes(value.toLowerCase())
-  );
-
-  matches.forEach(q => {
-    const option = document.createElement("div");
-    option.className = "dropdown-item";
-    option.textContent = q;
-    option.addEventListener("click", () => addQualification(q));
-    qualDropdown.appendChild(option);
   });
 
-  if (!matches.length && value.trim()) {
-    const customOption = document.createElement("div");
-    customOption.className = "dropdown-item";
-    customOption.textContent = `Add "${value.trim()}"`;
-    customOption.addEventListener("click", () =>
-      addQualification(value.trim())
-    );
-    qualDropdown.appendChild(customOption);
-  }
-}
+  // File size validation
+  const fileInputs = document.querySelectorAll('.cert-file-input');
+  const maxSize = 2 * 1024 * 1024; // 2MB
 
-qualSearchInput.addEventListener("input", e => {
-  showQualificationDropdown(e.target.value);
+  fileInputs.forEach(function(input) {
+    input.addEventListener('change', function() {
+      if (this.files && this.files[0]) {
+        if (this.files[0].size > maxSize) {
+          alert('File size must be less than 2MB');
+          this.value = '';
+        }
+      }
+    });
+  });
 });
-
-renderQualificationTags();
 </script>
 
 <style>
-.qualification-module { margin-top: 10px; }
-.selected-qualifications { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.qualification-dropdown { border: 1px solid #ddd; max-height: 160px; overflow-y: auto; background: white; }
+.qualification-module {
+  margin-top: 10px;
+}
+
+.qualifications-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.qualification-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 15px;
+  background: #f8fafc;
+}
+
+.qual-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.qual-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.qual-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.cert-upload-section {
+  margin-top: 10px;
+}
+
+.cert-file-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.cert-status {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cert-link {
+  color: #2563eb;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.cert-link:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge.verified {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.no-cert {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
 </style>
