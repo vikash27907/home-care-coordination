@@ -1883,3 +1883,93 @@ thead th {
   font-weight: 700;
   color: #0a2540;
 }
+
+/* ============================================================
+   PROFILE STATUS BADGE (Nurse Dashboard)
+   ============================================================ */
+
+.profile-status-badge {
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.status-approved {
+  color: #15803d;
+  background: #dcfce7;
+  padding: 8px 14px;
+  border-radius: 20px;
+}
+
+.status-pending {
+  color: #b45309;
+  background: #fef3c7;
+  padding: 8px 14px;
+  border-radius: 20px;
+}
+
+/* ============================================================
+   QUALIFICATION CARD (Nurse Profile)
+   ============================================================ */
+
+.qualification-card {
+  margin-top: 30px;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.qualification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.qualification-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--ink, #102a44);
+}
+
+.qualification-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.qualification-item:last-child {
+  border-bottom: none;
+}
+
+.qualification-name {
+  font-weight: 600;
+  color: var(--ink, #102a44);
+}
+
+.qualification-actions a {
+  color: var(--primary, #2563eb);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.qualification-actions a:hover {
+  text-decoration: underline;
+}
+
+.edit-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background-color: #2563eb;
+  color: white;
+  cursor: pointer;
+}
+
+.edit-btn:hover {
+  background-color: #1d4ed8;
+}

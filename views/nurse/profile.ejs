@@ -53,6 +53,14 @@ function maskAadhaar(value) {
   else if (completion < 100) barColor = '#0d6efd'; // blue
 %>
 
+<div class="profile-status-badge">
+  <% if (nurse.status === "approved") { %>
+    <span class="status-approved">🟢 Profile Verified</span>
+  <% } else { %>
+    <span class="status-pending">🟠 Profile Under Review</span>
+  <% } %>
+</div>
+
 <div class="profile-completion-wrapper">
   <h3>Profile Completion: <%= completion %>%</h3>
   <div class="progress-bar-container">
@@ -207,6 +215,41 @@ function maskAadhaar(value) {
           <button type="button" class="btn secondary" onclick="toggleSkillsEdit()">Cancel</button>
         </div>
       </dd>
+    </div>
+
+    <!-- Separate Qualification Card -->
+    <div class="qualification-card">
+      <div class="qualification-header">
+        <h3>📘 Qualifications</h3>
+        <button type="button" class="edit-btn" onclick="toggleQualificationEdit()">
+          Edit
+        </button>
+      </div>
+
+      <div id="qualification-view-mode">
+        <% if (nurse.qualifications && nurse.qualifications.length > 0) { %>
+          <% nurse.qualifications.forEach(function(q) { %>
+            <div class="qualification-item">
+              <div class="qualification-name">
+                <strong><%= q.name %></strong>
+              </div>
+              <div class="qualification-actions">
+                <a href="<%= q.certificate_url %>" target="_blank">
+                  View Certificate
+                </a>
+              </div>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <p>No qualifications added yet.</p>
+        <% } %>
+      </div>
+
+      <!-- Edit mode placeholder (hidden for now) -->
+      <div id="qualification-edit-mode" style="display:none;">
+        <!-- We will build this in STEP 2 -->
+        <p>Edit mode coming in next step...</p>
+      </div>
     </div>
   </dl>
 </section>
@@ -803,6 +846,19 @@ async function saveSkills() {
   }
 
   location.reload();
+}
+
+function toggleQualificationEdit() {
+  const viewMode = document.getElementById("qualification-view-mode");
+  const editMode = document.getElementById("qualification-edit-mode");
+
+  if (viewMode.style.display === "none") {
+    viewMode.style.display = "block";
+    editMode.style.display = "none";
+  } else {
+    viewMode.style.display = "none";
+    editMode.style.display = "block";
+  }
 }
 </script>
 
