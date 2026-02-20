@@ -28,6 +28,8 @@ router.post(
   requireApprovedNurse,
   uploadQualificationFiles.any(),
   async (req, res) => {
+    console.log("🔥 Qualifications POST route hit");
+
     const nurse = req.session.user;
     const { rows } = await pool.query(
       "SELECT qualifications, profile_status, last_edit_request FROM nurses WHERE id = $1",
