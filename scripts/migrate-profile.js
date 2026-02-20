@@ -1,6 +1,6 @@
 const { pool } = require('../src/db');
 
-async function migrate() {
+async function migrateNurseProfileColumns() {
   let client;
   try {
     client = await pool.connect();
@@ -18,4 +18,4 @@ async function migrate() {
   }
 }
 
-migrate();
+module.exports = { migrateNurseProfileColumns };
