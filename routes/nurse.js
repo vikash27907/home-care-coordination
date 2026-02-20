@@ -1,10 +1,26 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+const path = require("path");
 const { pool } = require("../src/db");
 const { requireRole, requireApprovedNurse } = require("../middlewares/auth");
-const { uploadQualificationFiles } = require("../utils/multer");
 const { setFlash } = require("../utils/flash");
 const { uploadBufferToCloudinary } = require("../utils/cloudinary");
+
+const uploadQualificationFiles = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+    files: 15
+  },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|pdf/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext && mime) return cb(null, true);
+    cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
+  }
+});
 
 router.post(
   "/profile/qualifications",
@@ -63,7 +79,7 @@ router.post(
 
       if (fileMap[safeKey]) {
         const uploadResult = await uploadBufferToCloudinary(
-          fileMap[safeKey].buffer,
+          fileMap[safeKey],
           "home-care/nurses/qualifications"
         );
 
