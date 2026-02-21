@@ -4117,10 +4117,10 @@ app.post(
         const uploadedFile = fileMap[safeKey];
 
         if (uploadedFile) {
-          const uploadResult = await uploadBufferToCloudinary(
-            uploadedFile.buffer,
-            "home-care/nurses/qualifications"
-          );
+const uploadResult = await uploadBufferToCloudinary(
+  uploadedFile,
+  "home-care/nurses/qualifications"
+);
 
           certificateUrl =
             typeof uploadResult === "string"
