@@ -1849,7 +1849,7 @@ app.post("/request-care", async (req, res) => {
   const referenceId = generateRequestId(store);
   
   // Default status is "Requested"
-  const defaultStatus = "Requested";
+const defaultStatus = "New";
   
   const patient = {
     id: patientId,
