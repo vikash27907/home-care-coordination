@@ -1948,58 +1948,36 @@ app.get("/request-success", (req, res) => {
   });
 });
 
-app.get("/track-request", (req, res) => {
+app.get("/track-request", async (req, res) => {
   const { requestId } = req.query;
+
   const renderData = {
     title: "Track Request",
     requestId: requestId || ""
   };
 
-  if (requestId) {
-    const store = readNormalizedStore();
-    const request = store.patients.find(p => p.requestId === requestId);
-    
-    if (request) {
-      // Permission check: allow if user is owner, admin, or agent assigned to this request
-      let hasPermission = false;
-      
-      if (req.currentUser) {
-        // Admin can view all
-        if (req.currentUser.role === "admin") {
-          hasPermission = true;
-        }
-        // Agent can view if assigned
-        else if (req.currentUser.role === "agent") {
-          if (request.agentEmail && request.agentEmail.toLowerCase() === req.currentUser.email.toLowerCase()) {
-            hasPermission = true;
-          }
-        }
-        // Nurse can view if assigned to this patient
-        else if (req.currentUser.role === "nurse") {
-          if (request.nurseId && req.nurseRecord && request.nurseId === req.nurseRecord.id) {
-            hasPermission = true;
-          }
-        }
-        // Regular user can view their own requests
-        else if (request.userId === req.currentUser.id) {
-          hasPermission = true;
-        }
-      } else {
-        // Public user can only view if they have the correct request ID (no additional check needed)
-        hasPermission = true;
-      }
-      
-      if (hasPermission) {
-        renderData.request = request;
-      } else {
-        renderData.error = "You don't have permission to view this request.";
-      }
-    } else {
-      renderData.error = "Request not found.";
-    }
+  if (!requestId) {
+    return res.render("public/track-request", renderData);
   }
 
-  res.render("public/track-request", renderData);
+  try {
+    const result = await pool.query(
+      "SELECT * FROM patients WHERE LOWER(request_id) = LOWER($1)",
+      [requestId.trim()]
+    );
+
+    if (result.rows.length === 0) {
+      renderData.error = "Request not found.";
+    } else {
+      renderData.request = result.rows[0];
+    }
+
+  } catch (error) {
+    console.error("Track request error:", error);
+    renderData.error = "Something went wrong. Please try again.";
+  }
+
+  return res.render("public/track-request", renderData);
 });
 
 app.post("/update-request", (req, res) => {
