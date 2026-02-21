@@ -46,8 +46,8 @@ let totalPending = safePendingNurses + safePendingAgents;
     <a href="/admin/concerns" class="nav-item <%= safeCurrentPath.includes('concerns') ? 'active' : '' %>">
       <span class="nav-icon">💬</span>
       <span class="nav-text">Concerns</span>
-      <% if (openConcerns > 0) { %>
-        <span class="badge-notification concern"><%= openConcerns %></span>
+    <% if (safeOpenConcerns > 0) { %>
+        <span class="badge-notification concern"><%= safeOpenConcerns %></span>
       <% } %>
     </a>
   </nav>
