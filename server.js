@@ -4095,46 +4095,47 @@ app.post(
         fileMap[file.fieldname] = file;
       });
 
-      const updatedQualifications = [];
+      // Start with existing qualifications (do NOT wipe old ones)
+      const updatedQualifications = [...existingQualifications];
 
       for (const qualName of selectedQualifications) {
 
-        const existingQual = existingQualifications.find(
+        const existingIndex = updatedQualifications.findIndex(
           q => q.name === qualName
         );
 
-        let certificateUrl = existingQual
-          ? existingQual.certificate_url
-          : null;
+        let certificateUrl = null;
+        let verified = false;
 
-        let verified = existingQual
-          ? Boolean(existingQual.verified)
-          : false;
+        if (existingIndex !== -1) {
+          certificateUrl = updatedQualifications[existingIndex].certificate_url;
+          verified = updatedQualifications[existingIndex].verified;
+        }
 
-        const safeKey =
-          "cert_" + qualName.replace(/[^a-zA-Z0-9]/g, "_");
-
+        const safeKey = "cert_" + qualName.replace(/[^a-zA-Z0-9]/g, "_");
         const uploadedFile = fileMap[safeKey];
 
         if (uploadedFile) {
-const uploadResult = await uploadBufferToCloudinary(
-  uploadedFile,
-  "home-care/nurses/qualifications"
-);
+          const uploadResult = await uploadBufferToCloudinary(
+            uploadedFile,
+            "home-care/nurses/qualifications"
+          );
 
-          certificateUrl =
-            typeof uploadResult === "string"
-              ? uploadResult
-              : uploadResult.secure_url;
-
+          certificateUrl = uploadResult.secure_url;
           verified = false;
         }
 
-        updatedQualifications.push({
+        const newQualification = {
           name: qualName,
           certificate_url: certificateUrl || null,
           verified
-        });
+        };
+
+        if (existingIndex !== -1) {
+          updatedQualifications[existingIndex] = newQualification;
+        } else {
+          updatedQualifications.push(newQualification);
+        }
       }
 
       await pool.query(
