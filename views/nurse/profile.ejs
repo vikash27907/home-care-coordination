@@ -227,11 +227,17 @@ function maskAadhaar(value) {
               <div class="qualification-name">
                 <strong><%= q.name %></strong>
               </div>
-              <div class="qualification-actions">
-                <a href="<%= q.certificate_url %>" target="_blank">
-                  View Certificate
-                </a>
-              </div>
+      <div class="qualification-actions">
+        <% if (q.certificate_url) { %>
+          <a href="<%= q.certificate_url %>" target="_blank">
+            View Certificate
+          </a>
+        <% } else { %>
+          <span style="color: #6b7280;">
+            Certificate not uploaded
+          </span>
+        <% } %>
+      </div>
             </div>
           <% }) %>
         <% } else { %>
