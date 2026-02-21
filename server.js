@@ -783,6 +783,16 @@ function getOpenConcernsCount(store) {
   return store.concerns ? store.concerns.filter(c => c.status === "Open").length : 0;
 }
 
+// Middleware to add admin context (open concerns count) to all views for admin users
+function adminContextMiddleware(req, res, next) {
+  // Only add this for admin users
+  if (req.currentUser && req.currentUser.role === "admin") {
+    const store = readNormalizedStore();
+    res.locals.openConcerns = getOpenConcernsCount(store);
+  }
+  return next();
+}
+
 function setFlash(req, type, message) {
   req.session.flash = { type, message };
 }
@@ -2231,6 +2241,8 @@ app.get("/dashboard", requireAuth, (req, res) => {
     userRequests
   });
 });
+
+app.use("/admin", requireRole("admin"), adminContextMiddleware);
 
 app.get("/admin", requireRole("admin"), (req, res) => {
   const store = readNormalizedStore();
