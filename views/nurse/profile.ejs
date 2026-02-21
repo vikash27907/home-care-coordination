@@ -263,15 +263,27 @@ function maskAadhaar(value) {
 
             <div class="qualification-row">
               <label class="qualification-label">
-                <input type="checkbox"
-                       name="qualifications"
-                       value="<%= option %>">
+            <input type="checkbox"
+                   name="qualifications"
+                   value="<%= option %>"
+                   <%= nurse.qualifications && nurse.qualifications.some(q => q.name === option) ? "checked" : "" %>>
                 <%= option %>
               </label>
 
-              <input type="file"
-                     name="cert_<%= safeName %>"
-                     accept=".jpg,.jpeg,.png,.pdf">
+            <input type="file"
+                   name="cert_<%= safeName %>"
+                   accept=".jpg,.jpeg,.png,.pdf">
+
+            <%
+              const existingQualification = nurse.qualifications && nurse.qualifications.find(q => q.name === option);
+              if (existingQualification && existingQualification.certificate_url) {
+            %>
+              <small style="color: green; font-weight: 500;">
+                ✔ Certificate Uploaded
+              </small>
+            <%
+              }
+            %>
             </div>
 
           <% }) %>
