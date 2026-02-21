@@ -777,28 +777,85 @@ async function getPatientByRequestId(requestId) {
 async function createPatient(patient) {
   try {
     const result = await pool.query(`
-      INSERT INTO patients (id, user_id, request_id, full_name, email, phone_number, city, service_schedule, duration, duration_unit,
-        duration_value, budget_type, budget_min, budget_max, notes, status, agent_email, nurse_id, nurse_amount, commission_type,
-        commission_value, commission_amount, nurse_net_amount, referrer_nurse_id, referral_commission_percent, referral_commission_amount,
-        preferred_nurse_id, preferred_nurse_name, transfer_margin_type, transfer_margin_value, transfer_margin_amount,
-        last_transferred_at, last_transferred_by, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
+      INSERT INTO patients (
+        id,
+        user_id,
+        request_id,
+        full_name,
+        email,
+        phone_number,
+        city,
+        service_schedule,
+        duration,
+        duration_unit,
+        duration_value,
+        budget,
+        notes,
+        status,
+        agent_email,
+        nurse_id,
+        nurse_amount,
+        commission_type,
+        commission_value,
+        commission_amount,
+        nurse_net_amount,
+        referrer_nurse_id,
+        referral_commission_percent,
+        referral_commission_amount,
+        preferred_nurse_id,
+        preferred_nurse_name,
+        transfer_margin_type,
+        transfer_margin_value,
+        transfer_margin_amount,
+        last_transferred_at,
+        last_transferred_by,
+        created_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32
+      )
       RETURNING *
     `, [
-      patient.id, patient.userId, patient.requestId, patient.fullName, patient.email, patient.phoneNumber, patient.city,
-      patient.serviceSchedule || '', patient.duration || '', patient.durationUnit || '', patient.durationValue,
-      patient.budgetType || '', patient.budgetMin, patient.budgetMax, patient.notes || '', patient.status || 'New',
-      patient.agentEmail || '', patient.nurseId, patient.nurseAmount, patient.commissionType || 'Percent',
-      patient.commissionValue || 0, patient.commissionAmount || 0, patient.nurseNetAmount,
-      patient.referrerNurseId, patient.referralCommissionPercent || 0, patient.referralCommissionAmount || 0,
-      patient.preferredNurseId, patient.preferredNurseName || '', patient.transferMarginType || 'Percent',
-      patient.transferMarginValue || 0, patient.transferMarginAmount || 0,
-      patient.lastTransferredAt || null, patient.lastTransferredBy || '', patient.createdAt || new Date().toISOString()
+      patient.id,
+      patient.userId,
+      patient.requestId,
+      patient.fullName,
+      patient.email,
+      patient.phoneNumber,
+      patient.city,
+      patient.serviceSchedule || '',
+      patient.duration || '',
+      patient.durationUnit || '',
+      patient.durationValue || 0,
+      patient.budget,
+      patient.notes || '',
+      patient.status || 'Requested',
+      patient.agentEmail || '',
+      patient.nurseId || null,
+      patient.nurseAmount || null,
+      patient.commissionType || 'Percent',
+      patient.commissionValue || 0,
+      patient.commissionAmount || 0,
+      patient.nurseNetAmount || null,
+      patient.referrerNurseId || null,
+      patient.referralCommissionPercent || 0,
+      patient.referralCommissionAmount || 0,
+      patient.preferredNurseId || null,
+      patient.preferredNurseName || '',
+      patient.transferMarginType || 'Percent',
+      patient.transferMarginValue || 0,
+      patient.transferMarginAmount || 0,
+      patient.lastTransferredAt || null,
+      patient.lastTransferredBy || '',
+      patient.createdAt || new Date()
     ]);
-    return result.rows[0] ? transformPatientFromDB(result.rows[0]) : null;
+
+    return result.rows[0];
+
   } catch (error) {
-    console.error('Error creating patient:', error);
-    return null;
+    console.error("Create patient error:", error);
+    throw error; // 🔥 Important: do NOT swallow error anymore
   }
 }
 
