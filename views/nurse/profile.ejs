@@ -79,32 +79,70 @@ function maskAadhaar(value) {
 <% } %>
 
 <section class="dashboard-header">
-  <div class="profile-header-container">
-    <div class="profile-avatar-large">
-      <% if (profileImage) { %>
-      <img src="<%= profileImage %>" alt="<%= nurseName %>" />
-      <% } else { %>
-      <div class="avatar-fallback-large"><%= nurseName.charAt(0).toUpperCase() %></div>
-      <% } %>
-    </div>
+  <div class="profile-header">
 
-    <div class="profile-header-info">
-      <h1><%= nurseName %></h1>
-      <p class="profile-email"><%= nurse.email %></p>
-      <p class="profile-location"><%= nurse.city || "City not set" %></p>
-      <% if (workLocations.length > 0) { %>
-      <p class="profile-subline">Works in: <%= workLocations.join(", ") %></p>
-      <% } %>
-      <div class="profile-status">
-        <span class="pill"><%= nurse.status %></span>
-        <span class="availability-badge <%= availabilityStatus === "Open for Work" ? "available" : "neutral" %>">
-          <%= availabilityStatus || "Availability not set" %>
+    <!-- LEFT SIDE -->
+    <div class="profile-left">
+
+      <div class="profile-avatar-large profile-avatar-interactive">
+
+        <% if (profileImage) { %>
+
+          <img src="<%= profileImage %>"
+               alt="<%= nurseName %>"
+               class="profile-main-image" />
+
+          <div class="profile-hover-overlay">
+            <a href="<%= profileImage %>" target="_blank">View Image</a>
+            <a href="javascript:void(0);" class="changePhotoBtn">Change Photo</a>
+          </div>
+
+        <% } else { %>
+
+          <div class="avatar-fallback-large">
+            <%= nurseName.charAt(0).toUpperCase() %>
+          </div>
+
+          <div class="profile-hover-overlay">
+            <a href="javascript:void(0);" class="changePhotoBtn">Upload Photo</a>
+          </div>
+
+        <% } %>
+
+      </div>
+
+      <div class="profile-name-section">
+        <h1><%= nurseName %></h1>
+        <span class="status-badge <%= nurse.status.toLowerCase() %>">
+          <%= nurse.status %>
         </span>
       </div>
+
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="profile-actions">
+      <button class="btn btn-primary edit-toggle-btn" onclick="toggleEditMode()">
+        ✏ Edit Profile
+      </button>
     </div>
 
   </div>
 </section>
+
+<!-- Hidden Upload Form -->
+<form id="profileImageUploadForm"
+action="/nurse/profile/photo"
+      method="POST"
+      enctype="multipart/form-data"
+      style="display:none;">
+
+  <input type="file"
+         name="profileImage"
+         id="profileImageInput"
+         accept="image/*" />
+
+</form>
 
 <section class="profile-completion">
   <div class="profile-completion-header">
@@ -788,6 +826,118 @@ function maskAadhaar(value) {
     grid-template-columns: 1fr;
   }
 }
+
+/* === Profile Image Hover Controls === */
+
+.profile-avatar-interactive {
+  position: relative;
+  display: inline-block;
+}
+
+.profile-main-image {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-hover-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+
+.profile-hover-overlay a {
+  color: #fff;
+  text-decoration: none;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.profile-avatar-interactive:hover .profile-hover-overlay {
+  opacity: 1;
+}
+
+/* ===== Admin Style Header Layout ===== */
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 2rem;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(10,37,64,0.08);
+  margin-bottom: 1.5rem;
+}
+
+.profile-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.profile-name-section h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  color: #0a2540;
+}
+
+.status-badge {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.pending {
+  background: #ffe9d6;
+  color: #ff7a00;
+}
+
+.status-badge.approved {
+  background: #d4f5e9;
+  color: #0f9d58;
+}
+
+.status-badge.rejected {
+  background: #fde2e2;
+  color: #d93025;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .profile-left {
+    width: 100%;
+  }
+
+  .profile-actions {
+    width: 100%;
+  }
+}
 </style>
 
 <script>
@@ -912,6 +1062,63 @@ function toggleQualificationEdit() {
     viewMode.style.display = "none";
     editMode.style.display = "block";
   }
+}
+
+// === Mobile Tap Support for Profile Image ===
+const avatarInteractive = document.querySelector(".profile-avatar-interactive");
+const hoverOverlay = document.querySelector(".profile-hover-overlay");
+
+if (avatarInteractive && hoverOverlay) {
+  avatarInteractive.addEventListener("click", function (e) {
+    e.stopPropagation();
+
+    if (hoverOverlay.style.opacity === "1") {
+      hoverOverlay.style.opacity = "0";
+    } else {
+      hoverOverlay.style.opacity = "1";
+    }
+  });
+
+  document.addEventListener("click", function () {
+    hoverOverlay.style.opacity = "0";
+  });
+}
+
+// === Change Photo Button Upload Logic ===
+const changeBtns = document.querySelectorAll(".changePhotoBtn");
+const fileInput = document.getElementById("profileImageInput");
+const uploadForm = document.getElementById("profileImageUploadForm");
+
+if (changeBtns.length && fileInput && uploadForm) {
+
+  changeBtns.forEach(btn => {
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      fileInput.click();
+    });
+  });
+
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files.length > 0) {
+      uploadForm.submit();
+    }
+  });
+
+}
+
+// ===== Edit Mode Toggle =====
+let isEditMode = false;
+
+function toggleEditMode() {
+  isEditMode = !isEditMode;
+
+  document.querySelectorAll('.view-mode').forEach(el => {
+    el.style.display = isEditMode ? 'none' : 'block';
+  });
+
+  document.querySelectorAll('.edit-mode').forEach(el => {
+    el.style.display = isEditMode ? 'block' : 'none';
+  });
 }
 </script>
 

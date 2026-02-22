@@ -5,7 +5,15 @@
 
 require('dotenv').config();
 const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+let resend = null;
+
+if (process.env.RESEND_API_KEY) {
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log("✅ Resend initialized");
+} else {
+  console.log("⚠ Resend API key not found. Emails disabled in local environment.");
+}
 
 // Email configuration
 const FROM_EMAIL = "support@prishahomecare.com";

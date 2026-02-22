@@ -160,4 +160,85 @@ router.post(
   }
 );
 
+// Multer config for profile image upload (100KB limit)
+const profileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "../uploads/profile");
+    if (!require("fs").existsSync(uploadDir)) {
+      require("fs").mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, "profile-" + uniqueSuffix + ext);
+  }
+});
+
+const uploadProfileImage = multer({
+  storage: profileStorage,
+  limits: { fileSize: 100 * 1024 }, // 100KB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error("Only JPG, JPEG, and PNG files are allowed. Max size: 100KB"));
+  }
+});
+
+// Nurse Profile Photo Upload (Dashboard-based)
+router.post(
+  "/profile/photo",
+  requireRole("nurse"),
+  requireApprovedNurse,
+  uploadProfileImage.single("profileImage"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        setFlash(req, "error", "Please select an image to upload.");
+        return res.redirect("/nurse/profile");
+      }
+
+      const nurseId = req.nurseRecord.id;
+
+      // Detect correct column
+      let profilePicDbColumn = "profile_image_path";
+      try {
+        const columnCheck = await pool.query(`
+          SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'nurses'
+              AND column_name = 'profile_pic_url'
+          ) AS has_profile_pic_url
+        `);
+
+        if (columnCheck.rows[0]?.has_profile_pic_url) {
+          profilePicDbColumn = "profile_pic_url";
+        }
+      } catch (err) {
+        profilePicDbColumn = "profile_image_path";
+      }
+
+      await pool.query(
+        `UPDATE nurses SET ${profilePicDbColumn} = $1 WHERE id = $2`,
+        [req.file.path, nurseId]
+      );
+
+      setFlash(req, "success", "Profile photo updated successfully.");
+      return res.redirect("/nurse/profile");
+
+    } catch (error) {
+      console.error("Photo upload error:", error);
+      setFlash(req, "error", "Failed to upload profile photo.");
+      return res.redirect("/nurse/profile");
+    }
+  }
+);
+
 module.exports = router;
