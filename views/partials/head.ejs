@@ -34,13 +34,31 @@
           <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
           <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
           <% if (session && session.user) { %>
-          <a href="/<%= session.user.role %>/profile" class="nav-avatar-link" aria-label="Account">
+          <div class="nav-profile">
             <img
               src="<%= session.user.profileImageUrl || '/images/default-avatar.png' %>"
               alt="Account"
               class="nav-avatar"
+              id="navAvatar"
+              role="button"
+              tabindex="0"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="navDropdown"
             />
-          </a>
+            <div class="nav-dropdown" id="navDropdown" role="menu" aria-label="Account menu">
+              <a href="/<%= session.user.role %>/profile" role="menuitem">My Profile</a>
+              <a
+                href="<%= session.user.role === 'user' ? '/dashboard' : `/${session.user.role}/dashboard` %>"
+                role="menuitem"
+              >
+                Dashboard
+              </a>
+              <form method="POST" action="/logout">
+                <button type="submit" role="menuitem">Logout</button>
+              </form>
+            </div>
+          </div>
           <% } else { %>
           <a href="/login" class="btn-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
           <% } %>
