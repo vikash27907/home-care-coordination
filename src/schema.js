@@ -63,12 +63,19 @@ async function initializeDatabase() {
         last_edit_request TIMESTAMP,
         certificate_url TEXT,
         aadhar_number VARCHAR(20),
+        aadhar_image_url TEXT,
         address TEXT,
         work_city TEXT,
         custom_skills TEXT[],
         education_level VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await pool.query(`
+      ALTER TABLE nurses
+      ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS aadhar_image_url TEXT
     `);
 
     // Create agents table

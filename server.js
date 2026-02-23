@@ -269,7 +269,7 @@ function calculateProfileCompletion(nurse) {
   // Profile Image (supports both legacy & new column names)
   if (nurse.profile_pic_url || nurse.profile_image_path) completion += 10;
 
-  if (nurse.aadhaar_card_url) completion += 15;
+  if (nurse.aadhaar_card_url || nurse.aadhar_image_url || nurse.aadhaar_image_url || nurse.aadhar_card_url) completion += 15;
   if (nurse.skills && nurse.skills.length >= 3) completion += 15;
   if (nurse.experience_years > 0 || nurse.experience_months > 0) completion += 10;
   if (nurse.expected_salary) completion += 10;
@@ -3333,6 +3333,11 @@ app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, as
     const nurseResult = await pool.query(
       `SELECT
          (to_jsonb(n) ->> 'aadhaar_card_url') AS aadhaar_card_url,
+         (to_jsonb(n) ->> 'aadhar_image_url') AS aadhar_image_url,
+         (to_jsonb(n) ->> 'aadhaar_image_url') AS aadhaar_image_url,
+         (to_jsonb(n) ->> 'aadhar_card_url') AS aadhar_card_url,
+         (to_jsonb(n) ->> 'aadhar_number') AS aadhar_number,
+         (to_jsonb(n) ->> 'aadhaar_number') AS aadhaar_number,
          n.skills
        FROM nurses n
        WHERE n.id = $1
@@ -3346,10 +3351,17 @@ app.post("/nurse/profile/submit", requireRole("nurse"), requireApprovedNurse, as
       return res.redirect("/nurse/profile");
     }
 
-    const aadhaarCardUrl = String(nurseRow.aadhaar_card_url || "").trim();
+    const aadharNumber = String(nurseRow.aadhar_number || nurseRow.aadhaar_number || "").replace(/\D/g, "");
+    const aadhaarCardUrl = String(
+      nurseRow.aadhar_image_url
+      || nurseRow.aadhaar_card_url
+      || nurseRow.aadhaar_image_url
+      || nurseRow.aadhar_card_url
+      || ""
+    ).trim();
     const skills = Array.isArray(nurseRow.skills) ? nurseRow.skills : [];
 
-    if (!aadhaarCardUrl) {
+    if (aadharNumber && !aadhaarCardUrl) {
       setFlash(req, "error", "Aadhaar card upload is required before submitting profile.");
       return res.redirect("/nurse/profile");
     }

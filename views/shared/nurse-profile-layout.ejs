@@ -76,6 +76,18 @@ const qualificationsText = qualifications
 const aadhaarRaw = String(
   (nurse && (nurse.aadhaarNumber || nurse.aadharNumber || nurse.aadhaar_number || nurse.aadhar_number)) || ""
 ).replace(/\D/g, "");
+const aadharImageUrl = String(
+  (nurse && (
+    nurse.aadharImageUrl
+    || nurse.aadhar_image_url
+    || nurse.aadhaarImageUrl
+    || nurse.aadhaar_image_url
+    || nurse.aadhaarCardUrl
+    || nurse.aadhaar_card_url
+    || nurse.aadharCardUrl
+    || nurse.aadhar_card_url
+  )) || ""
+).trim();
 function maskAadhar(value) {
   if (!value || value.length < 4) return "XXXX-XXXX-XXXX";
   return "XXXX-XXXX-" + value.slice(-4);
@@ -87,7 +99,11 @@ const backLink = isAdmin ? "/admin/nurses" : (isAgent ? "/agent" : "");
 const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : "");
 %>
 
-<section class="nurse-profile-shell" id="nurseProfileShell">
+<section
+  class="nurse-profile-shell"
+  id="nurseProfileShell"
+  data-has-aadhar-image="<%= aadharImageUrl ? 'true' : 'false' %>"
+>
   <% if (backLink) { %>
     <a class="np-back-link" href="<%= backLink %>"><%= backLabel %></a>
   <% } %>
@@ -284,8 +300,52 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
           <div class="np-field">
             <label>Aadhaar</label>
             <div class="np-view"><%= aadhaarDisplay %></div>
-            <% if (isAdmin) { %>
-              <input class="np-edit-field" type="text" name="aadharNumber" value="<%= aadhaarRaw %>" maxlength="12" placeholder="12-digit Aadhaar">
+            <% if (canEdit) { %>
+              <input
+                class="np-edit-field"
+                type="text"
+                name="aadharNumber"
+                value="<%= aadhaarRaw %>"
+                maxlength="12"
+                pattern="\d{12}"
+                inputmode="numeric"
+                placeholder="12-digit Aadhaar"
+              >
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Aadhaar Document</label>
+            <div class="np-view">
+              <% if (aadharImageUrl) { %>
+                <a
+                  class="np-aadhar-link np-aadhar-view-link"
+                  href="<%= aadharImageUrl %>"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View Aadhaar Document
+                </a>
+              <% } else { %>
+                <span class="np-doc-missing">Document not uploaded</span>
+              <% } %>
+            </div>
+            <% if (isNurse) { %>
+              <div class="np-edit-field np-aadhar-upload-wrap">
+                <label class="np-inline-label" for="npAadharImageInput">Aadhaar Card Upload</label>
+                <input
+                  id="npAadharImageInput"
+                  class="np-aadhar-file"
+                  type="file"
+                  name="aadharImage"
+                  accept="image/jpeg,image/png,image/webp"
+                >
+                <span class="np-doc-edit-note">Upload Aadhaar Document</span>
+                <small class="aadhar-warning">
+                  Please upload a clear image of your original Aadhaar card.
+                  Blurry, cropped, or fake documents may lead to account suspension or termination.
+                </small>
+              </div>
             <% } %>
           </div>
         </div>
@@ -816,6 +876,13 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   color: #56718b;
 }
 
+.np-inline-label {
+  text-transform: none;
+  letter-spacing: normal;
+  color: #24445f;
+  font-size: 0.86rem;
+}
+
 .np-span-2 {
   grid-column: 1 / -1;
 }
@@ -843,6 +910,57 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   padding: 0.62rem 0.72rem;
   color: #11304f;
   font: inherit;
+}
+
+.np-aadhar-upload-wrap {
+  display: none;
+  border: 1px dashed #d6e3ef;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #f8fbfe;
+}
+
+.np-aadhar-file {
+  width: 100%;
+}
+
+.np-aadhar-link {
+  color: #0f5d9b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.np-aadhar-link:hover {
+  text-decoration: underline;
+}
+
+.np-aadhar-view-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #c6dae8;
+  border-radius: 999px;
+  padding: 0.36rem 0.72rem;
+  background: #edf5fc;
+}
+
+.np-doc-missing {
+  color: #9f1239;
+  font-weight: 600;
+}
+
+.np-doc-edit-note {
+  color: #4e6880;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.aadhar-warning {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #b91c1c;
+  line-height: 1.4;
 }
 
 .nurse-profile-shell.is-editing .np-view {
@@ -1179,6 +1297,9 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   const skillSearchInput = document.getElementById("skillSearch");
   const skillSelect = document.getElementById("skillsSelect");
   const skillsDropdown = document.getElementById("skillsDropdown");
+  const aadharNumberInput = profileForm ? profileForm.querySelector('input[name="aadharNumber"]') : null;
+  const aadharImageInput = profileForm ? profileForm.querySelector('input[name="aadharImage"]') : null;
+  const hasExistingAadharImage = shell.getAttribute("data-has-aadhar-image") === "true";
 
   const avatarMenuShell = document.getElementById("npAvatarMenuShell");
   const avatarMenuTrigger = document.getElementById("npAvatarMenuTrigger");
@@ -1343,6 +1464,22 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
     });
     updateSkillUI();
   };
+  const normalizeAadharInput = () => {
+    if (!aadharNumberInput) return "";
+    const digits = String(aadharNumberInput.value || "").replace(/\D/g, "").slice(0, 12);
+    if (aadharNumberInput.value !== digits) {
+      aadharNumberInput.value = digits;
+    }
+    return digits;
+  };
+  const syncAadharImageRequirement = () => {
+    if (!aadharImageInput) return;
+    const aadharDigits = normalizeAadharInput();
+    const shouldRequire = shell.classList.contains("is-editing")
+      && aadharDigits.length === 12
+      && !hasExistingAadharImage;
+    aadharImageInput.required = shouldRequire;
+  };
 
   const setAvatarMenuState = (isOpen) => {
     if (!avatarMenuShell || !avatarMenuTrigger || !avatarMenu) return;
@@ -1360,6 +1497,7 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
       } else if (skillSearchInput) {
         skillSearchInput.value = "";
       }
+      syncAadharImageRequirement();
     });
   }
   if (cancelButton) {
@@ -1372,9 +1510,16 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
     skillSearchInput.addEventListener("input", renderSkillsDropdown);
     initializeSelectedSkillsFromSelect();
   }
-  if (profileForm && skillSelect) {
+  if (aadharNumberInput) {
+    aadharNumberInput.addEventListener("input", syncAadharImageRequirement);
+  }
+  if (aadharImageInput) {
+    aadharImageInput.addEventListener("change", syncAadharImageRequirement);
+  }
+  if (profileForm) {
     profileForm.addEventListener("submit", () => {
-      updateHiddenSelect();
+      if (skillSelect) updateHiddenSelect();
+      syncAadharImageRequirement();
     });
   }
 

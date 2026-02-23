@@ -18,6 +18,9 @@ const PROFILE_QUALIFICATION_OPTIONS = [
   "GDA"
 ];
 const CUSTOM_QUALIFICATION_VALUE = "Other (Custom Qualification)";
+const AADHAR_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+const AADHAR_IMAGE_ALLOWED = /jpeg|jpg|png|webp/;
+const QUALIFICATION_DOC_ALLOWED = /jpeg|jpg|png|pdf/;
 
 function sanitizeQualificationName(value) {
   return String(value || "")
@@ -63,10 +66,19 @@ const uploadQualificationFiles = multer({
     files: 15
   },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) return cb(null, true);
+    const extension = path.extname(String(file.originalname || "")).toLowerCase();
+    const mimetype = String(file.mimetype || "").toLowerCase();
+
+    if (file.fieldname === "aadharImage") {
+      const extAllowed = AADHAR_IMAGE_ALLOWED.test(extension);
+      const mimeAllowed = AADHAR_IMAGE_ALLOWED.test(mimetype);
+      if (extAllowed && mimeAllowed) return cb(null, true);
+      return cb(new Error("Only JPG, JPEG, PNG, and WEBP files are allowed for Aadhaar image."));
+    }
+
+    const extAllowed = QUALIFICATION_DOC_ALLOWED.test(extension);
+    const mimeAllowed = QUALIFICATION_DOC_ALLOWED.test(mimetype);
+    if (extAllowed && mimeAllowed) return cb(null, true);
     return cb(new Error("Only JPG, JPEG, PNG, PDF allowed"));
   }
 });
@@ -392,6 +404,13 @@ router.post(
       const educationLevel = hasField("educationLevel") ? String(req.body.educationLevel || "").trim() : null;
       const experienceYearsRaw = String(req.body.experienceYears || "").trim();
       const experienceYears = experienceYearsRaw === "" ? null : Number.parseInt(experienceYearsRaw, 10);
+      const hasAadharField = hasField("aadharNumber") || hasField("aadhaarNumber");
+      const aadharInput = hasField("aadharNumber")
+        ? req.body.aadharNumber
+        : req.body.aadhaarNumber;
+      const aadharNumber = hasAadharField
+        ? String(aadharInput || "").replace(/\D/g, "").slice(0, 12)
+        : null;
       const rawSkills = Array.isArray(req.body.skills)
         ? req.body.skills
         : req.body.skills
@@ -441,6 +460,10 @@ router.post(
         setFlash(req, "error", "Experience must be between 0 and 60 years.");
         return res.redirect("/nurse/profile");
       }
+      if (aadharNumber && aadharNumber.length !== 12) {
+        setFlash(req, "error", "Aadhaar number must be exactly 12 digits.");
+        return res.redirect("/nurse/profile");
+      }
       if (phoneNumberRaw) {
         const digits = phoneNumberRaw.replace(/\D/g, "");
         if (digits.length !== 10) {
@@ -467,16 +490,38 @@ router.post(
       const uniqueSelectedQualifications = [...new Set(normalizedSelectedQualifications)];
 
       const existingResult = await pool.query(
-        "SELECT qualifications FROM nurses WHERE user_id = $1 LIMIT 1",
+        `SELECT
+           qualifications,
+           COALESCE((to_jsonb(nurses) ->> 'aadhar_number'), '') AS aadhar_number,
+           COALESCE((to_jsonb(nurses) ->> 'aadhaar_number'), '') AS aadhaar_number,
+           COALESCE((to_jsonb(nurses) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
+           COALESCE((to_jsonb(nurses) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
+           COALESCE((to_jsonb(nurses) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
+           COALESCE((to_jsonb(nurses) ->> 'aadhar_card_url'), '') AS aadhar_card_url
+         FROM nurses
+         WHERE user_id = $1
+         LIMIT 1`,
         [userId]
       );
       if (!existingResult.rows.length) {
         setFlash(req, "error", "Nurse profile not found.");
         return res.redirect("/nurse/profile");
       }
+      const existingNurse = existingResult.rows[0];
+      const existingAadharNumber = String(existingNurse.aadhar_number || existingNurse.aadhaar_number || "")
+        .replace(/\D/g, "")
+        .slice(0, 12);
+      const effectiveAadharNumber = aadharNumber || existingAadharNumber;
+      const existingAadharImageUrl = String(
+        existingNurse.aadhar_image_url
+        || existingNurse.aadhaar_card_url
+        || existingNurse.aadhaar_image_url
+        || existingNurse.aadhar_card_url
+        || ""
+      ).trim();
 
-      const existingQualifications = Array.isArray(existingResult.rows[0].qualifications)
-        ? existingResult.rows[0].qualifications
+      const existingQualifications = Array.isArray(existingNurse.qualifications)
+        ? existingNurse.qualifications
         : [];
       const existingMap = new Map(
         existingQualifications
@@ -485,6 +530,29 @@ router.post(
       );
 
       const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+      const aadharImageFile = uploadedFiles.find((file) => file.fieldname === "aadharImage") || null;
+      if (aadharImageFile && Number(aadharImageFile.size || 0) > AADHAR_IMAGE_MAX_BYTES) {
+        setFlash(req, "error", "Aadhaar image must be 3MB or smaller.");
+        return res.redirect("/nurse/profile");
+      }
+      let uploadedAadharImageUrl = null;
+      if (aadharImageFile) {
+        const aadharUploadResult = await uploadBufferToCloudinary(
+          aadharImageFile,
+          "home-care/nurses/aadhar"
+        );
+        uploadedAadharImageUrl = aadharUploadResult && aadharUploadResult.secure_url
+          ? String(aadharUploadResult.secure_url).trim()
+          : "";
+        if (!uploadedAadharImageUrl) {
+          throw new Error("Unable to upload Aadhaar image right now.");
+        }
+      }
+      if (effectiveAadharNumber && !existingAadharImageUrl && !uploadedAadharImageUrl) {
+        setFlash(req, "error", "Aadhaar card upload is required before saving profile.");
+        return res.redirect("/nurse/profile?error=aadharImageRequired");
+      }
+
       const customFile = uploadedFiles.find((file) => file.fieldname === "cert_custom");
       const getQualificationFile = (qualificationName) => {
         if (customName && qualificationName === customName) {
@@ -533,8 +601,10 @@ router.post(
              is_available = COALESCE($8, is_available),
              skills = COALESCE($9, skills),
              availability = COALESCE($10, availability),
-             qualifications = $11
-         WHERE user_id = $12`,
+             aadhar_number = COALESCE($11, aadhar_number),
+             aadhar_image_url = COALESCE($12, aadhar_image_url),
+             qualifications = $13
+         WHERE user_id = $14`,
         [
           fullName,
           gender,
@@ -546,6 +616,8 @@ router.post(
           isAvailable,
           skills,
           availability,
+          aadharNumber || null,
+          uploadedAadharImageUrl || null,
           JSON.stringify(updatedQualifications),
           userId
         ]
