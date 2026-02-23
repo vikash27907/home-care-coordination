@@ -52,11 +52,11 @@ const skillOptions = [...new Set([
   ...skills
 ])].filter(Boolean);
 const availabilityOptions = [...new Set([
-  "Weekday Morning",
-  "Weekday Evening",
-  "Night Shift",
-  "Weekend",
-  "On Call",
+  "8 Hour Shift",
+  "12 Hour Shift (Day)",
+  "12 Hour Shift (Night)",
+  "24 Hour Live-In",
+  "One-Time / Few Visits",
   ...availability
 ])].filter(Boolean);
 const qualificationOptions = [...new Set([
@@ -442,14 +442,36 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 
           <div class="np-field np-span-2">
             <label>Availability</label>
-            <div class="np-view"><%= availabilityText || "-" %></div>
-            <% if (canEdit) { %>
-              <input class="np-edit-field" type="hidden" name="availability" value="">
-              <select class="np-edit-field np-multi-select" name="availability" multiple size="5">
-                <% availabilityOptions.forEach((item) => { %>
-                  <option value="<%= item %>" <%= availability.includes(item) ? "selected" : "" %>><%= item %></option>
+            <div id="availabilityViewSection" class="np-view np-chip-wrap view-mode">
+              <% if (availability.length) { %>
+                <% availability.forEach((item) => { %>
+                  <span class="np-chip"><%= item %></span>
                 <% }) %>
-              </select>
+              <% } else { %>
+                <span>-</span>
+              <% } %>
+            </div>
+            <% if (canEdit) { %>
+              <div id="availabilityEditSection" class="edit-mode" style="display: none;">
+                <div id="availabilityTags" class="np-edit-field np-availability-tags"></div>
+
+                <div id="availabilityOptions" class="np-edit-field np-availability-options">
+                  <button type="button" class="availability-option">8 Hour Shift</button>
+                  <button type="button" class="availability-option">12 Hour Shift (Day)</button>
+                  <button type="button" class="availability-option">12 Hour Shift (Night)</button>
+                  <button type="button" class="availability-option">24 Hour Live-In</button>
+                  <button type="button" class="availability-option">One-Time / Few Visits</button>
+                </div>
+
+                <input class="np-edit-field" type="hidden" name="availability[]" value="">
+                <select id="availabilitySelect" class="np-edit-field np-availability-select-hidden" name="availability[]" multiple hidden>
+                  <option value="8 Hour Shift" <%= availability.includes("8 Hour Shift") ? "selected" : "" %>>8 Hour Shift</option>
+                  <option value="12 Hour Shift (Day)" <%= availability.includes("12 Hour Shift (Day)") ? "selected" : "" %>>12 Hour Shift (Day)</option>
+                  <option value="12 Hour Shift (Night)" <%= availability.includes("12 Hour Shift (Night)") ? "selected" : "" %>>12 Hour Shift (Night)</option>
+                  <option value="24 Hour Live-In" <%= availability.includes("24 Hour Live-In") ? "selected" : "" %>>24 Hour Live-In</option>
+                  <option value="One-Time / Few Visits" <%= availability.includes("One-Time / Few Visits") ? "selected" : "" %>>One-Time / Few Visits</option>
+                </select>
+              </div>
             <% } %>
           </div>
 
@@ -1052,6 +1074,22 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   display: block !important;
 }
 
+#availabilityViewSection {
+  display: flex;
+}
+
+#availabilityEditSection {
+  display: none;
+}
+
+.nurse-profile-shell.is-editing #availabilityViewSection {
+  display: none;
+}
+
+.nurse-profile-shell.is-editing #availabilityEditSection {
+  display: block !important;
+}
+
 .np-skill-tags {
   min-height: 42px;
   display: flex;
@@ -1131,6 +1169,77 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 
 .np-skill-select-hidden {
   display: none !important;
+}
+
+.np-availability-select-hidden {
+  display: none !important;
+}
+
+.np-availability-tags {
+  min-height: 42px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.np-availability-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  min-height: auto;
+}
+
+.availability-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #c9dff0;
+  border-radius: 999px;
+  background: #edf5fc;
+  color: #164a77;
+  font-size: 0.82rem;
+  padding: 0.24rem 0.34rem 0.24rem 0.6rem;
+}
+
+.remove-availability {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: #d9ecfa;
+  color: #0f4f83;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove-availability:hover {
+  background: #c4e2f8;
+}
+
+.availability-option {
+  border: 1px solid #c6dae8;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #11304f;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.availability-option:hover {
+  background: #edf5fc;
+}
+
+.availability-option.is-selected {
+  background: #d9ecfa;
+  border-color: #8ec1e8;
+  color: #0f4f83;
 }
 
 .qualification-module {
@@ -1297,6 +1406,9 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   const skillSearchInput = document.getElementById("skillSearch");
   const skillSelect = document.getElementById("skillsSelect");
   const skillsDropdown = document.getElementById("skillsDropdown");
+  const availabilityTags = document.getElementById("availabilityTags");
+  const availabilitySelect = document.getElementById("availabilitySelect");
+  const availabilityOptionButtons = shell.querySelectorAll(".availability-option");
   const aadharNumberInput = profileForm ? profileForm.querySelector('input[name="aadharNumber"]') : null;
   const aadharImageInput = profileForm ? profileForm.querySelector('input[name="aadharImage"]') : null;
   const hasExistingAadharImage = shell.getAttribute("data-has-aadhar-image") === "true";
@@ -1308,6 +1420,7 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   const avatarPhotoForm = document.getElementById("npProfilePhotoForm");
 
   let selectedSkills = new Set();
+  let selectedAvailability = new Set();
   const normalizeSkillValue = (value) => String(value || "").trim().toLowerCase();
   const getSelectedSkill = (value) => {
     const target = normalizeSkillValue(value);
@@ -1464,6 +1577,61 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
     });
     updateSkillUI();
   };
+  const syncAvailabilitySelect = () => {
+    if (!availabilitySelect) return;
+    Array.from(availabilitySelect.options).forEach((option) => {
+      option.selected = selectedAvailability.has(option.value);
+    });
+  };
+  const syncAvailabilityButtons = () => {
+    if (!availabilityOptionButtons || !availabilityOptionButtons.length) return;
+    availabilityOptionButtons.forEach((button) => {
+      const value = String(button.textContent || "").trim();
+      const isSelected = selectedAvailability.has(value);
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    });
+  };
+  const renderAvailabilityTags = () => {
+    if (!availabilityTags) return;
+    availabilityTags.innerHTML = "";
+
+    if (!selectedAvailability.size) {
+      const emptyState = document.createElement("span");
+      emptyState.className = "np-skill-tags-empty";
+      emptyState.textContent = "No availability selected";
+      availabilityTags.appendChild(emptyState);
+      return;
+    }
+
+    selectedAvailability.forEach((value) => {
+      const tag = document.createElement("span");
+      tag.className = "availability-tag";
+      tag.appendChild(document.createTextNode(value));
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "remove-availability";
+      removeButton.textContent = "\u00d7";
+      removeButton.setAttribute("data-value", value);
+      removeButton.setAttribute("aria-label", `Remove ${value}`);
+      tag.appendChild(removeButton);
+
+      availabilityTags.appendChild(tag);
+    });
+  };
+  const updateAvailabilityUI = () => {
+    syncAvailabilitySelect();
+    renderAvailabilityTags();
+    syncAvailabilityButtons();
+  };
+  const initializeSelectedAvailabilityFromSelect = () => {
+    if (!availabilitySelect) return;
+    selectedAvailability = new Set(
+      Array.from(availabilitySelect.selectedOptions).map((option) => option.value)
+    );
+    updateAvailabilityUI();
+  };
   const normalizeAadharInput = () => {
     if (!aadharNumberInput) return "";
     const digits = String(aadharNumberInput.value || "").replace(/\D/g, "").slice(0, 12);
@@ -1494,6 +1662,7 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
       editButton.textContent = shell.classList.contains("is-editing") ? "Editing" : "Edit Profile";
       if (shell.classList.contains("is-editing")) {
         initializeSelectedSkillsFromSelect();
+        initializeSelectedAvailabilityFromSelect();
       } else if (skillSearchInput) {
         skillSearchInput.value = "";
       }
@@ -1510,6 +1679,32 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
     skillSearchInput.addEventListener("input", renderSkillsDropdown);
     initializeSelectedSkillsFromSelect();
   }
+  if (availabilitySelect && availabilityTags) {
+    availabilityOptionButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const value = String(button.textContent || "").trim();
+        if (!value) return;
+        if (selectedAvailability.has(value)) {
+          selectedAvailability.delete(value);
+        } else {
+          selectedAvailability.add(value);
+        }
+        updateAvailabilityUI();
+      });
+    });
+
+    availabilityTags.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.classList.contains("remove-availability")) return;
+      const value = String(target.getAttribute("data-value") || "").trim();
+      if (!value || !selectedAvailability.has(value)) return;
+      selectedAvailability.delete(value);
+      updateAvailabilityUI();
+    });
+
+    initializeSelectedAvailabilityFromSelect();
+  }
   if (aadharNumberInput) {
     aadharNumberInput.addEventListener("input", syncAadharImageRequirement);
   }
@@ -1519,6 +1714,7 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   if (profileForm) {
     profileForm.addEventListener("submit", () => {
       if (skillSelect) updateHiddenSelect();
+      if (availabilitySelect) syncAvailabilitySelect();
       syncAadharImageRequirement();
     });
   }

@@ -329,23 +329,16 @@ const CONCERN_CATEGORIES = [
 ];
 const COMMISSION_TYPES = ["Percent", "Flat"];
 
-// Valid service schedule values (standardized) - matches request-care.ejs dropdown
-const VALID_SERVICE_SCHEDULES = [
-  "8_hour_shift",
-  "12_hour_shift_day",
-  "12_hour_shift_night",
-  "24_hour_live_in",
-  "one_time_visit"
+const SERVICE_SCHEDULE_OPTIONS = [
+  { value: "8 Hour Shift", label: "8 Hour Shift" },
+  { value: "12 Hour Shift (Day)", label: "12 Hour Shift (Day)" },
+  { value: "12 Hour Shift (Night)", label: "12 Hour Shift (Night)" },
+  { value: "24 Hour Live-In", label: "24 Hour Live-In" },
+  { value: "One-Time / Few Visits", label: "One-Time / Few Visits" }
 ];
 
-// Service schedule labels for display
-const SERVICE_SCHEDULE_LABELS = {
-  "8_hour_shift": "8 Hour Shift",
-  "12_hour_shift_day": "12 Hour Shift (Day)",
-  "12_hour_shift_night": "12 Hour Shift (Night)",
-  "24_hour_live_in": "24 Hour Live-In",
-  "one_time_visit": "One-Time / Few Visits Required"
-};
+// Valid service schedule values (must match request form options exactly)
+const VALID_SERVICE_SCHEDULES = SERVICE_SCHEDULE_OPTIONS.map((option) => option.value);
 
 // Helper function to validate service schedule
 function validateServiceSchedule(serviceSchedule) {
@@ -365,11 +358,11 @@ const SKILLS_OPTIONS = [
 ];
 
 const AVAILABILITY_OPTIONS = [
-  "Weekday Morning",
-  "Weekday Evening",
-  "Night Shift",
-  "Weekend",
-  "On Call"
+  "8 Hour Shift",
+  "12 Hour Shift (Day)",
+  "12 Hour Shift (Night)",
+  "24 Hour Live-In",
+  "One-Time / Few Visits"
 ];
 
 const REFERRAL_DEFAULT_PERCENT = (() => {
@@ -1392,15 +1385,6 @@ app.use((req, res, next) => {
   res.locals.commissionTypes = COMMISSION_TYPES;
   res.locals.concernStatuses = CONCERN_STATUSES;
   res.locals.concernCategories = CONCERN_CATEGORIES;
-// Service schedule options - standardized list (matches request-care.ejs)
-  const SERVICE_SCHEDULE_OPTIONS = [
-    { value: "8_hour_shift", label: "8 Hour Shift" },
-    { value: "12_hour_shift_day", label: "12 Hour Shift (Day)" },
-    { value: "12_hour_shift_night", label: "12 Hour Shift (Night)" },
-    { value: "24_hour_live_in", label: "24 Hour Live-In" },
-    { value: "one_time_visit", label: "One-Time / Few Visits Required" }
-  ];
-
   // Request status options - standardized
   const REQUEST_STATUSES = [
     "Requested",
@@ -3516,11 +3500,11 @@ app.post("/nurse/profile/complete", requireRole("nurse"), requireApprovedNurse, 
 
   // Update availability (shift preferences)
   const newAvailabilityOptions = [
-    "Day Shift",
-    "Night Shift",
-    "24-Hour Live-in",
-    "Part Time",
-    "Full Time"
+    "8 Hour Shift",
+    "12 Hour Shift (Day)",
+    "12 Hour Shift (Night)",
+    "24 Hour Live-In",
+    "One-Time / Few Visits"
   ];
   nurse.availability = toArray(req.body.availability).filter((avail) => newAvailabilityOptions.includes(avail));
 
