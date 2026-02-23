@@ -215,6 +215,7 @@
         <tr>
           <th>ID</th>
           <th>Name</th>
+          <th>Profile</th>
           <th>City</th>
           <th>Status</th>
           <th>Public Availability</th>
@@ -228,13 +229,14 @@
       <tbody>
         <% if (!nurses.length) { %>
         <tr>
-          <td colspan="10">No nurses assigned yet.</td>
+          <td colspan="11">No nurses assigned yet.</td>
         </tr>
         <% } %>
         <% nurses.forEach((nurse) => { %>
         <tr>
           <td>N-<%= nurse.id %></td>
           <td><%= nurse.fullName %></td>
+          <td><a class="btn small" href="/agent/nurses/<%= nurse.id %>">View</a></td>
           <td><%= nurse.city %></td>
           <td><span class="pill"><%= nurse.status %></span></td>
           <td><%= nurse.isAvailable ? 'Available' : 'Unavailable' %></td>

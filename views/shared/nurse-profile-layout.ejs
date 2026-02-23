@@ -1,0 +1,819 @@
+<%
+const currentRole = role || 'guest';
+const isAdmin = currentRole === "admin";
+const isNurse = currentRole === "nurse";
+const isAgent = currentRole === "agent";
+const canEdit = isAdmin || isNurse;
+
+const nurseId = nurse && nurse.id ? nurse.id : "";
+const userId = nurse && (nurse.userId || nurse.user_id) ? (nurse.userId || nurse.user_id) : "";
+const fullName = String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse");
+const status = String((nurse && (nurse.status || nurse.profileStatus || nurse.profile_status)) || "Pending");
+const statusKey = status.toLowerCase();
+const city = String((nurse && nurse.city) || "");
+const workCity = String((nurse && (nurse.workCity || nurse.work_city)) || "");
+const currentAddress = String((nurse && (nurse.currentAddress || nurse.current_address || nurse.address)) || "");
+const gender = String((nurse && nurse.gender) || "Not Specified");
+const email = String((nurse && nurse.email) || "");
+const phone = String((nurse && (nurse.phoneNumber || nurse.phone_number)) || "");
+const educationLevel = String((nurse && (nurse.educationLevel || nurse.education_level)) || "");
+const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
+const referralCode = String((nurse && (nurse.referralCode || nurse.referral_code)) || "");
+const profileStatus = String((nurse && (nurse.profileStatus || nurse.profile_status)) || "");
+const isAvailable = nurse && nurse.isAvailable === false ? false : true;
+const emailVerified = Boolean(nurse && (nurse.emailVerified || nurse.email_verified));
+const profileImage = (nurse && (nurse.profileImageUrl || nurse.profile_image_url || nurse.profileImagePath || nurse.profile_image_path)) || "";
+const availability = Array.isArray(nurse && nurse.availability) ? nurse.availability : [];
+const skills = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
+const qualifications = Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [];
+const qualificationNames = qualifications
+  .map((item) => (item && typeof item === "object" ? item.name : item))
+  .map((item) => String(item || "").trim())
+  .filter(Boolean);
+
+const skillOptions = [...new Set([
+  ...((typeof MASTER_SKILL_OPTIONS !== "undefined" && Array.isArray(MASTER_SKILL_OPTIONS)) ? MASTER_SKILL_OPTIONS : []),
+  ...skills
+])].filter(Boolean);
+const availabilityOptions = [...new Set([
+  "Weekday Morning",
+  "Weekday Evening",
+  "Night Shift",
+  "Weekend",
+  "On Call",
+  ...availability
+])].filter(Boolean);
+const qualificationOptions = [...new Set([
+  ...((typeof MASTER_QUALIFICATION_OPTIONS !== "undefined" && Array.isArray(MASTER_QUALIFICATION_OPTIONS)) ? MASTER_QUALIFICATION_OPTIONS : []),
+  ...qualificationNames
+])].filter(Boolean);
+
+const availabilityText = availability.length
+  ? availability.join(", ")
+  : (isAvailable ? "Available" : "Unavailable");
+const qualificationsText = qualifications
+  .map((item) => (item && typeof item === "object" ? item.name : item))
+  .map((item) => String(item || "").trim())
+  .filter(Boolean)
+  .join(", ");
+
+const aadhaarRaw = String(
+  (nurse && (nurse.aadhaarNumber || nurse.aadharNumber || nurse.aadhaar_number || nurse.aadhar_number)) || ""
+).replace(/\D/g, "");
+function maskAadhar(value) {
+  if (!value || value.length < 4) return "XXXX-XXXX-XXXX";
+  return "XXXX-XXXX-" + value.slice(-4);
+}
+const aadhaarDisplay = isAdmin ? (aadhaarRaw || "Not provided") : maskAadhar(aadhaarRaw);
+
+const editAction = isAdmin ? `/admin/nurses/${nurseId}/update` : "/nurse/profile/basic-edit";
+const backLink = isAdmin ? "/admin/nurses" : (isAgent ? "/agent" : "");
+const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : "");
+%>
+
+<section class="nurse-profile-shell" id="nurseProfileShell">
+  <% if (backLink) { %>
+    <a class="np-back-link" href="<%= backLink %>"><%= backLabel %></a>
+  <% } %>
+
+  <article class="np-card np-header-card">
+    <div class="np-header-left">
+      <div class="np-avatar-wrap">
+        <% if (profileImage) { %>
+          <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar">
+        <% } else { %>
+          <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
+        <% } %>
+      </div>
+
+      <div class="np-header-copy">
+        <h1><%= fullName %></h1>
+        <div class="np-badges">
+          <span class="np-badge status <%= statusKey %>"><%= status %></span>
+          <span class="np-badge availability <%= isAvailable ? "available" : "unavailable" %>">
+            <%= isAvailable ? "Available" : "Unavailable" %>
+          </span>
+        </div>
+        <p class="np-meta">
+          Experience: <strong><%= experienceYears %> years</strong>
+          <% if (referralCode) { %>
+            <span class="np-dot"></span>
+            Referral: <code><%= referralCode %></code>
+          <% } %>
+        </p>
+      </div>
+    </div>
+
+    <% if (canEdit) { %>
+      <div class="np-header-actions">
+        <button type="button" class="btn primary" id="npToggleEditBtn">Edit Profile</button>
+      </div>
+    <% } %>
+  </article>
+
+  <% if (canEdit) { %>
+  <form method="POST" action="<%= editAction %>" class="np-profile-form" id="npProfileForm">
+    <% if (isAdmin) { %>
+      <input type="hidden" name="statusFilter" value="">
+    <% } %>
+  <% } %>
+
+    <article class="np-card np-tabs-card">
+      <div class="np-tabs">
+        <button type="button" class="np-tab-btn active" data-np-tab="np-basic-tab">Basic Info</button>
+        <button type="button" class="np-tab-btn" data-np-tab="np-prof-tab">Professional</button>
+        <button type="button" class="np-tab-btn" data-np-tab="np-security-tab">Security</button>
+      </div>
+    </article>
+
+    <section class="np-tab-panel active" id="np-basic-tab">
+      <article class="np-card">
+        <h2>Basic Information</h2>
+        <div class="np-grid">
+          <div class="np-field">
+            <label>Full Name</label>
+            <div class="np-view"><%= fullName || "-" %></div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="text" name="fullName" value="<%= fullName %>">
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Email</label>
+            <div class="np-view"><%= email || "-" %></div>
+            <% if (isAdmin) { %>
+              <input class="np-edit-field" type="email" name="email" value="<%= email %>" required>
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Mobile</label>
+            <div class="np-view"><%= phone || "-" %></div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="text" name="phoneNumber" value="<%= phone %>" placeholder="10-digit mobile number">
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Gender</label>
+            <div class="np-view"><%= gender || "-" %></div>
+            <% if (canEdit) { %>
+              <select class="np-edit-field" name="gender">
+                <option value="Not Specified" <%= gender === "Not Specified" ? "selected" : "" %>>Not Specified</option>
+                <option value="Female" <%= gender === "Female" ? "selected" : "" %>>Female</option>
+                <option value="Male" <%= gender === "Male" ? "selected" : "" %>>Male</option>
+                <option value="Other" <%= gender === "Other" ? "selected" : "" %>>Other</option>
+              </select>
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>City</label>
+            <div class="np-view"><%= city || "-" %></div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="text" name="city" value="<%= city %>">
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Work City</label>
+            <div class="np-view"><%= workCity || "-" %></div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="text" name="workCity" value="<%= workCity %>">
+            <% } %>
+          </div>
+
+          <div class="np-field np-span-2">
+            <label>Current Address</label>
+            <div class="np-view"><%= currentAddress || "-" %></div>
+            <% if (canEdit) { %>
+              <textarea class="np-edit-field" name="currentAddress" rows="3"><%= currentAddress %></textarea>
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Aadhaar</label>
+            <div class="np-view"><%= aadhaarDisplay %></div>
+            <% if (isAdmin) { %>
+              <input class="np-edit-field" type="text" name="aadharNumber" value="<%= aadhaarRaw %>" maxlength="12" placeholder="12-digit Aadhaar">
+            <% } %>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="np-tab-panel" id="np-prof-tab">
+      <article class="np-card">
+        <h2>Professional Details</h2>
+        <div class="np-grid">
+          <div class="np-field">
+            <label>Experience (Years)</label>
+            <div class="np-view"><%= experienceYears %></div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="number" min="0" max="60" name="experienceYears" value="<%= experienceYears %>">
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Education Level</label>
+            <div class="np-view"><%= educationLevel || "-" %></div>
+            <% if (canEdit) { %>
+              <select class="np-edit-field" name="educationLevel">
+                <option value="">Select</option>
+                <option value="10th Pass" <%= educationLevel === "10th Pass" ? "selected" : "" %>>10th Pass</option>
+                <option value="12th Pass" <%= educationLevel === "12th Pass" ? "selected" : "" %>>12th Pass</option>
+                <option value="ANM" <%= educationLevel === "ANM" ? "selected" : "" %>>ANM</option>
+                <option value="GNM" <%= educationLevel === "GNM" ? "selected" : "" %>>GNM</option>
+                <option value="BSc Nursing" <%= educationLevel === "BSc Nursing" ? "selected" : "" %>>BSc Nursing</option>
+                <option value="MSc Nursing" <%= educationLevel === "MSc Nursing" ? "selected" : "" %>>MSc Nursing</option>
+                <option value="GDA" <%= educationLevel === "GDA" ? "selected" : "" %>>GDA</option>
+                <option value="Other" <%= educationLevel === "Other" ? "selected" : "" %>>Other</option>
+              </select>
+            <% } %>
+          </div>
+
+          <div class="np-field np-span-2">
+            <label>Skills</label>
+            <div class="np-view np-chip-wrap">
+              <% if (skills.length) { %>
+                <% skills.forEach((item) => { %>
+                  <span class="np-chip"><%= item %></span>
+                <% }) %>
+              <% } else { %>
+                <span>-</span>
+              <% } %>
+            </div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="hidden" name="skills" value="">
+              <select class="np-edit-field np-multi-select" name="skills" multiple size="8">
+                <% skillOptions.forEach((item) => { %>
+                  <option value="<%= item %>" <%= skills.includes(item) ? "selected" : "" %>><%= item %></option>
+                <% }) %>
+              </select>
+            <% } %>
+          </div>
+
+          <div class="np-field np-span-2">
+            <label>Qualifications</label>
+            <div class="np-view np-chip-wrap">
+              <% if (qualificationsText) { %>
+                <% qualificationsText.split(",").forEach((item) => { %>
+                  <span class="np-chip"><%= item.trim() %></span>
+                <% }) %>
+              <% } else { %>
+                <span>-</span>
+              <% } %>
+            </div>
+            <% if (isAdmin) { %>
+              <input class="np-edit-field" type="hidden" name="qualifications" value="">
+              <select class="np-edit-field np-multi-select" name="qualifications" multiple size="6">
+                <% qualificationOptions.forEach((item) => { %>
+                  <option value="<%= item %>" <%= qualificationNames.includes(item) ? "selected" : "" %>><%= item %></option>
+                <% }) %>
+              </select>
+            <% } %>
+          </div>
+
+          <div class="np-field np-span-2">
+            <label>Availability</label>
+            <div class="np-view"><%= availabilityText || "-" %></div>
+            <% if (canEdit) { %>
+              <input class="np-edit-field" type="hidden" name="availability" value="">
+              <select class="np-edit-field np-multi-select" name="availability" multiple size="5">
+                <% availabilityOptions.forEach((item) => { %>
+                  <option value="<%= item %>" <%= availability.includes(item) ? "selected" : "" %>><%= item %></option>
+                <% }) %>
+              </select>
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Public Availability</label>
+            <div class="np-view"><%= isAvailable ? "Available" : "Unavailable" %></div>
+            <% if (canEdit) { %>
+              <select class="np-edit-field" name="isAvailable">
+                <option value="true" <%= isAvailable ? "selected" : "" %>>Available</option>
+                <option value="false" <%= !isAvailable ? "selected" : "" %>>Unavailable</option>
+              </select>
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Referral Code</label>
+            <div class="np-view"><%= referralCode || "-" %></div>
+            <% if (isAdmin) { %>
+              <input class="np-edit-field" type="text" name="referralCode" value="<%= referralCode %>">
+            <% } %>
+          </div>
+
+          <% if (isAdmin) { %>
+          <div class="np-field">
+            <label>Status</label>
+            <div class="np-view"><%= status %></div>
+            <select class="np-edit-field" name="status">
+              <option value="Pending" <%= status === "Pending" ? "selected" : "" %>>Pending</option>
+              <option value="Approved" <%= status === "Approved" ? "selected" : "" %>>Approved</option>
+              <option value="Rejected" <%= status === "Rejected" ? "selected" : "" %>>Rejected</option>
+            </select>
+          </div>
+
+          <div class="np-field">
+            <label>Profile Status</label>
+            <div class="np-view"><%= profileStatus || "-" %></div>
+            <input class="np-edit-field" type="text" name="profileStatus" value="<%= profileStatus %>">
+          </div>
+          <% } %>
+        </div>
+
+        <% if (isAdmin && status === "Pending") { %>
+        <div class="np-inline-actions">
+          <button type="submit" name="statusAction" value="Approved" class="btn primary">Approve Nurse</button>
+          <button type="submit" name="statusAction" value="Rejected" class="btn danger">Reject Nurse</button>
+        </div>
+        <% } %>
+
+        <% if (isNurse) { %>
+          <p class="np-muted">Use the Qualifications & Certificates section below to update certificates.</p>
+        <% } %>
+      </article>
+    </section>
+
+    <section class="np-tab-panel" id="np-security-tab">
+      <article class="np-card">
+        <h2>Security</h2>
+        <div class="np-grid">
+          <div class="np-field">
+            <label>Email Verification</label>
+            <div class="np-view">
+              <span class="np-badge <%= emailVerified ? "verified" : "unverified" %>">
+                <%= emailVerified ? "Verified" : "Not Verified" %>
+              </span>
+            </div>
+            <% if (isAdmin) { %>
+              <select class="np-edit-field" name="emailVerified">
+                <option value="true" <%= emailVerified ? "selected" : "" %>>Verified</option>
+                <option value="false" <%= !emailVerified ? "selected" : "" %>>Not Verified</option>
+              </select>
+            <% } %>
+          </div>
+        </div>
+
+        <% if (canEdit) { %>
+          <input type="hidden" name="redirectTo" value="<%= isAdmin ? `/admin/user/view/nurse/${nurseId}` : '/nurse/profile' %>">
+        <% } %>
+
+        <% if (isAdmin && userId) { %>
+          <div class="np-security-actions">
+            <button type="submit" class="btn warning" formaction="/admin/user/<%= userId %>/reset-password" formmethod="POST">
+              Reset Password
+            </button>
+
+            <div class="np-pass-form">
+              <input type="password" name="newPassword" placeholder="New password">
+              <button type="submit" class="btn primary" formaction="/admin/user/<%= userId %>/change-password" formmethod="POST">
+                Change Password
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              class="btn danger"
+              formaction="/admin/user/<%= userId %>/delete"
+              formmethod="POST"
+              onclick="return confirm('Delete this user account permanently?');"
+            >
+              Delete Account
+            </button>
+          </div>
+        <% } %>
+
+        <% if (isNurse) { %>
+          <div class="np-security-actions">
+            <div class="np-pass-form">
+              <input type="password" name="currentPassword" placeholder="Current password">
+              <input type="password" name="newPassword" placeholder="New password">
+              <input type="password" name="confirmPassword" placeholder="Confirm new password">
+              <button type="submit" class="btn primary" formaction="/nurse/password/change" formmethod="POST">
+                Change Password
+              </button>
+            </div>
+          </div>
+        <% } %>
+
+        <% if (isAgent) { %>
+          <p class="np-muted">Security controls are not available for agent role.</p>
+        <% } %>
+      </article>
+    </section>
+
+    <% if (canEdit) { %>
+      <div class="np-edit-actions" id="npEditActions">
+        <button type="button" class="btn" id="npCancelEditBtn">Cancel</button>
+        <button type="submit" class="btn primary">Save Changes</button>
+      </div>
+    <% } %>
+
+  <% if (canEdit) { %>
+  </form>
+  <% } %>
+
+  <% if (isNurse) { %>
+    <article class="np-card">
+      <h2>Qualifications & Certificates</h2>
+      <p class="np-muted">Select qualifications and upload certificate for each selected qualification.</p>
+      <%- include("../partials/nurse-qualification-module", { nurse }) %>
+    </article>
+  <% } %>
+</section>
+
+<style>
+.nurse-profile-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.np-back-link {
+  width: fit-content;
+  color: #0f5d9b;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.np-card {
+  background: #ffffff;
+  border: 1px solid #d8e7f3;
+  border-radius: 22px;
+  box-shadow: 0 10px 28px rgba(15, 42, 71, 0.08);
+  padding: 1.2rem;
+}
+
+.np-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.np-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.np-avatar-wrap {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 4px solid #e4f1fb;
+  background: #f0f7fd;
+  display: grid;
+  place-items: center;
+}
+
+.np-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.np-avatar-fallback {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #10416a;
+}
+
+.np-header-copy h1 {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+}
+
+.np-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.np-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.32rem 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.np-badge.status.pending {
+  background: #fff1d8;
+  color: #9a5a00;
+}
+
+.np-badge.status.approved {
+  background: #dcf8e7;
+  color: #16663c;
+}
+
+.np-badge.status.rejected {
+  background: #fde2e2;
+  color: #9e1f1f;
+}
+
+.np-badge.availability.available {
+  background: #e5f2ff;
+  color: #0d4c82;
+}
+
+.np-badge.availability.unavailable {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.np-badge.verified {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.np-badge.unverified {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.np-meta {
+  margin-top: 0.55rem;
+  color: #4e6880;
+  font-size: 0.95rem;
+}
+
+.np-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #8aa0b5;
+  margin: 0 8px 2px;
+}
+
+.np-tabs-card {
+  padding: 0.6rem;
+}
+
+.np-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.np-tab-btn {
+  border: 1px solid #d6e3ef;
+  background: #f5f9fd;
+  color: #24445f;
+  border-radius: 14px;
+  padding: 0.62rem 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.np-tab-btn.active {
+  background: #0f7fcf;
+  color: #ffffff;
+  border-color: #0f7fcf;
+}
+
+.np-tab-panel {
+  display: none;
+}
+
+.np-tab-panel.active {
+  display: block;
+}
+
+.np-card h2 {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+}
+
+.np-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.np-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.np-field label {
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #56718b;
+}
+
+.np-span-2 {
+  grid-column: 1 / -1;
+}
+
+.np-view {
+  min-height: 42px;
+  border: 1px solid #dbe9f4;
+  border-radius: 12px;
+  background: #f8fbfe;
+  padding: 0.62rem 0.72rem;
+  color: #11304f;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.np-edit-field {
+  display: none;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #c6dae8;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.62rem 0.72rem;
+  color: #11304f;
+  font: inherit;
+}
+
+.nurse-profile-shell.is-editing .np-view {
+  display: none;
+}
+
+.nurse-profile-shell.is-editing .np-edit-field {
+  display: block;
+}
+
+.np-check {
+  display: none;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+}
+
+.np-check input {
+  width: auto;
+}
+
+.nurse-profile-shell.is-editing .np-check {
+  display: inline-flex;
+}
+
+.np-chip-wrap {
+  min-height: 42px;
+}
+
+.np-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #c9dff0;
+  border-radius: 999px;
+  background: #edf5fc;
+  color: #164a77;
+  font-size: 0.8rem;
+  padding: 0.24rem 0.58rem;
+}
+
+.np-inline-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.np-security-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.np-pass-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 0.55rem;
+}
+
+.np-pass-form input {
+  min-height: 42px;
+  border: 1px solid #c6dae8;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+}
+
+.np-multi-select {
+  min-height: 140px;
+}
+
+.qualification-module {
+  margin-top: 0.9rem;
+}
+
+.qualification-item {
+  border: 1px solid #d9e7f3;
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin-top: 0.6rem;
+  background: #f8fbfe;
+}
+
+.qualification-item label {
+  text-transform: none;
+  letter-spacing: normal;
+  color: #11304f;
+}
+
+.qualification-item input[type="file"] {
+  margin-top: 0.45rem;
+  width: 100%;
+}
+
+.np-muted {
+  color: #5b7388;
+  margin: 0.25rem 0 0;
+}
+
+.np-edit-actions {
+  display: none;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+
+.nurse-profile-shell.is-editing .np-edit-actions {
+  display: flex;
+}
+
+.btn.warning {
+  border-color: #f0c14b;
+  background: #ffe8b3;
+  color: #7a4d00;
+}
+
+.btn.danger {
+  border-color: #ef9a9a;
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+@media (max-width: 900px) {
+  .np-header-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .np-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .np-span-2 {
+    grid-column: auto;
+  }
+
+  .np-pass-form {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<script>
+(() => {
+  const shell = document.getElementById("nurseProfileShell");
+  if (!shell) return;
+
+  const tabButtons = shell.querySelectorAll(".np-tab-btn");
+  const tabPanels = shell.querySelectorAll(".np-tab-panel");
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.getAttribute("data-np-tab");
+      tabButtons.forEach((item) => item.classList.remove("active"));
+      tabPanels.forEach((panel) => panel.classList.remove("active"));
+      button.classList.add("active");
+      const panel = shell.querySelector(`#${target}`);
+      if (panel) panel.classList.add("active");
+    });
+  });
+
+  const editButton = document.getElementById("npToggleEditBtn");
+  const cancelButton = document.getElementById("npCancelEditBtn");
+  if (editButton) {
+    editButton.addEventListener("click", () => {
+      shell.classList.toggle("is-editing");
+      editButton.textContent = shell.classList.contains("is-editing") ? "Editing" : "Edit Profile";
+    });
+  }
+  if (cancelButton) {
+    cancelButton.addEventListener("click", () => {
+      window.location.reload();
+    });
+  }
+})();
+</script>

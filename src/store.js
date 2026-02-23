@@ -300,6 +300,7 @@ function transformNurseFromDB(row) {
     gender: row.gender || DEFAULT_NURSE_GENDER,
     email: row.user_email || row.email || '',
     phoneNumber: row.user_phone || row.phone_number || '',
+    emailVerified: Boolean(row.email_verified),
     city: row.city || '',
     aadhaarNumber: row.aadhaar_number || row.aadhar_number || '',
     aadharNumber: row.aadhaar_number || row.aadhar_number || '',
@@ -536,7 +537,11 @@ async function deleteUser(id) {
 async function getNurses() {
   try {
     const result = await pool.query(`
-      SELECT n.*, u.email AS user_email, u.phone_number AS user_phone
+      SELECT
+        n.*,
+        u.email,
+        u.phone_number,
+        u.email_verified
       FROM nurses n
       JOIN users u ON n.user_id = u.id
       ORDER BY n.id
@@ -551,7 +556,11 @@ async function getNurses() {
 async function getNurseById(id) {
   try {
     const result = await pool.query(`
-      SELECT n.*, u.email AS user_email, u.phone_number AS user_phone
+      SELECT
+        n.*,
+        u.email,
+        u.phone_number,
+        u.email_verified
       FROM nurses n
       JOIN users u ON n.user_id = u.id
       WHERE n.id = $1
@@ -567,7 +576,11 @@ async function getNurseById(id) {
 async function getNurseByEmail(email) {
   try {
     const result = await pool.query(`
-      SELECT n.*, u.email AS user_email, u.phone_number AS user_phone
+      SELECT
+        n.*,
+        u.email,
+        u.phone_number,
+        u.email_verified
       FROM nurses n
       JOIN users u ON n.user_id = u.id
       WHERE LOWER(u.email) = LOWER($1)
@@ -576,6 +589,26 @@ async function getNurseByEmail(email) {
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting nurse by email:', error);
+    return null;
+  }
+}
+
+async function getNurseByUserId(userId) {
+  try {
+    const result = await pool.query(`
+      SELECT
+        n.*,
+        u.email,
+        u.phone_number,
+        u.email_verified
+      FROM nurses n
+      JOIN users u ON u.id = n.user_id
+      WHERE n.user_id = $1
+      LIMIT 1
+    `, [userId]);
+    return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
+  } catch (error) {
+    console.error('Error getting nurse by user id:', error);
     return null;
   }
 }
@@ -611,14 +644,21 @@ async function updateNurse(id, updates) {
         gender: 'gender',
         status: 'status',
         profileImagePath: 'profile_image_path',
-        aadhaarNumber: 'aadhaar_number',
-        aadharNumber: 'aadhaar_number',
+        profileImageUrl: 'profile_image_url',
+        aadhaarNumber: 'aadhar_number',
+        aadharNumber: 'aadhar_number',
         experienceYears: 'experience_years',
         experienceMonths: 'experience_months',
         availabilityStatus: 'availability_status',
+        availability: 'availability',
         workLocations: 'work_locations',
+        workCity: 'work_city',
         currentAddress: 'current_address',
         skills: 'skills',
+        educationLevel: 'education_level',
+        isAvailable: 'is_available',
+        referralCode: 'referral_code',
+        profileStatus: 'profile_status',
         qualifications: 'qualifications',
         resumeUrl: 'resume_url'
       }[key];
@@ -1010,6 +1050,7 @@ module.exports = {
   deleteUser,
   getNurses,
   getNurseById,
+  getNurseByUserId,
   getNurseByEmail,
   createNurse,
   updateNurse,
