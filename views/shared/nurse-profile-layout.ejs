@@ -26,6 +26,22 @@ const profileImage = (nurse && (nurse.profileImageUrl || nurse.profile_image_url
 const availability = Array.isArray(nurse && nurse.availability) ? nurse.availability : [];
 const skills = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
 const qualifications = Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [];
+const qualificationDetails = qualifications
+  .map((item) => {
+    if (item && typeof item === "object") {
+      return {
+        name: String(item.name || "").trim(),
+        certificateUrl: item.certificate_url || null,
+        verified: Boolean(item.verified)
+      };
+    }
+    return {
+      name: String(item || "").trim(),
+      certificateUrl: null,
+      verified: false
+    };
+  })
+  .filter((item) => item.name);
 const qualificationNames = qualifications
   .map((item) => (item && typeof item === "object" ? item.name : item))
   .map((item) => String(item || "").trim())
@@ -78,13 +94,81 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 
   <article class="np-card np-header-card">
     <div class="np-header-left">
-      <div class="np-avatar-wrap">
-        <% if (profileImage) { %>
-          <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar">
-        <% } else { %>
-          <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
-        <% } %>
-      </div>
+      <% if (isNurse) { %>
+        <div class="np-avatar-menu-shell" id="npAvatarMenuShell">
+          <button
+            type="button"
+            class="np-avatar-button"
+            id="npAvatarMenuTrigger"
+            aria-haspopup="menu"
+            aria-expanded="false"
+          >
+            <span class="np-avatar-wrap">
+              <% if (profileImage) { %>
+                <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar">
+              <% } else { %>
+                <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
+              <% } %>
+            </span>
+          </button>
+
+          <div class="np-avatar-menu" id="npAvatarMenu" role="menu" aria-hidden="true">
+            <% if (nurse.profileImageUrl || nurse.profileImagePath) { %>
+              <a
+                href="<%= profileImage %>"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="np-avatar-menu-action"
+                role="menuitem"
+              >
+                View Profile Picture
+              </a>
+              <button type="button" class="np-avatar-menu-action" data-avatar-upload="true" role="menuitem">
+                Change Profile Picture
+              </button>
+              <form
+                action="/nurse/profile/delete-photo"
+                method="POST"
+                class="np-avatar-menu-inline-form"
+                onsubmit="return confirm('Delete profile picture?');"
+              >
+                <button type="submit" class="np-avatar-menu-action danger" role="menuitem">
+                  Delete Profile Picture
+                </button>
+              </form>
+            <% } else { %>
+              <button type="button" class="np-avatar-menu-action" data-avatar-upload="true" role="menuitem">
+                Upload Profile Picture
+              </button>
+            <% } %>
+          </div>
+
+          <form
+            action="/nurse/profile/upload-photo"
+            method="POST"
+            enctype="multipart/form-data"
+            id="npProfilePhotoForm"
+            class="np-hidden-upload-form"
+          >
+            <input
+              type="file"
+              id="npProfilePhotoInput"
+              name="profileImage"
+              required
+              accept=".jpg,.jpeg,.png"
+            >
+            <button type="submit">Upload</button>
+          </form>
+        </div>
+      <% } else { %>
+        <div class="np-avatar-wrap">
+          <% if (profileImage) { %>
+            <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar">
+          <% } else { %>
+            <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
+          <% } %>
+        </div>
+      <% } %>
 
       <div class="np-header-copy">
         <h1><%= fullName %></h1>
@@ -112,7 +196,13 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   </article>
 
   <% if (canEdit) { %>
-  <form method="POST" action="<%= editAction %>" class="np-profile-form" id="npProfileForm">
+  <form
+    id="profileForm"
+    method="POST"
+    action="<%= editAction %>"
+    class="np-profile-form"
+    <%- isNurse ? 'enctype="multipart/form-data"' : "" %>
+  >
     <% if (isAdmin) { %>
       <input type="hidden" name="statusFilter" value="">
     <% } %>
@@ -234,7 +324,7 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 
           <div class="np-field np-span-2">
             <label>Skills</label>
-            <div class="np-view np-chip-wrap">
+            <div id="skillsViewSection" class="np-view np-chip-wrap view-mode">
               <% if (skills.length) { %>
                 <% skills.forEach((item) => { %>
                   <span class="np-chip"><%= item %></span>
@@ -244,12 +334,28 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
               <% } %>
             </div>
             <% if (canEdit) { %>
-              <input class="np-edit-field" type="hidden" name="skills" value="">
-              <select class="np-edit-field np-multi-select" name="skills" multiple size="8">
-                <% skillOptions.forEach((item) => { %>
-                  <option value="<%= item %>" <%= skills.includes(item) ? "selected" : "" %>><%= item %></option>
-                <% }) %>
-              </select>
+              <div id="skillsEditSection" class="edit-mode" style="display: none;">
+                <input class="np-edit-field" type="hidden" name="skills" value="">
+                <div class="np-edit-field np-skill-tags" id="selectedSkillsContainer"></div>
+                <input
+                  class="np-edit-field np-skill-search"
+                  type="text"
+                  id="skillSearch"
+                  placeholder="Search skills"
+                >
+                <div class="np-edit-field np-skill-dropdown" id="skillsDropdown"></div>
+                <select
+                  class="np-edit-field np-multi-select np-skill-select-hidden"
+                  id="skillsSelect"
+                  name="skills"
+                  multiple
+                  size="8"
+                >
+                  <% skillOptions.forEach((item) => { %>
+                    <option value="<%= item %>" <%= skills.includes(item) ? "selected" : "" %>><%= item %></option>
+                  <% }) %>
+                </select>
+              </div>
             <% } %>
           </div>
 
@@ -332,9 +438,6 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
         </div>
         <% } %>
 
-        <% if (isNurse) { %>
-          <p class="np-muted">Use the Qualifications & Certificates section below to update certificates.</p>
-        <% } %>
       </article>
     </section>
 
@@ -409,19 +512,51 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
     <% if (canEdit) { %>
       <div class="np-edit-actions" id="npEditActions">
         <button type="button" class="btn" id="npCancelEditBtn">Cancel</button>
-        <button type="submit" class="btn primary">Save Changes</button>
+        <button type="submit" class="btn primary" form="profileForm">Save</button>
       </div>
+    </form>
     <% } %>
-
-  <% if (canEdit) { %>
-  </form>
-  <% } %>
 
   <% if (isNurse) { %>
     <article class="np-card">
       <h2>Qualifications & Certificates</h2>
-      <p class="np-muted">Select qualifications and upload certificate for each selected qualification.</p>
-      <%- include("../partials/nurse-qualification-module", { nurse }) %>
+      <div class="np-qual-read">
+        <% if (qualificationDetails.length) { %>
+          <div class="np-view np-chip-wrap">
+            <% qualificationDetails.forEach((item, index) => { %>
+              <span class="np-chip"><%= item.name %></span>
+              <% if (index < qualificationDetails.length - 1) { %>
+                <span class="np-muted">|</span>
+              <% } %>
+            <% }) %>
+          </div>
+          <div class="np-qual-read-list">
+            <% qualificationDetails.forEach((item) => { %>
+              <div class="np-qual-read-item">
+                <span class="np-qual-read-name"><%= item.name %></span>
+                <% if (item.certificateUrl) { %>
+                  <a href="<%= item.certificateUrl %>" target="_blank" rel="noopener noreferrer">
+                    View Document
+                  </a>
+                <% } else { %>
+                  <form method="POST" action="/nurse/profile/upload-qualification-document" enctype="multipart/form-data" class="np-qual-upload-form">
+                    <input type="hidden" name="qualificationName" value="<%= item.name %>">
+                    <input type="file" name="qualificationDocument" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <button type="submit" class="btn small">Upload Document</button>
+                    <span class="np-qual-pending-badge">Document Pending</span>
+                  </form>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="np-muted">No qualifications added yet.</p>
+        <% } %>
+      </div>
+      <div class="np-qual-edit">
+        <p class="np-muted">Select qualifications and upload certificate for each selected qualification.</p>
+        <%- include("../partials/nurse-qualification-module", { nurse, profileFormId: "profileForm" }) %>
+      </div>
     </article>
   <% } %>
 </section>
@@ -461,6 +596,24 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   gap: 1rem;
 }
 
+.np-avatar-menu-shell {
+  position: relative;
+  display: inline-flex;
+}
+
+.np-avatar-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.np-avatar-button:focus-visible {
+  outline: 2px solid #0f7fcf;
+  outline-offset: 3px;
+}
+
 .np-avatar-wrap {
   width: 112px;
   height: 112px;
@@ -477,6 +630,55 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.np-avatar-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid #d8e7f3;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 42, 71, 0.14);
+  padding: 0.35rem;
+  z-index: 20;
+}
+
+.np-avatar-menu-shell:hover .np-avatar-menu,
+.np-avatar-menu-shell.is-open .np-avatar-menu {
+  display: block;
+}
+
+.np-avatar-menu-action {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  border-radius: 8px;
+  padding: 0.52rem 0.6rem;
+  font: inherit;
+  color: #163d62;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.np-avatar-menu-action:hover {
+  background: #edf5fc;
+}
+
+.np-avatar-menu-action.danger {
+  color: #9e1f1f;
+}
+
+.np-avatar-menu-inline-form {
+  margin: 0;
+}
+
+.np-hidden-upload-form {
+  display: none;
 }
 
 .np-avatar-fallback {
@@ -712,6 +914,107 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   min-height: 140px;
 }
 
+.np-skill-search {
+  margin-bottom: 0.45rem;
+}
+
+#skillsViewSection {
+  display: flex;
+}
+
+#skillsEditSection {
+  display: none;
+}
+
+.nurse-profile-shell.is-editing #skillsViewSection {
+  display: none;
+}
+
+.nurse-profile-shell.is-editing #skillsEditSection {
+  display: block !important;
+}
+
+.np-skill-tags {
+  min-height: 42px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.np-skill-tags-empty {
+  color: #5b7388;
+  font-size: 0.9rem;
+}
+
+.skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #c9dff0;
+  border-radius: 999px;
+  background: #edf5fc;
+  color: #164a77;
+  font-size: 0.82rem;
+  padding: 0.24rem 0.34rem 0.24rem 0.6rem;
+}
+
+.remove-skill {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: #d9ecfa;
+  color: #0f4f83;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove-skill:hover {
+  background: #c4e2f8;
+}
+
+.np-skill-dropdown {
+  min-height: 44px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #c6dae8;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.25rem;
+}
+
+.np-skill-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  text-align: left;
+  padding: 0.52rem 0.58rem;
+  color: #11304f;
+  cursor: pointer;
+}
+
+.np-skill-option:hover {
+  background: #edf5fc;
+}
+
+.np-skill-option.is-selected {
+  color: #5b7388;
+  cursor: default;
+}
+
+.np-skill-option.add-new {
+  color: #0f5d9b;
+  font-weight: 700;
+}
+
+.np-skill-select-hidden {
+  display: none !important;
+}
+
 .qualification-module {
   margin-top: 0.9rem;
 }
@@ -740,6 +1043,65 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   margin: 0.25rem 0 0;
 }
 
+.np-qual-read {
+  display: block;
+}
+
+.np-qual-edit {
+  display: none;
+}
+
+.np-qual-read-list {
+  margin-top: 0.8rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.np-qual-read-item {
+  border: 1px solid #d9e7f3;
+  border-radius: 12px;
+  background: #f8fbfe;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.np-qual-read-name {
+  font-weight: 700;
+  color: #11304f;
+}
+
+.np-qual-read-item a {
+  color: #0f5d9b;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.np-qual-read-item a:hover {
+  text-decoration: underline;
+}
+
+.np-qual-upload-form {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.np-qual-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #fff1d8;
+  color: #9a5a00;
+}
+
 .np-edit-actions {
   display: none;
   justify-content: flex-end;
@@ -749,6 +1111,14 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 
 .nurse-profile-shell.is-editing .np-edit-actions {
   display: flex;
+}
+
+.nurse-profile-shell.is-editing .np-qual-read {
+  display: none;
+}
+
+.nurse-profile-shell.is-editing .np-qual-edit {
+  display: block;
 }
 
 .btn.warning {
@@ -804,15 +1174,243 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 
   const editButton = document.getElementById("npToggleEditBtn");
   const cancelButton = document.getElementById("npCancelEditBtn");
+  const profileForm = document.getElementById("profileForm");
+  const selectedSkillsContainer = document.getElementById("selectedSkillsContainer");
+  const skillSearchInput = document.getElementById("skillSearch");
+  const skillSelect = document.getElementById("skillsSelect");
+  const skillsDropdown = document.getElementById("skillsDropdown");
+
+  const avatarMenuShell = document.getElementById("npAvatarMenuShell");
+  const avatarMenuTrigger = document.getElementById("npAvatarMenuTrigger");
+  const avatarMenu = document.getElementById("npAvatarMenu");
+  const avatarPhotoInput = document.getElementById("npProfilePhotoInput");
+  const avatarPhotoForm = document.getElementById("npProfilePhotoForm");
+
+  let selectedSkills = new Set();
+  const normalizeSkillValue = (value) => String(value || "").trim().toLowerCase();
+  const getSelectedSkill = (value) => {
+    const target = normalizeSkillValue(value);
+    if (!target) return null;
+    for (const skill of selectedSkills) {
+      if (normalizeSkillValue(skill) === target) {
+        return skill;
+      }
+    }
+    return null;
+  };
+  const hasSelectedSkill = (value) => Boolean(getSelectedSkill(value));
+  const addSelectedSkill = (value) => {
+    const cleanValue = String(value || "").trim();
+    if (!cleanValue || hasSelectedSkill(cleanValue)) return false;
+    selectedSkills.add(cleanValue);
+    return true;
+  };
+  const removeSelectedSkill = (value) => {
+    const existingSkill = getSelectedSkill(value);
+    if (!existingSkill) return false;
+    selectedSkills.delete(existingSkill);
+    return true;
+  };
+  const ensureSkillOptionExists = (value) => {
+    if (!skillSelect) return null;
+    const cleanValue = String(value || "").trim();
+    if (!cleanValue) return null;
+
+    const existingOption = Array.from(skillSelect.options).find(
+      (option) => normalizeSkillValue(option.value) === normalizeSkillValue(cleanValue)
+    );
+    if (existingOption) return existingOption;
+
+    const newOption = new Option(cleanValue, cleanValue, false, false);
+    skillSelect.appendChild(newOption);
+    return newOption;
+  };
+  const updateHiddenSelect = () => {
+    if (!skillSelect) return;
+    Array.from(skillSelect.options).forEach((option) => {
+      option.selected = hasSelectedSkill(option.value);
+    });
+  };
+  const renderSelectedSkills = () => {
+    if (!selectedSkillsContainer) return;
+    selectedSkillsContainer.innerHTML = "";
+
+    if (!selectedSkills.size) {
+      const emptyState = document.createElement("span");
+      emptyState.className = "np-skill-tags-empty";
+      emptyState.textContent = "No skills selected";
+      selectedSkillsContainer.appendChild(emptyState);
+      return;
+    }
+
+    selectedSkills.forEach((skillName) => {
+      const tag = document.createElement("span");
+      tag.className = "skill-tag";
+      tag.textContent = skillName;
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "remove-skill";
+      removeButton.textContent = "\u00d7";
+      removeButton.setAttribute("aria-label", `Remove ${skillName}`);
+      removeButton.addEventListener("click", () => {
+        if (!removeSelectedSkill(skillName)) return;
+        updateSkillUI();
+      });
+
+      tag.appendChild(removeButton);
+      selectedSkillsContainer.appendChild(tag);
+    });
+  };
+  const renderSkillsDropdown = () => {
+    if (!skillsDropdown || !skillSelect) return;
+    skillsDropdown.innerHTML = "";
+
+    const searchTerm = skillSearchInput ? String(skillSearchInput.value || "").trim() : "";
+    const termLower = searchTerm.toLowerCase();
+    const seen = new Set();
+    const optionValues = Array.from(skillSelect.options)
+      .map((option) => String(option.value || "").trim())
+      .filter(Boolean)
+      .filter((value) => {
+        const key = normalizeSkillValue(value);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    let matchCount = 0;
+    optionValues.forEach((skillName) => {
+      const matches = !termLower || skillName.toLowerCase().includes(termLower);
+      if (!matches) return;
+      matchCount += 1;
+
+      const optionButton = document.createElement("button");
+      optionButton.type = "button";
+      optionButton.className = "np-skill-option";
+
+      if (hasSelectedSkill(skillName)) {
+        optionButton.classList.add("is-selected");
+        optionButton.textContent = `${skillName} (Selected)`;
+        optionButton.disabled = true;
+      } else {
+        optionButton.textContent = skillName;
+        optionButton.addEventListener("click", () => {
+          if (!addSelectedSkill(skillName)) return;
+          if (skillSearchInput) skillSearchInput.value = "";
+          updateSkillUI();
+        });
+      }
+
+      skillsDropdown.appendChild(optionButton);
+    });
+
+    const hasExactSkill = optionValues.some(
+      (skillName) => normalizeSkillValue(skillName) === normalizeSkillValue(searchTerm)
+    );
+    if (!matchCount && searchTerm && !hasExactSkill) {
+      const addButton = document.createElement("button");
+      addButton.type = "button";
+      addButton.className = "np-skill-option add-new";
+      addButton.textContent = `Add "${searchTerm}"`;
+      addButton.addEventListener("click", () => {
+        ensureSkillOptionExists(searchTerm);
+        if (!addSelectedSkill(searchTerm)) return;
+        if (skillSearchInput) skillSearchInput.value = "";
+        updateSkillUI();
+      });
+      skillsDropdown.appendChild(addButton);
+      return;
+    }
+
+    if (!skillsDropdown.childElementCount) {
+      const noResult = document.createElement("div");
+      noResult.className = "np-skill-tags-empty";
+      noResult.textContent = "No skills found";
+      skillsDropdown.appendChild(noResult);
+    }
+  };
+  const updateSkillUI = () => {
+    updateHiddenSelect();
+    renderSelectedSkills();
+    renderSkillsDropdown();
+  };
+  const initializeSelectedSkillsFromSelect = () => {
+    if (!skillSelect) return;
+    selectedSkills = new Set();
+    Array.from(skillSelect.options).forEach((option) => {
+      if (option.selected) addSelectedSkill(option.value);
+    });
+    updateSkillUI();
+  };
+
+  const setAvatarMenuState = (isOpen) => {
+    if (!avatarMenuShell || !avatarMenuTrigger || !avatarMenu) return;
+    avatarMenuShell.classList.toggle("is-open", Boolean(isOpen));
+    avatarMenuTrigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    avatarMenu.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  };
+
   if (editButton) {
     editButton.addEventListener("click", () => {
       shell.classList.toggle("is-editing");
       editButton.textContent = shell.classList.contains("is-editing") ? "Editing" : "Edit Profile";
+      if (shell.classList.contains("is-editing")) {
+        initializeSelectedSkillsFromSelect();
+      } else if (skillSearchInput) {
+        skillSearchInput.value = "";
+      }
     });
   }
   if (cancelButton) {
     cancelButton.addEventListener("click", () => {
       window.location.reload();
+    });
+  }
+
+  if (skillSearchInput && skillSelect && skillsDropdown && selectedSkillsContainer) {
+    skillSearchInput.addEventListener("input", renderSkillsDropdown);
+    initializeSelectedSkillsFromSelect();
+  }
+  if (profileForm && skillSelect) {
+    profileForm.addEventListener("submit", () => {
+      updateHiddenSelect();
+    });
+  }
+
+  if (avatarMenuShell && avatarMenuTrigger) {
+    avatarMenuTrigger.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setAvatarMenuState(!avatarMenuShell.classList.contains("is-open"));
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!avatarMenuShell.contains(event.target)) {
+        setAvatarMenuState(false);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setAvatarMenuState(false);
+      }
+    });
+  }
+
+  shell.querySelectorAll("[data-avatar-upload]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!avatarPhotoInput) return;
+      avatarPhotoInput.value = "";
+      avatarPhotoInput.click();
+      setAvatarMenuState(false);
+    });
+  });
+
+  if (avatarPhotoInput && avatarPhotoForm) {
+    avatarPhotoInput.addEventListener("change", () => {
+      if (avatarPhotoInput.files && avatarPhotoInput.files.length > 0) {
+        avatarPhotoForm.submit();
+      }
     });
   }
 })();

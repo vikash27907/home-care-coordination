@@ -9,18 +9,36 @@ const masterQualifications = [
   "ANM",
   "GNM",
   "BSc Nursing",
-  "MSc Nursing"
+  "MSc Nursing",
+  "GDA"
 ];
+const customQualificationLabel = "Other (Custom Qualification)";
+const qualificationModuleId = "qualification_" + Math.random().toString(36).substring(2, 9);
+const parentProfileFormId = (typeof profileFormId === "string" && profileFormId.trim())
+  ? profileFormId.trim()
+  : "profileForm";
+
+const builtInQualificationSet = new Set(masterQualifications);
+const normalizedCurrentQualifications = currentQualifications
+  .map((item) => {
+    if (item && typeof item === "object") return item;
+    return { name: String(item || "").trim(), certificate_url: null, verified: false };
+  })
+  .filter((item) => String(item.name || "").trim());
+const customQualifications = normalizedCurrentQualifications.filter(
+  (item) => !builtInQualificationSet.has(String(item.name || "").trim())
+);
+const existingCustomQualification = customQualifications.length ? customQualifications[0] : null;
+const existingCustomName = existingCustomQualification
+  ? String(existingCustomQualification.name || "").trim()
+  : "";
+const isCustomSelected = Boolean(existingCustomName);
 %>
 
-<form 
-  action="/nurse/profile/qualifications" 
-  method="POST" 
-  enctype="multipart/form-data"
-  class="qualification-module"
->
-  <% masterQualifications.forEach(function(qual) { 
-     const existingQual = currentQualifications.find(q => q.name === qual);
+<div class="qualification-module" id="<%= qualificationModuleId %>">
+  <input type="hidden" name="qualifications[]" value="" form="<%= parentProfileFormId %>">
+  <% masterQualifications.forEach(function(qual) {
+     const existingQual = normalizedCurrentQualifications.find(q => q.name === qual);
      const isSelected = !!existingQual;
      const safeName = qual.replace(/[^a-zA-Z0-9]/g, "_");
   %>
@@ -29,8 +47,9 @@ const masterQualifications = [
     <label>
       <input
         type="checkbox"
-        name="qualifications"
+        name="qualifications[]"
         value="<%= qual %>"
+        form="<%= parentProfileFormId %>"
         <%= isSelected ? "checked" : "" %>
       />
       <span><%= qual %></span>
@@ -40,24 +59,101 @@ const masterQualifications = [
       type="file"
       name="cert_<%= safeName %>"
       accept=".pdf,.jpg,.jpeg,.png"
+      form="<%= parentProfileFormId %>"
     />
 
     <% if (existingQual && existingQual.certificate_url) { %>
-      <a href="<%= existingQual.certificate_url %>" target="_blank">
-        View Certificate
+      <a href="<%= existingQual.certificate_url %>" target="_blank" rel="noopener noreferrer">
+        View Document
       </a>
-
-      <% if (existingQual.verified) { %>
-        <span style="color: green;">Verified</span>
-      <% } else { %>
-        <span style="color: orange;">Pending</span>
-      <% } %>
+    <% } else { %>
+      <span class="np-muted">No document uploaded</span>
     <% } %>
   </div>
 
   <%}); %>
 
-  <button type="submit" class="btn primary small" style="margin-top: 15px;">
-    Save Qualifications
+  <div class="qualification-item">
+    <label>
+      <input
+        type="checkbox"
+        name="qualifications[]"
+        value="<%= customQualificationLabel %>"
+        data-custom-qualification-toggle="true"
+        form="<%= parentProfileFormId %>"
+        <%= isCustomSelected ? "checked" : "" %>
+      />
+      <span><%= customQualificationLabel %></span>
+    </label>
+
+    <div data-custom-qualification-fields="true">
+      <input
+        type="text"
+        name="customQualificationName"
+        value="<%= existingCustomName %>"
+        placeholder="Enter custom qualification name"
+        data-custom-qualification-name="true"
+        form="<%= parentProfileFormId %>"
+        style="margin-top: 8px; width: 100%;"
+      />
+
+      <input
+        type="file"
+        name="cert_custom"
+        accept=".pdf,.jpg,.jpeg,.png"
+        data-custom-qualification-file="true"
+        form="<%= parentProfileFormId %>"
+      />
+    </div>
+
+    <% if (existingCustomQualification && existingCustomQualification.certificate_url) { %>
+      <a href="<%= existingCustomQualification.certificate_url %>" target="_blank" rel="noopener noreferrer">
+        View Document
+      </a>
+    <% } else { %>
+      <span class="np-muted">No document uploaded</span>
+    <% } %>
+  </div>
+
+  <button type="submit" form="<%= parentProfileFormId %>" class="btn primary small" style="margin-top: 15px;">
+    Save Qualification
   </button>
-</form>
+</div>
+
+<script>
+(() => {
+  const qualificationModule = document.getElementById("<%= qualificationModuleId %>");
+  if (!qualificationModule) return;
+  const profileForm = document.getElementById("<%= parentProfileFormId %>");
+
+  const customToggle = qualificationModule.querySelector("[data-custom-qualification-toggle]");
+  const customFields = qualificationModule.querySelector("[data-custom-qualification-fields]");
+  const customNameInput = qualificationModule.querySelector("[data-custom-qualification-name]");
+  const customFileInput = qualificationModule.querySelector("[data-custom-qualification-file]");
+  if (!customToggle || !customFields || !customNameInput || !customFileInput) return;
+
+  const syncCustomState = () => {
+    const enabled = customToggle.checked;
+    customFields.style.display = enabled ? "block" : "none";
+    customNameInput.disabled = !enabled;
+    customFileInput.disabled = !enabled;
+  };
+
+  customToggle.addEventListener("change", syncCustomState);
+  if (profileForm) {
+    profileForm.addEventListener("submit", (event) => {
+      syncCustomState();
+      if (customToggle.checked && !customNameInput.value.trim()) {
+        event.preventDefault();
+        alert("Please enter custom qualification name.");
+      }
+    });
+  }
+
+  customNameInput.addEventListener("input", () => {
+    syncCustomState();
+  });
+
+  syncCustomState();
+})();
+</script>

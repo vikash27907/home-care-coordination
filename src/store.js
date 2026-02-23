@@ -598,6 +598,7 @@ async function getNurseByUserId(userId) {
     const result = await pool.query(`
       SELECT
         n.*,
+        n.profile_image_url,
         u.email,
         u.phone_number,
         u.email_verified

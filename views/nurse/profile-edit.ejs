@@ -95,7 +95,7 @@ const workLocationsRaw = (nurse.workLocations || []).join(", ");
       </div>
     </div>
 
-    <%- include("../partials/nurse-qualification-module", { nurse }) %>
+    <%- include("../partials/nurse-qualification-module", { nurse, profileFormId: "profileEditForm" }) %>
 
     <div class="full-width">
       <h3>Documents (PDF/JPG/PNG, 2MB max each)</h3>
