@@ -66,10 +66,19 @@ a {
 
 .nav-wrap {
   min-height: 70px;
+}
+
+.navbar {
+  min-height: 70px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  position: relative;
+}
+
+.nav-left {
+  min-width: 0;
 }
 
 .brand {
@@ -87,14 +96,13 @@ a {
   font-size: 1.15rem;
 }
 
-.top-nav {
+.nav-links {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  flex-wrap: wrap;
 }
 
-.top-nav a {
+.nav-links a {
   color: #172a30;
   padding: 0.48rem 0.72rem;
   border-radius: 10px;
@@ -102,33 +110,60 @@ a {
   transition: all 0.2s ease;
 }
 
-.top-nav a:hover,
-.top-nav a.active {
+.nav-links a:hover,
+.nav-links a.active {
   background: #e9f2fe;
   color: #155ba0;
 }
 
-.top-nav .nav-login,
-.top-nav .btn-login {
-  margin-left: 0.4rem;
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.btn-login {
   background: var(--primary);
   color: #ffffff;
   border: 1px solid var(--primary);
+  padding: 0.48rem 0.72rem;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
-.top-nav .nav-login:hover,
-.top-nav .nav-login.active,
-.top-nav .btn-login:hover,
-.top-nav .btn-login.active {
+.btn-login:hover,
+.btn-login.active {
   background: var(--primary-deep);
   color: #ffffff;
+}
+
+.hamburger {
+  display: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d7e4f2;
+  background: #ffffff;
+  color: #203446;
+  border-radius: 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.hamburger:hover {
+  background: #f5f9ff;
+  border-color: #b7cde6;
 }
 
 .nav-profile {
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: 0.4rem;
 }
 
 .nav-avatar {
@@ -193,9 +228,54 @@ a {
 }
 
 @media (max-width: 768px) {
+  .nav-wrap {
+    padding: 0.6rem 0;
+  }
+
+  .navbar {
+    min-height: 58px;
+  }
+
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+    padding: 0.35rem;
+    z-index: 950;
+  }
+
+  .nav-links.show {
+    display: flex;
+  }
+
+  .nav-links a {
+    padding: 0.68rem 0.8rem;
+  }
+
+  .nav-right {
+    gap: 0.5rem;
+  }
+
+  .hamburger {
+    display: inline-flex;
+  }
+
   .nav-avatar {
     width: 30px;
     height: 30px;
+  }
+
+  .nav-dropdown {
+    top: 40px;
   }
 }
 
@@ -855,22 +935,6 @@ thead th {
 }
 
 @media (max-width: 760px) {
-  .nav-wrap {
-    padding: 0.65rem 0;
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .top-nav {
-    width: 100%;
-  }
-
-  .top-nav a,
-  .top-nav .nav-login,
-  .top-nav .btn-login {
-    font-size: 0.92rem;
-  }
-
   .main-wrap {
     padding-top: 1rem;
   }

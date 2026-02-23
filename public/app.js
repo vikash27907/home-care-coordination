@@ -54,6 +54,8 @@ if (heroRotator) {
 const navProfile = document.querySelector(".nav-profile");
 const navAvatar = document.getElementById("navAvatar");
 const navDropdown = document.getElementById("navDropdown");
+const navToggle = document.getElementById("navToggle");
+const navLinks = document.getElementById("navLinks");
 
 if (navProfile && navAvatar && navDropdown) {
   const setExpanded = (isExpanded) => {
@@ -91,6 +93,41 @@ if (navProfile && navAvatar && navDropdown) {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeDropdown();
+    }
+  });
+}
+
+if (navToggle && navLinks) {
+  const setMenuExpanded = (isExpanded) => {
+    navToggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+  };
+
+  const closeMenu = () => {
+    navLinks.classList.remove("show");
+    setMenuExpanded(false);
+  };
+
+  navToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const isOpen = navLinks.classList.toggle("show");
+    setMenuExpanded(isOpen);
+  });
+
+  navLinks.addEventListener("click", (event) => {
+    if (event.target.closest("a")) {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!navLinks.contains(event.target) && !navToggle.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 768) {
+      closeMenu();
     }
   });
 }

@@ -19,49 +19,65 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=2" />
+    <link rel="stylesheet" href="/styles.css?v=3" />
     
   </head>
   <body>
     <header class="site-header">
       <div class="wrap nav-wrap">
-        <a class="brand" href="/">
-          <span class="brand-mark" aria-hidden="true">&#10084;</span>
-          <span>Prisha Home Care</span>
-        </a>
-        <nav class="top-nav">
-          <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Home</a>
-          <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
-          <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
-          <% if (session && session.user) { %>
-          <div class="nav-profile">
-            <img
-              src="<%= session.user.profileImageUrl || '/images/default-avatar.png' %>"
-              alt="Account"
-              class="nav-avatar"
-              id="navAvatar"
-              role="button"
-              tabindex="0"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              aria-controls="navDropdown"
-            />
-            <div class="nav-dropdown" id="navDropdown" role="menu" aria-label="Account menu">
-              <a href="/<%= session.user.role %>/profile" role="menuitem">My Profile</a>
-              <a
-                href="<%= session.user.role === 'user' ? '/dashboard' : `/${session.user.role}/dashboard` %>"
-                role="menuitem"
-              >
-                Dashboard
-              </a>
-              <form method="POST" action="/logout">
-                <button type="submit" role="menuitem">Logout</button>
-              </form>
-            </div>
+        <nav class="navbar">
+          <div class="nav-left">
+            <a class="brand" href="/">
+              <span class="brand-mark" aria-hidden="true">&#10084;</span>
+              <span>Prisha Home Care</span>
+            </a>
           </div>
-          <% } else { %>
-          <a href="/login" class="btn-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
-          <% } %>
+          <div class="nav-links" id="navLinks">
+            <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Home</a>
+            <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
+            <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
+          </div>
+          <div class="nav-right">
+            <% if (session && session.user) { %>
+            <div class="nav-profile">
+              <img
+                src="<%= session.user.profileImageUrl || '/images/default-avatar.png' %>"
+                alt="Account"
+                class="nav-avatar"
+                id="navAvatar"
+                role="button"
+                tabindex="0"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="navDropdown"
+              />
+              <div class="nav-dropdown" id="navDropdown" role="menu" aria-label="Account menu">
+                <a href="/<%= session.user.role %>/profile" role="menuitem">My Profile</a>
+                <a
+                  href="<%= session.user.role === 'user' ? '/dashboard' : `/${session.user.role}/dashboard` %>"
+                  role="menuitem"
+                >
+                  Dashboard
+                </a>
+                <form method="POST" action="/logout">
+                  <button type="submit" role="menuitem">Logout</button>
+                </form>
+              </div>
+            </div>
+            <% } else { %>
+            <a href="/login" class="btn-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
+            <% } %>
+            <button
+              type="button"
+              class="hamburger"
+              id="navToggle"
+              aria-label="Toggle navigation menu"
+              aria-controls="navLinks"
+              aria-expanded="false"
+            >
+              &#9776;
+            </button>
+          </div>
         </nav>
       </div>
     </header>
