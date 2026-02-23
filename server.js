@@ -604,7 +604,19 @@ app.use(
     }
   })
 );
-app.use(express.static(path.join(process.cwd(), "public")));
+// STATIC FILES (cached)
+app.use(express.static("public", {
+  maxAge: "1d",
+  etag: true
+}));
+
+// DYNAMIC HTML CACHE PREVENTION
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, private");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  next();
+});
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
