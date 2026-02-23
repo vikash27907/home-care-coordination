@@ -1196,6 +1196,39 @@ function readNormalizedStore() {
   return store;
 }
 
+function normalizePublicImageUrl(value) {
+  const imageUrl = String(value || "").trim();
+  if (!imageUrl) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("/")) {
+    return imageUrl;
+  }
+  return `/${imageUrl}`;
+}
+
+async function getSessionUserPayload(user) {
+  if (!user) {
+    return null;
+  }
+
+  let profileImageUrl = "";
+  if (user.role === "nurse") {
+    try {
+      const nurse = await getNurseByUserId(user.id);
+      profileImageUrl = normalizePublicImageUrl((nurse && (nurse.profileImageUrl || nurse.profileImagePath)) || "");
+    } catch (error) {
+      console.error("Error loading nurse profile image for session:", error);
+    }
+  }
+
+  return {
+    id: user.id,
+    role: user.role,
+    profileImageUrl
+  };
+}
+
 function loadCurrentUser(req, res, next) {
   req.currentUser = null;
   const userId = req.session.userId;
@@ -1206,7 +1239,7 @@ function loadCurrentUser(req, res, next) {
 
   // Use async query to get fresh user data from PostgreSQL
   getUserById(userId)
-    .then((user) => {
+    .then(async (user) => {
       if (!user) {
         req.session.userId = null;
         req.session.role = null;
@@ -1222,7 +1255,7 @@ function loadCurrentUser(req, res, next) {
         status: user.status,
         phoneNumber: user.phoneNumber || ""
       };
-      req.session.user = { id: user.id, role: user.role };
+      req.session.user = await getSessionUserPayload(user);
       return next();
     })
     .catch((err) => {
@@ -1376,6 +1409,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  res.locals.session = req.session;
   res.locals.currentUser = req.currentUser;
   res.locals.currentPath = req.path;
   res.locals.flash = consumeFlash(req);
@@ -2112,7 +2146,7 @@ app.post("/verify-otp", async (req, res) => {
   // Set session
   req.session.userId = user.id;
   req.session.role = user.role;
-  req.session.user = { id: user.id, role: user.role };
+  req.session.user = await getSessionUserPayload(user);
 
   setFlash(req, "success", "Email verified successfully! Welcome to your dashboard.");
   return res.redirect("/nurse/profile");
@@ -2171,7 +2205,7 @@ app.post("/login", loginRateLimiter, async (req, res) => {
 
   req.session.userId = user.id;
   req.session.role = user.role;
-  req.session.user = { id: user.id, role: user.role };
+  req.session.user = await getSessionUserPayload(user);
 
   setFlash(req, "success", `Welcome, ${user.fullName || user.email}.`);
   return res.redirect(redirectByRole(user.role));
@@ -2181,6 +2215,21 @@ app.post("/logout", requireAuth, (req, res) => {
   req.session.destroy(() => {
     res.redirect("/");
   });
+});
+
+app.get("/admin/profile", requireRole("admin"), (req, res) => {
+  return res.redirect("/admin/dashboard");
+});
+
+app.get("/agent/profile", requireRole("agent"), (req, res) => {
+  return res.redirect("/agent/dashboard");
+});
+
+app.get("/user/profile", requireAuth, (req, res) => {
+  if (req.currentUser.role !== "user") {
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+  return res.redirect("/dashboard");
 });
 
 // User Dashboard - for logged-in users who are not admin/agent/nurse

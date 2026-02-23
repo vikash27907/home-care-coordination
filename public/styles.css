@@ -108,7 +108,8 @@ a {
   color: #155ba0;
 }
 
-.top-nav .nav-login {
+.top-nav .nav-login,
+.top-nav .btn-login {
   margin-left: 0.4rem;
   background: var(--primary);
   color: #ffffff;
@@ -116,9 +117,47 @@ a {
 }
 
 .top-nav .nav-login:hover,
-.top-nav .nav-login.active {
+.top-nav .nav-login.active,
+.top-nav .btn-login:hover,
+.top-nav .btn-login.active {
   background: var(--primary-deep);
   color: #ffffff;
+}
+
+.top-nav .nav-avatar-link {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  margin-left: 0.4rem;
+  padding: 0;
+}
+
+.top-nav .nav-avatar-link:hover,
+.top-nav .nav-avatar-link.active {
+  background: transparent;
+}
+
+.nav-avatar {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e5e7eb;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.nav-avatar:hover {
+  border-color: #2563eb;
+  transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+  .nav-avatar {
+    width: 30px;
+    height: 30px;
+  }
 }
 
 .main-wrap {
@@ -788,7 +827,8 @@ thead th {
   }
 
   .top-nav a,
-  .top-nav .nav-login {
+  .top-nav .nav-login,
+  .top-nav .btn-login {
     font-size: 0.92rem;
   }
 

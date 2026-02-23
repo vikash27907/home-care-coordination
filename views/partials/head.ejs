@@ -30,34 +30,19 @@
           <span>Prisha Home Care</span>
         </a>
         <nav class="top-nav">
-          <% if (!currentUser) { %>
           <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Home</a>
           <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
           <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
-          <a href="/login" class="nav-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
-          <% } %> <% if (currentUser && currentUser.role === 'admin') { %>
-          <a href="/admin/dashboard" class="<%= currentPath === '/admin/dashboard' ? 'active' : '' %>">Dashboard</a>
-          <a href="/admin/nurses" class="<%= currentPath === '/admin/nurses' ? 'active' : '' %>">Nurses</a>
-          <a href="/admin/patients" class="<%= currentPath === '/admin/patients' ? 'active' : '' %>">Patients</a>
-          <a href="/admin/agents" class="<%= currentPath === '/admin/agents' ? 'active' : '' %>">Agents</a>
-          <form method="POST" action="/logout" class="inline-form">
-            <button type="submit" class="logout-btn">Logout</button>
-          </form>
-          <% } %> <% if (currentUser && currentUser.role === 'agent') { %>
-          <a href="/agent/dashboard" class="<%= currentPath === '/agent/dashboard' ? 'active' : '' %>">Dashboard</a>
-          <a href="/agent/patients/new" class="<%= currentPath === '/agent/patients/new' ? 'active' : '' %>"
-            >Add Patient</a
-          >
-          <a href="/agent/nurses/new" class="<%= currentPath === '/agent/nurses/new' ? 'active' : '' %>">Add Nurse</a>
-          <a href="/agent/agents/new" class="<%= currentPath === '/agent/agents/new' ? 'active' : '' %>">Add Agent</a>
-          <form method="POST" action="/logout" class="inline-form">
-            <button type="submit" class="logout-btn">Logout</button>
-          </form>
-          <% } %> <% if (currentUser && currentUser.role === 'nurse') { %>
-          <a href="/nurse/profile" class="<%= currentPath === '/nurse/profile' ? 'active' : '' %>">Profile</a>
-          <form method="POST" action="/logout" class="inline-form">
-            <button type="submit" class="logout-btn">Logout</button>
-          </form>
+          <% if (session && session.user) { %>
+          <a href="/<%= session.user.role %>/profile" class="nav-avatar-link" aria-label="Account">
+            <img
+              src="<%= session.user.profileImageUrl || '/images/default-avatar.png' %>"
+              alt="Account"
+              class="nav-avatar"
+            />
+          </a>
+          <% } else { %>
+          <a href="/login" class="btn-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
           <% } %>
         </nav>
       </div>
