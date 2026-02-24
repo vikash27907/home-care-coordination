@@ -328,7 +328,9 @@ async function sendAdminNurseSignupNotification(nurseDetails = {}) {
   const skills = Array.isArray(nurseDetails.skills) && nurseDetails.skills.length > 0
     ? nurseDetails.skills.join(", ")
     : "Not provided";
-  const availabilityStatus = String(nurseDetails.availabilityStatus || "").trim() || "Not provided";
+  const currentStatus = String(
+    nurseDetails.currentStatus || nurseDetails.current_status || ""
+  ).trim() || "Not provided";
 
   const mailOptions = {
     from: `"Prisha Home Care System" <${FROM_EMAIL}>`,
@@ -343,7 +345,7 @@ async function sendAdminNurseSignupNotification(nurseDetails = {}) {
       `City: ${city}`,
       `Experience: ${experienceYears} years, ${experienceMonths} months`,
       `Skills: ${skills}`,
-      `Availability Status: ${availabilityStatus}`,
+      `Current Status: ${currentStatus}`,
       "",
       "Please review and verify this nurse in the admin dashboard."
     ].join("\n"),
@@ -360,7 +362,7 @@ async function sendAdminNurseSignupNotification(nurseDetails = {}) {
             <li><strong>City:</strong> ${city}</li>
             <li><strong>Experience:</strong> ${experienceYears} years, ${experienceMonths} months</li>
             <li><strong>Skills:</strong> ${skills}</li>
-            <li><strong>Availability Status:</strong> ${availabilityStatus}</li>
+            <li><strong>Current Status:</strong> ${currentStatus}</li>
           </ul>
           <p style="margin: 14px 0 0; color: #111827; font-weight: 600;">Please review and verify this nurse in the admin dashboard.</p>
         </div>

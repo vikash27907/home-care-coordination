@@ -1,10 +1,16 @@
 <%
-// Card data should include: id, fullName, email, phoneNumber, city, skills, experienceYears, status, createdAt, profileImageUrl, isAvailable
+// Card data should include: id, fullName, email, phoneNumber, city, skills, experienceYears, status, createdAt, profileImageUrl, isAvailable, isPublic, userIsDeleted
 const roleIcon = '👩‍⚕️';
 const roleLabel = 'Nurse';
+const showVisibilityNotice = Number(updatedNurseId) === Number(nurse.id) && (visibilityUpdate === "public" || visibilityUpdate === "private");
+const visibilityNoticeText = visibilityUpdate === "public" ? "Visibility set to Public" : "Visibility set to Private";
 %>
 
-<div class="profile-card" onclick="window.location.href='/admin/user/view/nurse/<%= nurse.id %>'">
+<div
+  class="profile-card"
+  data-user-deleted="<%= nurse.userIsDeleted ? 'true' : 'false' %>"
+  onclick="if (!event.target.closest('.card-actions')) { window.location.href='/admin/user/view/nurse/<%= nurse.id %>'; }"
+>
   <div class="card-top">
     <div class="profile-image-container">
       <% if (nurse.profileImageUrl || nurse.profileImagePath) { %>
@@ -20,6 +26,12 @@ const roleLabel = 'Nurse';
     <div class="profile-info">
       <h3 class="profile-name"><%= nurse.fullName %></h3>
       <span class="status-badge <%= nurse.status.toLowerCase() %>"><%= nurse.status %></span>
+      <span class="public-badge <%= nurse.isPublic ? 'public' : 'private' %>">
+        <%= nurse.isPublic ? 'Public Profile' : 'Private Profile' %>
+      </span>
+      <% if (nurse.userIsDeleted) { %>
+        <span class="deleted-user-badge">Deleted User</span>
+      <% } %>
     </div>
   </div>
   
@@ -49,6 +61,31 @@ const roleLabel = 'Nurse';
       <span class="detail-value"><%= nurse.createdAt ? new Date(nurse.createdAt).toLocaleDateString('en-IN') : 'N/A' %></span>
     </div>
   </div>
+
+  <% if (!nurse.userIsDeleted) { %>
+    <div class="card-actions" onclick="event.stopPropagation();">
+      <form method="POST" action="/admin/nurses/<%= nurse.id %>/update" class="action-form">
+        <input type="hidden" name="statusFilter" value="<%= statusFilter || 'All' %>">
+        <label for="status-<%= nurse.id %>" class="action-label">Status</label>
+        <select id="status-<%= nurse.id %>" name="status" class="action-select" onchange="this.form.submit()">
+          <option value="pending" <%= nurse.status === 'Pending' ? 'selected' : '' %>>pending</option>
+          <option value="approved" <%= nurse.status === 'Approved' ? 'selected' : '' %>>approved</option>
+          <option value="rejected" <%= nurse.status === 'Rejected' ? 'selected' : '' %>>rejected</option>
+        </select>
+      </form>
+      <form method="POST" action="/admin/nurses/<%= nurse.id %>/toggle-public" class="action-form">
+        <input type="hidden" name="statusFilter" value="<%= statusFilter || 'All' %>">
+        <button type="submit" class="visibility-btn <%= nurse.isPublic ? 'make-private' : 'make-public' %>">
+          <%= nurse.isPublic ? 'Make Private' : 'Make Public' %>
+        </button>
+      </form>
+    </div>
+  <% } %>
+  <% if (showVisibilityNotice) { %>
+    <div class="inline-visibility-notice <%= visibilityUpdate === 'public' ? 'public' : 'private' %>">
+      <%= visibilityNoticeText %>
+    </div>
+  <% } %>
   
   <div class="card-footer">
     <div class="availability-indicator <%= nurse.isAvailable ? 'available' : 'unavailable' %>">
@@ -166,6 +203,40 @@ const roleLabel = 'Nurse';
   color: #c62828;
 }
 
+.public-badge {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.public-badge.public {
+  background: #e6fffa;
+  color: #0f766e;
+}
+
+.public-badge.private {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.deleted-user-badge {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  vertical-align: middle;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .card-details {
   margin-bottom: 1rem;
 }
@@ -200,6 +271,81 @@ const roleLabel = 'Nurse';
 .detail-value.skills-count {
   color: #667eea;
   font-weight: 600;
+}
+
+.card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.action-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.action-label {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.action-select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.85rem;
+  color: #1e293b;
+  background: #ffffff;
+}
+
+.visibility-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.58rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.visibility-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+
+.visibility-btn.make-public {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.visibility-btn.make-private {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.inline-visibility-notice {
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.inline-visibility-notice.public {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.inline-visibility-notice.private {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .card-footer {

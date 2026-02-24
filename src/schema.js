@@ -9,7 +9,7 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
+        email VARCHAR(255) NOT NULL,
         phone_number VARCHAR(15),
         password_hash TEXT NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
@@ -22,15 +22,39 @@ async function initializeDatabase() {
         reset_otp_hash TEXT,
         reset_otp_expires TIMESTAMP,
         otp_code VARCHAR(6),
-        otp_expiry TIMESTAMP
+        otp_expiry TIMESTAMP,
+        is_deleted BOOLEAN DEFAULT false,
+        deleted_at TIMESTAMP NULL
       )
     `);
 
-    // Ensure reset OTP columns exist on already-deployed databases
+    // Ensure columns exist on already-deployed databases
     await pool.query(`
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS reset_otp_hash TEXT,
-      ADD COLUMN IF NOT EXISTS reset_otp_expires TIMESTAMP
+      ADD COLUMN IF NOT EXISTS reset_otp_expires TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'users_email_key'
+            AND conrelid = 'users'::regclass
+        ) THEN
+          ALTER TABLE users DROP CONSTRAINT users_email_key;
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS users_email_active_unique
+      ON users (LOWER(email))
+      WHERE is_deleted = false
     `);
 
     // Create nurses table - stores only profile-specific data, auth via users table
@@ -64,10 +88,10 @@ async function initializeDatabase() {
         certificate_url TEXT,
         aadhar_number VARCHAR(20),
         aadhar_image_url TEXT,
+        current_status VARCHAR(50),
         address TEXT,
         work_city TEXT,
         custom_skills TEXT[],
-        education_level VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -75,7 +99,8 @@ async function initializeDatabase() {
     await pool.query(`
       ALTER TABLE nurses
       ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS aadhar_image_url TEXT
+      ADD COLUMN IF NOT EXISTS aadhar_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS current_status VARCHAR(50)
     `);
 
     // Create agents table

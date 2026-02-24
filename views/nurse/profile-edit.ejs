@@ -3,10 +3,14 @@
 <%
 const skills = profileSkillOptions || [];
 const qualifications = qualificationOptions || [];
-const statusOptions = availabilityStatusOptions || [];
+const statusOptions = currentStatusOptions || [];
 const selectedSkills = nurse.skills || [];
 const selectedQualifications = nurse.qualifications || [];
 const workLocationsRaw = (nurse.workLocations || []).join(", ");
+const selectedCurrentStatus =
+  nurse.currentStatus
+  || nurse.current_status
+  || "";
 %>
 
 <section class="form-section">
@@ -35,11 +39,11 @@ const workLocationsRaw = (nurse.workLocations || []).join(", ");
     </label>
 
     <label class="full-width">
-      Availability Status <span class="required-indicator" title="Required"></span>
-      <select name="availabilityStatus" required>
-        <option value="">Select availability...</option>
+      Current Status <span class="required-indicator" title="Required"></span>
+      <select name="current_status" required>
+        <option value="">Select current status...</option>
         <% statusOptions.forEach(function(option) { %>
-          <option value="<%= option %>" <%= nurse.availabilityStatus === option ? "selected" : "" %>><%= option %></option>
+          <option value="<%= option %>" <%= selectedCurrentStatus === option ? "selected" : "" %>><%= option %></option>
         <% }) %>
       </select>
     </label>

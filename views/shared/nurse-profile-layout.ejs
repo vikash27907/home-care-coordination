@@ -10,17 +10,16 @@ const userId = nurse && (nurse.userId || nurse.user_id) ? (nurse.userId || nurse
 const fullName = String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse");
 const status = String((nurse && (nurse.status || nurse.profileStatus || nurse.profile_status)) || "Pending");
 const statusKey = status.toLowerCase();
+const isDeletedUser = Boolean(nurse && (nurse.userIsDeleted || nurse.user_is_deleted));
 const city = String((nurse && nurse.city) || "");
 const workCity = String((nurse && (nurse.workCity || nurse.work_city)) || "");
 const currentAddress = String((nurse && (nurse.currentAddress || nurse.current_address || nurse.address)) || "");
 const gender = String((nurse && nurse.gender) || "Not Specified");
 const email = String((nurse && nurse.email) || "");
 const phone = String((nurse && (nurse.phoneNumber || nurse.phone_number)) || "");
-const educationLevel = String((nurse && (nurse.educationLevel || nurse.education_level)) || "");
 const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
 const referralCode = String((nurse && (nurse.referralCode || nurse.referral_code)) || "");
 const profileStatus = String((nurse && (nurse.profileStatus || nurse.profile_status)) || "");
-const isAvailable = nurse && nurse.isAvailable === false ? false : true;
 const emailVerified = Boolean(nurse && (nurse.emailVerified || nurse.email_verified));
 const profileImage = (nurse && (nurse.profileImageUrl || nurse.profile_image_url || nurse.profileImagePath || nurse.profile_image_path)) || "";
 const availability = Array.isArray(nurse && nurse.availability) ? nurse.availability : [];
@@ -63,10 +62,30 @@ const qualificationOptions = [...new Set([
   ...((typeof MASTER_QUALIFICATION_OPTIONS !== "undefined" && Array.isArray(MASTER_QUALIFICATION_OPTIONS)) ? MASTER_QUALIFICATION_OPTIONS : []),
   ...qualificationNames
 ])].filter(Boolean);
-
-const availabilityText = availability.length
-  ? availability.join(", ")
-  : (isAvailable ? "Available" : "Unavailable");
+const CURRENT_STATUS_OPTIONS = [
+  "Available for Work",
+  "Currently Working",
+  "Open to Opportunities",
+  "Not Available"
+];
+function normalizeCurrentStatus(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+  const key = clean.toLowerCase();
+  if (key === "open for work" || key === "available" || key === "available for work") return "Available for Work";
+  if (key === "currently working") return "Currently Working";
+  if (key === "working need change" || key === "working but looking for change" || key === "open to opportunities") return "Open to Opportunities";
+  if (key === "not available" || key === "unavailable") return "Not Available";
+  return CURRENT_STATUS_OPTIONS.includes(clean) ? clean : "";
+}
+const currentStatusRaw = String(
+  (nurse && (
+    nurse.currentStatus
+    || nurse.current_status
+  )) || ""
+);
+const currentStatus = normalizeCurrentStatus(currentStatusRaw);
+const currentStatusKey = currentStatus ? currentStatus.toLowerCase().replace(/\s+/g, "-") : "";
 const qualificationsText = qualifications
   .map((item) => (item && typeof item === "object" ? item.name : item))
   .map((item) => String(item || "").trim())
@@ -190,9 +209,14 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
         <h1><%= fullName %></h1>
         <div class="np-badges">
           <span class="np-badge status <%= statusKey %>"><%= status %></span>
-          <span class="np-badge availability <%= isAvailable ? "available" : "unavailable" %>">
-            <%= isAvailable ? "Available" : "Unavailable" %>
-          </span>
+          <% if (isDeletedUser) { %>
+            <span class="np-badge archived">Archived User</span>
+          <% } %>
+          <% if (currentStatus) { %>
+            <span class="status-badge <%= currentStatus.toLowerCase().replace(/\s/g,'-') %>">
+              <%= currentStatus %>
+            </span>
+          <% } %>
         </div>
         <p class="np-meta">
           Experience: <strong><%= experienceYears %> years</strong>
@@ -365,19 +389,20 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
           </div>
 
           <div class="np-field">
-            <label>Education Level</label>
-            <div class="np-view"><%= educationLevel || "-" %></div>
+            <label>Current Status</label>
+            <div class="np-view">
+              <% if (currentStatus) { %>
+                <span class="status-badge <%= currentStatusKey %>"><%= currentStatus %></span>
+              <% } else { %>
+                <span>-</span>
+              <% } %>
+            </div>
             <% if (canEdit) { %>
-              <select class="np-edit-field" name="educationLevel">
-                <option value="">Select</option>
-                <option value="10th Pass" <%= educationLevel === "10th Pass" ? "selected" : "" %>>10th Pass</option>
-                <option value="12th Pass" <%= educationLevel === "12th Pass" ? "selected" : "" %>>12th Pass</option>
-                <option value="ANM" <%= educationLevel === "ANM" ? "selected" : "" %>>ANM</option>
-                <option value="GNM" <%= educationLevel === "GNM" ? "selected" : "" %>>GNM</option>
-                <option value="BSc Nursing" <%= educationLevel === "BSc Nursing" ? "selected" : "" %>>BSc Nursing</option>
-                <option value="MSc Nursing" <%= educationLevel === "MSc Nursing" ? "selected" : "" %>>MSc Nursing</option>
-                <option value="GDA" <%= educationLevel === "GDA" ? "selected" : "" %>>GDA</option>
-                <option value="Other" <%= educationLevel === "Other" ? "selected" : "" %>>Other</option>
+              <select class="np-edit-field" name="current_status" required>
+                <option value="Available for Work" <%= currentStatus === "Available for Work" ? "selected" : "" %>>Available for Work</option>
+                <option value="Currently Working" <%= currentStatus === "Currently Working" ? "selected" : "" %>>Currently Working</option>
+                <option value="Open to Opportunities" <%= currentStatus === "Open to Opportunities" ? "selected" : "" %>>Open to Opportunities</option>
+                <option value="Not Available" <%= currentStatus === "Not Available" ? "selected" : "" %>>Not Available</option>
               </select>
             <% } %>
           </div>
@@ -476,17 +501,6 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
           </div>
 
           <div class="np-field">
-            <label>Public Availability</label>
-            <div class="np-view"><%= isAvailable ? "Available" : "Unavailable" %></div>
-            <% if (canEdit) { %>
-              <select class="np-edit-field" name="isAvailable">
-                <option value="true" <%= isAvailable ? "selected" : "" %>>Available</option>
-                <option value="false" <%= !isAvailable ? "selected" : "" %>>Unavailable</option>
-              </select>
-            <% } %>
-          </div>
-
-          <div class="np-field">
             <label>Referral Code</label>
             <div class="np-view"><%= referralCode || "-" %></div>
             <% if (isAdmin) { %>
@@ -565,9 +579,9 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
               class="btn danger"
               formaction="/admin/user/<%= userId %>/delete"
               formmethod="POST"
-              onclick="return confirm('Delete this user account permanently?');"
+              onclick="return confirm('Archive this user account? This will disable login but keep historical data.');"
             >
-              Delete Account
+              Archive Account
             </button>
           </div>
         <% } %>
@@ -804,6 +818,11 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   color: #9e1f1f;
 }
 
+.np-badge.archived {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 .np-badge.availability.available {
   background: #e5f2ff;
   color: #0d4c82;
@@ -822,6 +841,35 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 .np-badge.unverified {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.available-for-work {
+  background: #e6f7ee;
+  color: #1f7a3f;
+}
+
+.currently-working {
+  background: #e8f0fe;
+  color: #1a4fb3;
+}
+
+.open-to-opportunities {
+  background: #fff4e5;
+  color: #b36b00;
+}
+
+.not-available {
+  background: #fdecea;
+  color: #b71c1c;
 }
 
 .np-meta {

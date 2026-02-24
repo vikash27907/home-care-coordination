@@ -5,6 +5,15 @@
         care coordination.
       </div>
     </footer>
-    <script src="/app.js"></script>
+    <a
+      href="https://wa.me/919138913355?text=Hello%20I%20need%20help%20from%20Prisha%20Homecare"
+      class="whatsapp-float"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      💬 Help
+    </a>
+    <% const assetVersion = process.env.NODE_ENV === 'production' ? '1.0.0' : Date.now(); %>
+    <script src="/app.js?v=<%= assetVersion %>"></script>
   </body>
 </html>

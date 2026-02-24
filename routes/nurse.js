@@ -18,6 +18,12 @@ const PROFILE_QUALIFICATION_OPTIONS = [
   "GDA"
 ];
 const CUSTOM_QUALIFICATION_VALUE = "Other (Custom Qualification)";
+const CURRENT_STATUS_OPTIONS = [
+  "Available for Work",
+  "Currently Working",
+  "Open to Opportunities",
+  "Not Available"
+];
 const AADHAR_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 const AADHAR_IMAGE_ALLOWED = /jpeg|jpg|png|webp/;
 const QUALIFICATION_DOC_ALLOWED = /jpeg|jpg|png|pdf/;
@@ -57,6 +63,29 @@ function normalizeUniqueArrayCaseInsensitive(value) {
   });
 
   return normalized;
+}
+
+function normalizeCurrentStatus(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+  const normalized = clean.toLowerCase();
+  if (normalized === "open for work" || normalized === "available" || normalized === "available for work") {
+    return "Available for Work";
+  }
+  if (normalized === "currently working") {
+    return "Currently Working";
+  }
+  if (
+    normalized === "working but looking for change"
+    || normalized === "working need change"
+    || normalized === "open to opportunities"
+  ) {
+    return "Open to Opportunities";
+  }
+  if (normalized === "not available" || normalized === "unavailable") {
+    return "Not Available";
+  }
+  return CURRENT_STATUS_OPTIONS.includes(clean) ? clean : "";
 }
 
 const uploadQualificationFiles = multer({
@@ -401,7 +430,11 @@ router.post(
       const city = hasField("city") ? String(req.body.city || "").trim() : null;
       const workCity = hasField("workCity") ? String(req.body.workCity || "").trim() : null;
       const currentAddress = hasField("currentAddress") ? String(req.body.currentAddress || "").trim() : null;
-      const educationLevel = hasField("educationLevel") ? String(req.body.educationLevel || "").trim() : null;
+      const hasCurrentStatusField = hasField("current_status") || hasField("currentStatus");
+      const currentStatusInput = hasField("current_status")
+        ? req.body.current_status
+        : req.body.currentStatus;
+      const currentStatus = hasCurrentStatusField ? normalizeCurrentStatus(currentStatusInput) : null;
       const experienceYearsRaw = String(req.body.experienceYears || "").trim();
       const experienceYears = experienceYearsRaw === "" ? null : Number.parseInt(experienceYearsRaw, 10);
       const hasAadharField = hasField("aadharNumber") || hasField("aadhaarNumber");
@@ -430,13 +463,6 @@ router.post(
       const availability = hasField("availability")
         ? [...new Set(rawAvailability.map((item) => String(item || "").trim()).filter(Boolean))]
         : (hasField("availabilityInput") ? normalizeCsvInput(req.body.availabilityInput) : null);
-      const isAvailable = hasField("isAvailable")
-        ? (
-          String(req.body.isAvailable).toLowerCase() === "true"
-          || req.body.isAvailable === "1"
-          || req.body.isAvailable === "on"
-        )
-        : null;
 
       const qualificationFieldValue = hasField("qualifications")
         ? req.body.qualifications
@@ -454,6 +480,10 @@ router.post(
       }
       if (gender && !["Male", "Female", "Other", "Not Specified"].includes(gender)) {
         setFlash(req, "error", "Please select a valid gender.");
+        return res.redirect("/nurse/profile");
+      }
+      if (hasCurrentStatusField && !currentStatus) {
+        setFlash(req, "error", "Please select a valid current status.");
         return res.redirect("/nurse/profile");
       }
       if (experienceYears !== null && (Number.isNaN(experienceYears) || experienceYears < 0 || experienceYears > 60)) {
@@ -597,14 +627,13 @@ router.post(
              work_city = COALESCE($4, work_city),
              current_address = COALESCE($5, current_address),
              experience_years = COALESCE($6, experience_years),
-             education_level = COALESCE($7, education_level),
-             is_available = COALESCE($8, is_available),
-             skills = COALESCE($9, skills),
-             availability = COALESCE($10, availability),
-             aadhar_number = COALESCE($11, aadhar_number),
-             aadhar_image_url = COALESCE($12, aadhar_image_url),
-             qualifications = $13
-         WHERE user_id = $14`,
+             current_status = COALESCE($7, current_status),
+             skills = COALESCE($8, skills),
+             availability = COALESCE($9, availability),
+             aadhar_number = COALESCE($10, aadhar_number),
+             aadhar_image_url = COALESCE($11, aadhar_image_url),
+             qualifications = $12
+         WHERE user_id = $13`,
         [
           fullName,
           gender,
@@ -612,8 +641,7 @@ router.post(
           workCity,
           currentAddress,
           experienceYears,
-          educationLevel,
-          isAvailable,
+          currentStatus,
           skills,
           availability,
           aadharNumber || null,

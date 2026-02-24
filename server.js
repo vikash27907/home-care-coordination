@@ -208,7 +208,7 @@ function uploadBufferToCloudinary(file, folder) {
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const isProduction = process.env.NODE_ENV === "production";
 
 // ============================================================
 // PRODUCTION-GRADE VALIDATION CONSTANTS & HELPERS
@@ -329,6 +329,46 @@ const CONCERN_CATEGORIES = [
 ];
 const COMMISSION_TYPES = ["Percent", "Flat"];
 
+const NURSE_STATUS_INPUT_MAP = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected"
+};
+const PROFILE_CURRENT_STATUS_OPTIONS = [
+  "Available for Work",
+  "Currently Working",
+  "Open to Opportunities",
+  "Not Available"
+];
+
+function normalizeNurseStatusInput(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return NURSE_STATUS_INPUT_MAP[normalized] || "";
+}
+
+function normalizeCurrentStatusInput(value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+  const normalized = clean.toLowerCase();
+  if (normalized === "open for work" || normalized === "available" || normalized === "available for work") {
+    return "Available for Work";
+  }
+  if (normalized === "currently working") {
+    return "Currently Working";
+  }
+  if (
+    normalized === "working but looking for change"
+    || normalized === "working need change"
+    || normalized === "open to opportunities"
+  ) {
+    return "Open to Opportunities";
+  }
+  if (normalized === "not available" || normalized === "unavailable") {
+    return "Not Available";
+  }
+  return PROFILE_CURRENT_STATUS_OPTIONS.includes(clean) ? clean : "";
+}
+
 const SERVICE_SCHEDULE_OPTIONS = [
   { value: "8 Hour Shift", label: "8 Hour Shift" },
   { value: "12 Hour Shift (Day)", label: "12 Hour Shift (Day)" },
@@ -401,18 +441,6 @@ const NURSING_SKILLS_OPTIONS = [
   "Emergency First Aid",
   "Night Shift Care",
   "Dementia Care"
-];
-
-// Education level options
-const EDUCATION_LEVEL_OPTIONS = [
-  "10th Pass",
-  "12th Pass",
-  "ANM",
-  "GNM",
-  "BSc Nursing",
-  "MSc Nursing",
-  "GDA",
-  "Other"
 ];
 
 const PROFILE_SKILL_OPTIONS = [
@@ -569,19 +597,13 @@ const PROFILE_QUALIFICATION_OPTIONS = [
   "MSc Nursing"
 ];
 
-const PROFILE_AVAILABILITY_STATUS_OPTIONS = [
-  "Open for Work",
-  "Currently Working",
-  "Working but looking for change"
-];
-
 app.set("view engine", "ejs");
 app.set("views", path.join(process.cwd(), "views"));
 app.disable("x-powered-by");
 app.locals.MASTER_SKILL_OPTIONS = MASTER_SKILL_OPTIONS;
 app.locals.MASTER_QUALIFICATION_OPTIONS = PROFILE_QUALIFICATION_OPTIONS;
 
-if (IS_PRODUCTION) {
+if (isProduction) {
   app.set("trust proxy", 1);
 }
 
@@ -610,12 +632,25 @@ app.use(express.static("public", {
   etag: true
 }));
 
-// DYNAMIC HTML CACHE PREVENTION
+// Dynamic HTML cache policy:
+// - Always vary by Cookie so guest/login variants do not share stale HTML.
+// - Disable caching for logged-in sessions to keep navbar/session UI accurate.
 app.use((req, res, next) => {
-  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, private");
-  res.set("Pragma", "no-cache");
-  res.set("Expires", "0");
-  next();
+  if (req.method !== "GET") return next();
+  if (!req.accepts("html")) return next();
+
+  res.vary("Cookie");
+
+  if (req.session && req.session.user) {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  } else {
+    // Guests can still use browser cache, but must revalidate dynamic HTML.
+    res.set("Cache-Control", "private, no-cache, must-revalidate");
+  }
+
+  return next();
 });
 
 function normalizeEmail(value) {
@@ -809,7 +844,7 @@ function consumeFlash(req) {
 }
 
 function getApprovedAgents(store) {
-  return store.agents.filter((agent) => agent.status === "Approved");
+  return store.agents.filter((agent) => agent.status === "Approved" && !isStoreUserDeleted(store, agent.userId));
 }
 
 function redirectByRole(role) {
@@ -841,19 +876,29 @@ function clearPatientFinancials(patient) {
   patient.referralCommissionAmount = 0;
 }
 
+function isStoreUserDeleted(store, userId) {
+  if (userId === null || typeof userId === "undefined") {
+    return false;
+  }
+  const user = Array.isArray(store.users)
+    ? store.users.find((item) => item.id === userId)
+    : null;
+  return Boolean(user && user.isDeleted);
+}
+
 function hasRegisteredPhone(store, phone, excludeUserId = null) {
   const normalized = normalizePhone(phone);
   if (!normalized) {
     return false;
   }
 
-  if (store.users.some((user) => normalizePhone(user.phoneNumber) === normalized && (excludeUserId === null || user.id !== excludeUserId))) {
+  if (store.users.some((user) => !user.isDeleted && normalizePhone(user.phoneNumber) === normalized && (excludeUserId === null || user.id !== excludeUserId))) {
     return true;
   }
-  if (store.agents.some((agent) => normalizePhone(agent.phoneNumber) === normalized && (excludeUserId === null || agent.userId !== excludeUserId))) {
+  if (store.agents.some((agent) => !isStoreUserDeleted(store, agent.userId) && normalizePhone(agent.phoneNumber) === normalized && (excludeUserId === null || agent.userId !== excludeUserId))) {
     return true;
   }
-  if (store.nurses.some((nurse) => normalizePhone(nurse.phoneNumber) === normalized && (excludeUserId === null || nurse.userId !== excludeUserId))) {
+  if (store.nurses.some((nurse) => !isStoreUserDeleted(store, nurse.userId) && normalizePhone(nurse.phoneNumber) === normalized && (excludeUserId === null || nurse.userId !== excludeUserId))) {
     return true;
   }
   return false;
@@ -865,13 +910,13 @@ function hasRegisteredEmail(store, email, excludeUserId = null) {
     return false;
   }
 
-  if (store.users.some((user) => user.email === normalized && (excludeUserId === null || user.id !== excludeUserId))) {
+  if (store.users.some((user) => !user.isDeleted && user.email === normalized && (excludeUserId === null || user.id !== excludeUserId))) {
     return true;
   }
-  if (store.agents.some((agent) => agent.email === normalized && (excludeUserId === null || agent.userId !== excludeUserId))) {
+  if (store.agents.some((agent) => !isStoreUserDeleted(store, agent.userId) && agent.email === normalized && (excludeUserId === null || agent.userId !== excludeUserId))) {
     return true;
   }
-  if (store.nurses.some((nurse) => nurse.email === normalized && (excludeUserId === null || nurse.userId !== excludeUserId))) {
+  if (store.nurses.some((nurse) => !isStoreUserDeleted(store, nurse.userId) && nurse.email === normalized && (excludeUserId === null || nurse.userId !== excludeUserId))) {
     return true;
   }
   return false;
@@ -968,6 +1013,14 @@ function normalizeStoreShape(store) {
       nurse.publicBio = "";
       changed = true;
     }
+    if (typeof nurse.userIsDeleted !== "boolean") {
+      nurse.userIsDeleted = false;
+      changed = true;
+    }
+    if (typeof nurse.userDeletedAt !== "string") {
+      nurse.userDeletedAt = "";
+      changed = true;
+    }
     if (typeof nurse.isAvailable !== "boolean") {
       nurse.isAvailable = nurse.status === "Approved";
       changed = true;
@@ -1010,8 +1063,8 @@ function normalizeStoreShape(store) {
       }
       changed = true;
     }
-    if (typeof nurse.availabilityStatus !== "string") {
-      nurse.availabilityStatus = "";
+    if (typeof nurse.currentStatus !== "string") {
+      nurse.currentStatus = normalizeCurrentStatusInput(nurse.currentStatus || "");
       changed = true;
     }
     if (!Array.isArray(nurse.workLocations)) {
@@ -1040,10 +1093,6 @@ function normalizeStoreShape(store) {
     }
 
     // New fields for nurse profile completion
-    if (typeof nurse.educationLevel !== "string") {
-      nurse.educationLevel = "";
-      changed = true;
-    }
     if (typeof nurse.resumeUrl !== "string") {
       nurse.resumeUrl = "";
       changed = true;
@@ -1100,6 +1149,14 @@ function normalizeStoreShape(store) {
       user.phoneNumber = (agent && agent.phoneNumber) || (nurse && nurse.phoneNumber) || "";
       changed = true;
     }
+    if (typeof user.isDeleted !== "boolean") {
+      user.isDeleted = false;
+      changed = true;
+    }
+    if (typeof user.deletedAt !== "string") {
+      user.deletedAt = "";
+      changed = true;
+    }
     // Email verification fields
     if (typeof user.emailVerified !== "boolean") {
       user.emailVerified = false;
@@ -1115,6 +1172,21 @@ function normalizeStoreShape(store) {
     }
     if (typeof user.resetTokenExpiry !== "string") {
       user.resetTokenExpiry = "";
+      changed = true;
+    }
+  });
+
+  // Keep nurse shadow flags in sync with owning user archival state.
+  store.nurses.forEach((nurse) => {
+    const owner = store.users.find((user) => user.id === nurse.userId);
+    const shouldBeDeleted = Boolean(owner && owner.isDeleted);
+    const shouldDeletedAt = owner && typeof owner.deletedAt === "string" ? owner.deletedAt : "";
+    if (nurse.userIsDeleted !== shouldBeDeleted) {
+      nurse.userIsDeleted = shouldBeDeleted;
+      changed = true;
+    }
+    if ((nurse.userDeletedAt || "") !== shouldDeletedAt) {
+      nurse.userDeletedAt = shouldDeletedAt;
       changed = true;
     }
   });
@@ -1380,14 +1452,13 @@ async function requireApprovedNurse(req, res, next) {
       gender: '',
       aadhaarNumber: '',
       experienceMonths: 0,
-      availabilityStatus: '',
+      currentStatus: "",
       workLocations: [],
       currentAddress: '',
       qualifications: [],
       skills: [],
       availability: [],
       experienceYears: 0,
-      educationLevel: '',
       resumeUrl: '',
       highestCertUrl: '',
       tenthCertUrl: '',
@@ -1458,7 +1529,7 @@ async function ensureAdmin() {
   try {
     // Check if admin exists in PostgreSQL - ONLY create if not exists
     const existing = await pool.query(
-      "SELECT id FROM users WHERE role = 'admin' LIMIT 1"
+      "SELECT id FROM users WHERE role = 'admin' AND COALESCE(is_deleted, false) = false LIMIT 1"
     );
 
     if (existing.rows.length === 0) {
@@ -1488,6 +1559,12 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
   const gender = String(req.body.gender || "").trim();
+  const currentStatusInput = String(
+    req.body.current_status
+    || req.body.currentStatus
+    || ""
+  ).trim();
+  const currentStatus = normalizeCurrentStatusInput(currentStatusInput);
   
   // Check if OTP verification is required (for nurse signup)
   const requiresOtpVerification = typeof generatedOtp === 'string' && typeof otpExpiry === 'object';
@@ -1501,6 +1578,10 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   // Validate gender must be Male or Female
   if (!["Male", "Female"].includes(gender)) {
     setFlash(req, "error", "Please select a valid gender.");
+    return res.redirect(failRedirect);
+  }
+  if (currentStatusInput && !currentStatus) {
+    setFlash(req, "error", "Please select a valid current status.");
     return res.redirect(failRedirect);
   }
   
@@ -1577,6 +1658,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     fullName,
     city,
     gender,
+    currentStatus: currentStatus || "Available for Work",
     status: "Pending",
     profileImagePath: defaultAvatar,
     createdAt: now()
@@ -1595,8 +1677,6 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
       .filter(Boolean);
     const experienceYears = Number.parseInt(req.body.experienceYears, 10);
     const experienceMonths = Number.parseInt(req.body.experienceMonths, 10);
-    const availabilityStatus = String(req.body.availabilityStatus || "").trim();
-
     const adminNurseEmailResult = await sendAdminNurseSignupNotification({
       fullName,
       email,
@@ -1605,7 +1685,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
       experienceYears: Number.isFinite(experienceYears) ? experienceYears : 0,
       experienceMonths: Number.isFinite(experienceMonths) ? experienceMonths : 0,
       skills,
-      availabilityStatus: availabilityStatus || "Not provided"
+      currentStatus: currentStatus || "Available for Work"
     });
 
     if (adminNurseEmailResult && adminNurseEmailResult.success === false) {
@@ -1752,12 +1832,12 @@ app.get("/", (req, res) => {
   res.render("public/home", { title: "Prisha Home Care" });
 });
 
-app.get("/nurses", (req, res) => {
+app.get("/nurses", async (req, res) => {
   const includeUnavailable = String(req.query.show || "").trim().toLowerCase() === "all";
-  const store = readNormalizedStore();
+  const nursesFromDb = await getNurses();
 
-  const nurses = store.nurses
-    .filter((nurse) => nurse.status === "Approved")
+  const nurses = nursesFromDb
+    .filter((nurse) => nurse.status === "Approved" && nurse.isPublic === true)
     .filter((nurse) => (includeUnavailable ? true : nurse.isAvailable !== false))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .map((nurse) => buildPublicNurse(nurse));
@@ -1769,15 +1849,15 @@ app.get("/nurses", (req, res) => {
   });
 });
 
-app.get("/nurses/:id", (req, res) => {
+app.get("/nurses/:id", async (req, res) => {
   const nurseId = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(nurseId)) {
     return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
   }
 
-  const store = readNormalizedStore();
-  const nurse = store.nurses.find((item) => item.id === nurseId && item.status === "Approved");
-  if (!nurse) {
+  const nurse = await getNurseById(nurseId);
+  const isVisiblePublicly = nurse && nurse.status === "Approved" && nurse.isPublic === true;
+  if (!isVisiblePublicly) {
     return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
   }
 
@@ -1787,13 +1867,13 @@ app.get("/nurses/:id", (req, res) => {
   });
 });
 
-app.get("/request-care", (req, res) => {
+app.get("/request-care", async (req, res) => {
   const preferredNurseId = Number.parseInt(req.query.nurseId, 10);
   let preferredNurse = null;
   if (!Number.isNaN(preferredNurseId)) {
-    const store = readNormalizedStore();
-    const nurse = store.nurses.find((item) => item.id === preferredNurseId && item.status === "Approved" && item.isAvailable !== false);
-    if (nurse) {
+    const nurse = await getNurseById(preferredNurseId);
+    const isVisiblePublicly = nurse && nurse.status === "Approved" && nurse.isPublic === true;
+    if (isVisiblePublicly && nurse.isAvailable !== false) {
       preferredNurse = buildPublicNurse(nurse);
     }
   }
@@ -1868,7 +1948,10 @@ app.post("/request-care", async (req, res) => {
   if (!Number.isNaN(preferredNurseId)) {
     const nurses = await getNurses();
     const preferredNurse = nurses.find(
-      (item) => item.id === preferredNurseId && item.status === "Approved" && item.isAvailable !== false
+      (item) => item.id === preferredNurseId
+        && item.status === "Approved"
+        && item.isPublic === true
+        && item.isAvailable !== false
     );
     if (!preferredNurse) {
       setFlash(req, "error", "Selected nurse is no longer available.");
@@ -2274,10 +2357,11 @@ app.use("/admin", requireRole("admin"), adminContextMiddleware);
 
 app.get("/admin", requireRole("admin"), (req, res) => {
   const store = readNormalizedStore();
+  const activeNurses = store.nurses.filter((item) => !isStoreUserDeleted(store, item.userId));
   const metrics = {
-    totalNurses: store.nurses.length,
-    availableNurses: store.nurses.filter((item) => item.status === "Approved" && item.isAvailable !== false).length,
-    pendingNurses: store.nurses.filter((item) => item.status === "Pending").length,
+    totalNurses: activeNurses.length,
+    availableNurses: activeNurses.filter((item) => item.status === "Approved" && item.isAvailable !== false).length,
+    pendingNurses: activeNurses.filter((item) => item.status === "Pending").length,
     totalPatients: store.patients.length,
     newPatients: store.patients.filter((item) => item.status === "New").length,
     totalAgents: store.agents.length,
@@ -2292,25 +2376,56 @@ app.get("/admin/dashboard", requireRole("admin"), (req, res) => {
   return res.redirect("/admin");
 });
 
-app.get("/admin/nurses", requireRole("admin"), (req, res) => {
-  const statusFilter = String(req.query.status || "All");
-  const store = readNormalizedStore();
-  const approvedAgents = getApprovedAgents(store);
-  const nurses = store.nurses
-    .filter((item) => (statusFilter === "All" ? true : item.status === statusFilter))
+app.get("/admin/nurses", requireRole("admin"), async (req, res) => {
+  const deletedOnly = String(req.query.deleted || "").trim().toLowerCase() === "true";
+  const requestedStatusFilter = String(req.query.status || "All").trim();
+  const normalizedStatusFilter = requestedStatusFilter.toLowerCase();
+  const statusFilter = deletedOnly
+    ? "Deleted"
+    : normalizedStatusFilter === "all"
+    ? "All"
+    : (normalizedStatusFilter === "deleted" ? "Deleted" : (normalizeNurseStatusInput(requestedStatusFilter) || "All"));
+  const updatedNurseIdRaw = Number.parseInt(req.query.updatedNurseId, 10);
+  const updatedNurseId = Number.isNaN(updatedNurseIdRaw) ? null : updatedNurseIdRaw;
+  const visibilityUpdateRaw = String(req.query.visibility || "").trim().toLowerCase();
+  const visibilityUpdate = ["public", "private"].includes(visibilityUpdateRaw)
+    ? visibilityUpdateRaw
+    : "";
+  const [nursesFromDb, agentsFromDb] = await Promise.all([getNurses({ includeDeletedUsers: true }), getAgents()]);
+  const approvedAgents = agentsFromDb.filter((item) => item.status === "Approved");
+  const nurseCounts = {
+    totalActive: nursesFromDb.filter((item) => !item.userIsDeleted).length,
+    pending: nursesFromDb.filter((item) => !item.userIsDeleted && item.status === "Pending").length,
+    approved: nursesFromDb.filter((item) => !item.userIsDeleted && item.status === "Approved").length,
+    rejected: nursesFromDb.filter((item) => !item.userIsDeleted && item.status === "Rejected").length,
+    deleted: nursesFromDb.filter((item) => item.userIsDeleted).length
+  };
+  const nurses = nursesFromDb
+    .filter((item) => {
+      if (statusFilter === "Deleted") return item.userIsDeleted === true;
+      if (item.userIsDeleted) return false;
+      return statusFilter === "All" ? true : item.status === statusFilter;
+    })
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
   return res.render("admin/nurses", {
     title: "Manage Nurses",
     statusFilter,
     nurses,
-    approvedAgents
+    nurseCounts,
+    approvedAgents,
+    updatedNurseId,
+    visibilityUpdate
   });
 });
 
 app.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) => {
   const nurseId = Number.parseInt(req.params.id, 10);
-  const statusFilter = String(req.body.statusFilter || "All");
+  const requestedStatusFilter = String(req.body.statusFilter || "All").trim();
+  const normalizedStatusFilter = requestedStatusFilter.toLowerCase();
+  const statusFilter = normalizedStatusFilter === "all"
+    ? "All"
+    : (normalizedStatusFilter === "deleted" ? "Deleted" : (normalizeNurseStatusInput(requestedStatusFilter) || "All"));
   const hasStatusFilter = Boolean(req.body.statusFilter);
   const redirectTarget = hasStatusFilter
     ? `/admin/nurses?status=${encodeURIComponent(statusFilter)}`
@@ -2334,13 +2449,19 @@ app.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) => {
         : [raw];
     };
 
-    const status = String(req.body.statusAction || req.body.status || "").trim();
+    const statusInput = String(req.body.statusAction || req.body.status || "").trim();
+    const status = normalizeNurseStatusInput(statusInput);
     const fullName = hasField("fullName") ? String(req.body.fullName || "").trim() : undefined;
     const city = hasField("city") ? String(req.body.city || "").trim() : undefined;
     const workCity = hasField("workCity") ? String(req.body.workCity || "").trim() : undefined;
     const gender = hasField("gender") ? String(req.body.gender || "").trim() : undefined;
     const currentAddress = hasField("currentAddress") ? String(req.body.currentAddress || "").trim() : undefined;
-    const educationLevel = hasField("educationLevel") ? String(req.body.educationLevel || "").trim() : undefined;
+    const currentStatusInput = hasField("current_status")
+      ? req.body.current_status
+      : (hasField("currentStatus") ? req.body.currentStatus : undefined);
+    const currentStatus = typeof currentStatusInput === "undefined"
+      ? undefined
+      : normalizeCurrentStatusInput(currentStatusInput);
     const profileStatusInput = hasField("profileStatus") ? String(req.body.profileStatus || "").trim() : undefined;
     const referralCode = hasField("referralCode")
       ? String(req.body.referralCode || "").trim().toUpperCase()
@@ -2374,7 +2495,7 @@ app.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) => {
       ).map((item) => String(item || "").trim()).filter(Boolean)
       : (hasField("availabilityInput") ? normalizeArrayInput(req.body.availabilityInput) : undefined);
 
-    if (status && !NURSE_STATUSES.includes(status)) {
+    if (statusInput && !status) {
       setFlash(req, "error", "Invalid nurse status.");
       return res.redirect(redirectTarget);
     }
@@ -2384,6 +2505,10 @@ app.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) => {
     }
     if (typeof gender !== "undefined" && gender && !["Male", "Female", "Other", "Not Specified"].includes(gender)) {
       setFlash(req, "error", "Invalid nurse gender.");
+      return res.redirect(redirectTarget);
+    }
+    if (typeof currentStatusInput !== "undefined" && !currentStatus) {
+      setFlash(req, "error", "Invalid current status.");
       return res.redirect(redirectTarget);
     }
     if (typeof emailInput !== "undefined" && !emailInput) {
@@ -2452,8 +2577,7 @@ app.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) => {
     if (typeof workCity !== "undefined") setNurseField("work_city", workCity);
     if (typeof currentAddress !== "undefined") setNurseField("current_address", currentAddress);
     if (typeof experienceYears !== "undefined") setNurseField("experience_years", experienceYears);
-    if (typeof educationLevel !== "undefined") setNurseField("education_level", educationLevel);
-    if (hasField("isAvailable")) setNurseField("is_available", toBoolean(req.body.isAvailable));
+    if (typeof currentStatus !== "undefined") setNurseField("current_status", currentStatus);
     if (typeof normalizedSkills !== "undefined") setNurseField("skills", normalizedSkills);
     if (typeof normalizedAvailability !== "undefined") setNurseField("availability", normalizedAvailability);
     if (typeof normalizedQualifications !== "undefined") {
@@ -2534,10 +2658,62 @@ app.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) => {
   }
 });
 
+app.post("/admin/nurses/:id/toggle-public", requireRole("admin"), async (req, res) => {
+  const nurseId = Number.parseInt(req.params.id, 10);
+  const requestedStatusFilter = String(req.body.statusFilter || "All").trim();
+  const normalizedStatusFilter = requestedStatusFilter.toLowerCase();
+  const statusFilter = normalizedStatusFilter === "all"
+    ? "All"
+    : (normalizedStatusFilter === "deleted" ? "Deleted" : (normalizeNurseStatusInput(requestedStatusFilter) || "All"));
+  const redirectTarget = `/admin/nurses?status=${encodeURIComponent(statusFilter)}`;
+
+  if (Number.isNaN(nurseId)) {
+    setFlash(req, "error", "Invalid nurse.");
+    return res.redirect(redirectTarget);
+  }
+
+  try {
+    const nurseResult = await pool.query(
+      `SELECT n.id, n.admin_visible
+       FROM nurses n
+       JOIN users u ON u.id = n.user_id
+       WHERE n.id = $1
+         AND COALESCE(u.is_deleted, false) = false
+       LIMIT 1`,
+      [nurseId]
+    );
+
+    if (!nurseResult.rows[0]) {
+      setFlash(req, "error", "Nurse record not found.");
+      return res.redirect(redirectTarget);
+    }
+
+    const nextIsPublic = nurseResult.rows[0].admin_visible !== true;
+    await pool.query(
+      "UPDATE nurses SET admin_visible = $1 WHERE id = $2",
+      [nextIsPublic, nurseId]
+    );
+
+    setFlash(
+      req,
+      "success",
+      nextIsPublic ? "Nurse profile is now public." : "Nurse profile is now private."
+    );
+    const visibilityQuery = nextIsPublic ? "public" : "private";
+    const redirectWithInlineNotice = `${redirectTarget}&updatedNurseId=${encodeURIComponent(nurseId)}&visibility=${encodeURIComponent(visibilityQuery)}`;
+    return res.redirect(redirectWithInlineNotice);
+  } catch (error) {
+    console.error("Admin nurse public visibility toggle error:", error);
+    setFlash(req, "error", "Unable to update public visibility right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
 app.get("/admin/agents", requireRole("admin"), (req, res) => {
   const statusFilter = String(req.query.status || "All");
   const store = readNormalizedStore();
   const agents = store.agents
+    .filter((item) => !isStoreUserDeleted(store, item.userId))
     .filter((item) => (statusFilter === "All" ? true : item.status === statusFilter))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   return res.render("admin/agents", {
@@ -2561,6 +2737,10 @@ app.post("/admin/agents/:id/update", requireRole("admin"), (req, res) => {
   const agent = store.agents.find((item) => item.id === agentId);
   if (!agent) {
     setFlash(req, "error", "Agent record not found.");
+    return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
+  }
+  if (isStoreUserDeleted(store, agent.userId)) {
+    setFlash(req, "error", "Archived agent records cannot be updated.");
     return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
   }
 
@@ -2643,7 +2823,9 @@ app.post("/admin/patients/:id/update", requireRole("admin"), (req, res) => {
 
   if (patient.nurseId) {
     const assignedNurse = store.nurses.find((nurse) => nurse.id === patient.nurseId);
-    const mismatch = !assignedNurse || !nurseHasAgent(assignedNurse, agentEmail || "");
+    const mismatch = !assignedNurse
+      || isStoreUserDeleted(store, assignedNurse.userId)
+      || !nurseHasAgent(assignedNurse, agentEmail || "");
     if (mismatch) {
       clearPatientFinancials(patient);
     }
@@ -2662,7 +2844,7 @@ app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
   const nurses = store.nurses
-    .filter((item) => nurseHasAgent(item, agentEmail))
+    .filter((item) => !isStoreUserDeleted(store, item.userId) && nurseHasAgent(item, agentEmail))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
   const approvedNurses = nurses.filter((nurse) => nurse.status === "Approved" && nurse.isAvailable !== false);
@@ -2670,12 +2852,12 @@ app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
     acc[nurse.id] = nurse.fullName;
     return acc;
   }, {});
-  const referralNurseIndex = store.nurses.reduce((acc, nurse) => {
+  const referralNurseIndex = store.nurses.filter((nurse) => !isStoreUserDeleted(store, nurse.userId)).reduce((acc, nurse) => {
     acc[nurse.id] = nurse.fullName;
     return acc;
   }, {});
   const transferTargets = getApprovedAgents(store).filter((agent) => normalizeEmail(agent.email) !== agentEmail);
-  const createdAgents = store.agents.filter((agent) => normalizeEmail(agent.createdByAgentEmail) === agentEmail);
+  const createdAgents = store.agents.filter((agent) => normalizeEmail(agent.createdByAgentEmail) === agentEmail && !isStoreUserDeleted(store, agent.userId));
 
   return res.render("agent/dashboard", {
     title: "Agent Dashboard",
@@ -2788,7 +2970,7 @@ app.post("/agent/patients/:id/financials", requireRole("agent"), requireApproved
 
   const nurseId = Number.parseInt(nurseIdRaw, 10);
   const nurse = store.nurses.find((item) => item.id === nurseId);
-  if (!nurse || !nurseHasAgent(nurse, agentEmail) || nurse.status !== "Approved" || nurse.isAvailable === false) {
+  if (!nurse || isStoreUserDeleted(store, nurse.userId) || !nurseHasAgent(nurse, agentEmail) || nurse.status !== "Approved" || nurse.isAvailable === false) {
     setFlash(req, "error", "Selected nurse must be approved, available, and assigned under your account.");
     return res.redirect("/agent");
   }
@@ -2910,6 +3092,7 @@ app.post("/agent/patients/:id/transfer", requireRole("agent"), requireApprovedAg
   if (patient.nurseId) {
     const assignedNurse = store.nurses.find((nurse) => nurse.id === patient.nurseId);
     const nurseCompatible = assignedNurse
+      && !isStoreUserDeleted(store, assignedNurse.userId)
       && assignedNurse.status === "Approved"
       && assignedNurse.isAvailable !== false
       && nurseHasAgent(assignedNurse, targetAgentEmail);
@@ -2926,7 +3109,7 @@ app.post("/agent/patients/:id/transfer", requireRole("agent"), requireApprovedAg
 app.get("/agent/nurses/new", requireRole("agent"), requireApprovedAgent, (req, res) => {
   const store = readNormalizedStore();
   const referralNurses = store.nurses
-    .filter((nurse) => nurse.status === "Approved")
+    .filter((nurse) => !isStoreUserDeleted(store, nurse.userId) && nurse.status === "Approved")
     .sort((a, b) => (a.fullName > b.fullName ? 1 : -1))
     .map((nurse) => ({
       id: nurse.id,
@@ -2994,7 +3177,7 @@ app.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, async (req
     };
   });
   const referredNurses = store.nurses
-    .filter((item) => item.referredByNurseId === nurse.id)
+    .filter((item) => item.referredByNurseId === nurse.id && !isStoreUserDeleted(store, item.userId))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   const referralPatients = store.patients
     .filter((patient) => patient.referrerNurseId === nurse.id && typeof patient.referralCommissionAmount === "number")
@@ -3069,7 +3252,7 @@ app.get("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, async
     nurse,
     profileSkillOptions: PROFILE_SKILL_OPTIONS,
     qualificationOptions: PROFILE_QUALIFICATION_OPTIONS,
-    availabilityStatusOptions: PROFILE_AVAILABILITY_STATUS_OPTIONS
+    currentStatusOptions: PROFILE_CURRENT_STATUS_OPTIONS
   });
 });
 
@@ -3146,9 +3329,14 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     return res.redirect("/nurse/profile/edit");
   }
 
-  const availabilityStatus = String(req.body.availability_status || req.body.availabilityStatus || "").trim();
-  if (!PROFILE_AVAILABILITY_STATUS_OPTIONS.includes(availabilityStatus)) {
-    setFlash(req, "error", "Please select a valid availability status.");
+  const currentStatusInput = String(
+    req.body.current_status
+    || req.body.currentStatus
+    || ""
+  ).trim();
+  const currentStatus = normalizeCurrentStatusInput(currentStatusInput);
+  if (!currentStatus) {
+    setFlash(req, "error", "Please select a valid current status.");
     return res.redirect("/nurse/profile/edit");
   }
 
@@ -3174,7 +3362,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
   // Explicitly whitelisted profile fields only.
   setIfDefined("city", city);
   setIfDefined("current_address", currentAddress);
-  setIfDefined("availability_status", availabilityStatus);
+  setIfDefined("current_status", currentStatus);
   setIfDefined("experience_years", experienceYears);
   setIfDefined("experience_months", experienceMonths);
   setIfDefined("aadhaar_number", aadhaarDigits);
@@ -3275,19 +3463,20 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
         `UPDATE nurses SET
           city = COALESCE($1, city),
           current_address = COALESCE($2, current_address),
-          availability_status = COALESCE($3, availability_status),
+          current_status = COALESCE($3, current_status),
           experience_years = COALESCE($4, experience_years),
           experience_months = COALESCE($5, experience_months),
           aadhaar_number = COALESCE($6, aadhaar_number),
           skills = COALESCE($7, skills),
           work_locations = COALESCE($8, work_locations),
           qualifications = COALESCE($9, qualifications),
-          resume_url = COALESCE($10, resume_url),          profile_pic_url = COALESCE($13, profile_pic_url)
-        WHERE id = $14`,
+          resume_url = COALESCE($10, resume_url),
+          profile_pic_url = COALESCE($11, profile_pic_url)
+        WHERE id = $12`,
         [
           pickValue("city"),
           pickValue("current_address"),
-          pickValue("availability_status"),
+          pickValue("current_status"),
           pickValue("experience_years"),
           pickValue("experience_months"),
           pickValue("aadhaar_number"),
@@ -3295,7 +3484,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           pickValue("work_locations"),
           pickValue("qualifications"),
           pickValue("resume_url"),
-                    pickValue("profile_pic_url"),
+          pickValue("profile_pic_url"),
           nurse.id
         ]
       );
@@ -3304,19 +3493,20 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
         `UPDATE nurses SET
           city = COALESCE($1, city),
           current_address = COALESCE($2, current_address),
-          availability_status = COALESCE($3, availability_status),
+          current_status = COALESCE($3, current_status),
           experience_years = COALESCE($4, experience_years),
           experience_months = COALESCE($5, experience_months),
           aadhaar_number = COALESCE($6, aadhaar_number),
           skills = COALESCE($7, skills),
           work_locations = COALESCE($8, work_locations),
           qualifications = COALESCE($9, qualifications),
-          resume_url = COALESCE($10, resume_url),          profile_image_path = COALESCE($13, profile_image_path)
-        WHERE id = $14`,
+          resume_url = COALESCE($10, resume_url),
+          profile_image_path = COALESCE($11, profile_image_path)
+        WHERE id = $12`,
         [
           pickValue("city"),
           pickValue("current_address"),
-          pickValue("availability_status"),
+          pickValue("current_status"),
           pickValue("experience_years"),
           pickValue("experience_months"),
           pickValue("aadhaar_number"),
@@ -3324,7 +3514,7 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           pickValue("work_locations"),
           pickValue("qualifications"),
           pickValue("resume_url"),
-                    pickValue("profile_image_path"),
+          pickValue("profile_image_path"),
           nurse.id
         ]
       );
@@ -3522,7 +3712,6 @@ app.post("/nurse/profile/public", requireRole("nurse"), requireApprovedNurse, (r
 
   nurse.profileImageUrl = String(req.body.profileImageUrl || "").trim();
   nurse.publicBio = String(req.body.publicBio || "").trim();
-  nurse.isAvailable = toBoolean(req.body.isAvailable);
   nurse.publicShowCity = toBoolean(req.body.publicShowCity);
   nurse.publicShowExperience = toBoolean(req.body.publicShowExperience);
   nurse.publicSkills = toArray(req.body.publicSkills).filter((skill) => SKILLS_OPTIONS.includes(skill));
@@ -3569,13 +3758,12 @@ app.post("/nurse/profile/complete", requireRole("nurse"), requireApprovedNurse, 
   ];
   nurse.availability = toArray(req.body.availability).filter((avail) => newAvailabilityOptions.includes(avail));
 
-  // Update education level (optional)
-  const educationLevel = String(req.body.educationLevel || "").trim();
-  const validEducationLevels = ["10th Pass", "12th Pass", "GDA", "ANM", "GNM", "BSc Nursing", "MSc Nursing"];
-  if (validEducationLevels.includes(educationLevel)) {
-    nurse.educationLevel = educationLevel;
-  } else {
-    nurse.educationLevel = "";
+  // Update current status (optional)
+  const normalizedCurrentStatus = normalizeCurrentStatusInput(
+    req.body.current_status || req.body.currentStatus || ""
+  );
+  if (normalizedCurrentStatus) {
+    nurse.currentStatus = normalizedCurrentStatus;
   }
 
   // Note: File uploads (resume, certificate, profile image) would need additional handling
@@ -3666,6 +3854,7 @@ app.post("/forgot-password", forgotPasswordRateLimiter, async (req, res) => {
       LEFT JOIN nurses n ON n.user_id = u.id
       LEFT JOIN agents a ON a.user_id = u.id
       WHERE LOWER(u.email) = LOWER($1)
+        AND COALESCE(u.is_deleted, false) = false
       LIMIT 1`,
       [email]
     );
@@ -3737,6 +3926,7 @@ app.post("/forgot-password/verify", async (req, res) => {
       `SELECT id, reset_otp_hash, reset_otp_expires
        FROM users
        WHERE LOWER(email) = LOWER($1)
+         AND COALESCE(is_deleted, false) = false
        LIMIT 1`,
       [emailValidation.value]
     );
@@ -3833,7 +4023,8 @@ app.post("/reset-password", async (req, res) => {
        SET password_hash = $1,
            reset_otp_hash = NULL,
            reset_otp_expires = NULL
-       WHERE id = $2`,
+       WHERE id = $2
+         AND COALESCE(is_deleted, false) = false`,
       [passwordHash, resetUserId]
     );
   } catch (error) {
@@ -4208,7 +4399,7 @@ app.get("/admin/user/view/:role/:id", requireRole("admin"), async (req, res) => 
   const store = readNormalizedStore();
   
   if (role === "nurse") {
-    const nurse = await getNurseById(userId);
+    const nurse = await getNurseById(userId, { includeDeletedUsers: true });
     if (!nurse) {
       return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
     }
@@ -4298,6 +4489,10 @@ app.post("/admin/user/:id/change-password", requireRole("admin"), async (req, re
     setFlash(req, "error", "User not found.");
     return res.redirect("/admin/nurses");
   }
+  if (user.isDeleted) {
+    setFlash(req, "error", "Archived users cannot be modified.");
+    return res.redirect("/admin/nurses?status=Deleted");
+  }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
   const updatedUser = await updateUser(userId, { passwordHash });
@@ -4344,45 +4539,90 @@ app.post("/admin/user/:id/verify-email", requireRole("admin"), (req, res) => {
   return res.redirect("/admin");
 });
 
-// Admin delete user account
-app.post("/admin/user/:id/delete", requireRole("admin"), (req, res) => {
+// Admin archive user account (soft delete)
+app.post("/admin/user/:id/delete", requireRole("admin"), async (req, res) => {
   const userId = Number.parseInt(req.params.id, 10);
   
   if (Number.isNaN(userId)) {
     setFlash(req, "error", "Invalid user.");
     return res.redirect("/admin/nurses");
   }
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
 
-  const store = readNormalizedStore();
-  const user = store.users.find((item) => item.id === userId);
+    const userResult = await client.query(
+      `SELECT id, role, COALESCE(is_deleted, false) AS is_deleted
+       FROM users
+       WHERE id = $1
+       FOR UPDATE`,
+      [userId]
+    );
 
-  if (!user) {
-    setFlash(req, "error", "User not found.");
-    return res.redirect("/admin/nurses");
-  }
+    const user = userResult.rows[0];
+    if (!user) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "User not found.");
+      return res.redirect("/admin/nurses");
+    }
+    if (user.role === "admin") {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Cannot archive admin account.");
+      return res.redirect("/admin");
+    }
+    if (user.is_deleted) {
+      await client.query("ROLLBACK");
+      setFlash(req, "success", "User account is already archived.");
+      if (user.role === "nurse") return res.redirect("/admin/nurses?status=Deleted");
+      if (user.role === "agent") return res.redirect("/admin/agents");
+      return res.redirect("/admin");
+    }
 
-  // Don't allow deleting admin
-  if (user.role === "admin") {
-    setFlash(req, "error", "Cannot delete admin account.");
+    const archiveResult = await client.query(
+      `UPDATE users
+       SET is_deleted = true,
+           deleted_at = NOW()
+       WHERE id = $1`,
+      [userId]
+    );
+    if (archiveResult.rowCount !== 1) {
+      throw new Error("Unable to archive user account.");
+    }
+
+    await client.query("COMMIT");
+
+    const cache = readStore();
+    const cacheUser = cache.users.find((item) => item.id === userId);
+    if (cacheUser) {
+      cacheUser.isDeleted = true;
+      cacheUser.deletedAt = now();
+    }
+    cache.nurses.forEach((nurse) => {
+      if (nurse.userId === userId) {
+        nurse.userIsDeleted = true;
+        nurse.userDeletedAt = cacheUser ? cacheUser.deletedAt : now();
+      }
+    });
+
+    setFlash(req, "success", "User account archived successfully.");
+    if (user.role === "nurse") return res.redirect("/admin/nurses?status=Deleted");
+    if (user.role === "agent") return res.redirect("/admin/agents");
     return res.redirect("/admin");
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin user archive rollback error:", rollbackError);
+      }
+    }
+    console.error("Admin user archive error:", error);
+    setFlash(req, "error", "Unable to archive user account right now.");
+    return res.redirect("/admin/nurses");
+  } finally {
+    if (client) client.release();
   }
-
-  // Remove from nurses or agents
-  if (user.role === "nurse") {
-    store.nurses = store.nurses.filter((item) => item.userId !== userId);
-  } else if (user.role === "agent") {
-    store.agents = store.agents.filter((item) => item.userId !== userId);
-  }
-
-  // Remove user
-  store.users = store.users.filter((item) => item.id !== userId);
-  writeStore(store);
-
-  setFlash(req, "success", "User account deleted successfully.");
-  
-  if (user.role === "nurse") return res.redirect("/admin/nurses");
-  if (user.role === "agent") return res.redirect("/admin/agents");
-  return res.redirect("/admin");
 });
 
 const nurseRoutes = require('./routes/nurse');

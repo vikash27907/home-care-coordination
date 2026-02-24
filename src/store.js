@@ -24,7 +24,18 @@ async function initializeStore() {
   try {
     const [usersResult, nursesResult, agentsResult, patientsResult, concernsResult] = await Promise.all([
       pool.query('SELECT * FROM users ORDER BY id'),
-      pool.query('SELECT * FROM nurses ORDER BY id'),
+      pool.query(`
+        SELECT
+          n.*,
+          u.email,
+          u.phone_number,
+          u.email_verified,
+          u.is_deleted AS user_is_deleted,
+          u.deleted_at AS user_deleted_at
+        FROM nurses n
+        JOIN users u ON u.id = n.user_id
+        ORDER BY n.id
+      `),
       pool.query('SELECT * FROM agents ORDER BY id'),
       pool.query('SELECT * FROM patients ORDER BY id'),
       pool.query('SELECT * FROM concerns ORDER BY id')
@@ -138,11 +149,16 @@ async function persistStoreToDb(store) {
     // Insert users
     for (const user of store.users || []) {
       await client.query(`
-        INSERT INTO users (id, email, phone_number, password_hash, role, status, created_at, email_verified, otp_code, otp_expiry)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO users (
+          id, email, phone_number, password_hash, role, status, created_at,
+          email_verified, otp_code, otp_expiry, is_deleted, deleted_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       `, [
         user.id, user.email, user.phoneNumber, user.passwordHash, user.role, user.status,
-        user.createdAt, user.emailVerified || false, user.otpCode || '', user.otpExpiry || null
+        user.createdAt, user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
+        user.isDeleted === true,
+        user.deletedAt || null
       ]);
     }
 
@@ -151,7 +167,7 @@ async function persistStoreToDb(store) {
       await client.query(`
         INSERT INTO nurses (
           id, user_id, full_name, city, gender, status, profile_image_path,
-          aadhaar_number, experience_years, experience_months, availability_status,
+          aadhaar_number, experience_years, experience_months, current_status,
           work_locations, current_address, skills, qualifications, resume_url,
           created_at
         )
@@ -167,7 +183,7 @@ async function persistStoreToDb(store) {
         nurse.aadhaarNumber || nurse.aadharNumber || '',
         Number.parseInt(nurse.experienceYears, 10) || 0,
         Number.parseInt(nurse.experienceMonths, 10) || 0,
-        nurse.availabilityStatus || '',
+        nurse.currentStatus || '',
 
         // Native PG array — DO NOT stringify
         Array.isArray(nurse.workLocations) ? nurse.workLocations : [],
@@ -286,6 +302,8 @@ function transformUserFromDB(row) {
     role: row.role,
     status: row.status,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+    isDeleted: row.is_deleted === true,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : "",
     emailVerified: row.email_verified || false,
     otpCode: row.otp_code || '',
     otpExpiry: row.otp_expiry ? new Date(row.otp_expiry).toISOString() : ''
@@ -308,7 +326,7 @@ function transformNurseFromDB(row) {
     aadhaarCardUrl: row.aadhaar_card_url || row.aadhar_image_url || row.aadhaar_image_url || row.aadhar_card_url || '',
     experienceYears: Number.parseInt(row.experience_years, 10) || 0,
     experienceMonths: Number.parseInt(row.experience_months, 10) || 0,
-    availabilityStatus: row.availability_status || '',
+    currentStatus: row.current_status || '',
     workLocations: row.work_locations || [],
     currentAddress: row.current_address || row.address || '',
     skills: row.skills || [],
@@ -321,7 +339,9 @@ function transformNurseFromDB(row) {
     profileImageUrl: row.profile_image_url || '',
     profileImagePath: row.profile_image_path || '',
     publicBio: row.public_bio || '',
-    isAvailable: row.is_available !== false,
+    isPublic: row.admin_visible === true,
+    userIsDeleted: row.user_is_deleted === true,
+    userDeletedAt: row.user_deleted_at ? new Date(row.user_deleted_at).toISOString() : "",
     publicShowCity: row.public_show_city !== false,
     publicShowExperience: row.public_show_experience !== false,
     referralCode: row.referral_code || '',
@@ -332,7 +352,6 @@ function transformNurseFromDB(row) {
     address: row.current_address || row.address || '',
     workCity: row.work_city || '',
     customSkills: row.custom_skills || [],
-    educationLevel: row.education_level || '',
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
   };
 }
@@ -346,6 +365,7 @@ function transformAgentFromDB(row) {
     phoneNumber: row.phone_number || '',
     companyName: row.company_name || '',
     region: row.region || '',
+    userIsDeleted: row.user_is_deleted === true,
     status: row.status || 'Pending',
     createdByAgentEmail: row.created_by_agent_email || '',
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
@@ -412,8 +432,9 @@ function transformConcernFromDB(row) {
 // ============================================================
 
 // Users
-async function getUsers() {
+async function getUsers(options = {}) {
   try {
+    const includeDeleted = options && options.includeDeleted === true;
     const result = await pool.query(`
       SELECT
         u.*,
@@ -423,6 +444,7 @@ async function getUsers() {
       FROM users u
       LEFT JOIN nurses n ON n.user_id = u.id
       LEFT JOIN agents a ON a.user_id = u.id
+      ${includeDeleted ? "" : "WHERE COALESCE(u.is_deleted, false) = false"}
       ORDER BY u.id
     `);
     return result.rows.map(transformUserFromDB);
@@ -432,8 +454,9 @@ async function getUsers() {
   }
 }
 
-async function getUserById(id) {
+async function getUserById(id, options = {}) {
   try {
+    const includeDeleted = options && options.includeDeleted === true;
     const result = await pool.query(`
       SELECT
         u.*,
@@ -444,6 +467,7 @@ async function getUserById(id) {
       LEFT JOIN nurses n ON n.user_id = u.id
       LEFT JOIN agents a ON a.user_id = u.id
       WHERE u.id = $1
+        ${includeDeleted ? "" : "AND COALESCE(u.is_deleted, false) = false"}
       LIMIT 1
     `, [id]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
@@ -453,8 +477,9 @@ async function getUserById(id) {
   }
 }
 
-async function getUserByEmail(email) {
+async function getUserByEmail(email, options = {}) {
   try {
+    const includeDeleted = options && options.includeDeleted === true;
     const result = await pool.query(`
       SELECT
         u.*,
@@ -465,6 +490,7 @@ async function getUserByEmail(email) {
       LEFT JOIN nurses n ON n.user_id = u.id
       LEFT JOIN agents a ON a.user_id = u.id
       WHERE LOWER(u.email) = LOWER($1)
+        ${includeDeleted ? "" : "AND COALESCE(u.is_deleted, false) = false"}
       LIMIT 1
     `, [email]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
@@ -477,13 +503,18 @@ async function getUserByEmail(email) {
 async function createUser(user) {
   try {
     const result = await pool.query(`
-      INSERT INTO users (email, phone_number, password_hash, role, status, email_verified, otp_code, otp_expiry, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO users (
+        email, phone_number, password_hash, role, status, email_verified,
+        otp_code, otp_expiry, created_at, is_deleted, deleted_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       user.email, user.phoneNumber || '', user.passwordHash, user.role || 'user',
       user.status || 'Pending', user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
-      user.createdAt || new Date().toISOString()
+      user.createdAt || new Date().toISOString(),
+      user.isDeleted === true,
+      user.deletedAt || null
     ]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
   } catch (error) {
@@ -502,7 +533,7 @@ async function updateUser(id, updates) {
       const dbKey = {
         email: 'email', phoneNumber: 'phone_number', passwordHash: 'password_hash',
         role: 'role', status: 'status', emailVerified: 'email_verified',
-        otpCode: 'otp_code', otpExpiry: 'otp_expiry'
+        otpCode: 'otp_code', otpExpiry: 'otp_expiry', isDeleted: 'is_deleted', deletedAt: 'deleted_at'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);
@@ -527,8 +558,11 @@ async function updateUser(id, updates) {
 
 async function deleteUser(id) {
   try {
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
-    return true;
+    const result = await pool.query(
+      'UPDATE users SET is_deleted = true, deleted_at = NOW() WHERE id = $1',
+      [id]
+    );
+    return result.rowCount === 1;
   } catch (error) {
     console.error('Error deleting user:', error);
     return false;
@@ -536,16 +570,20 @@ async function deleteUser(id) {
 }
 
 // Nurses
-async function getNurses() {
+async function getNurses(options = {}) {
   try {
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
     const result = await pool.query(`
       SELECT
         n.*,
         u.email,
         u.phone_number,
-        u.email_verified
+        u.email_verified,
+        u.is_deleted AS user_is_deleted,
+        u.deleted_at AS user_deleted_at
       FROM nurses n
       JOIN users u ON n.user_id = u.id
+      ${includeDeletedUsers ? "" : "WHERE COALESCE(u.is_deleted, false) = false"}
       ORDER BY n.id
     `);
     return result.rows.map(transformNurseFromDB);
@@ -555,17 +593,21 @@ async function getNurses() {
   }
 }
 
-async function getNurseById(id) {
+async function getNurseById(id, options = {}) {
   try {
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
     const result = await pool.query(`
       SELECT
         n.*,
         u.email,
         u.phone_number,
-        u.email_verified
+        u.email_verified,
+        u.is_deleted AS user_is_deleted,
+        u.deleted_at AS user_deleted_at
       FROM nurses n
       JOIN users u ON n.user_id = u.id
       WHERE n.id = $1
+        ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
       LIMIT 1
     `, [id]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -575,17 +617,21 @@ async function getNurseById(id) {
   }
 }
 
-async function getNurseByEmail(email) {
+async function getNurseByEmail(email, options = {}) {
   try {
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
     const result = await pool.query(`
       SELECT
         n.*,
         u.email,
         u.phone_number,
-        u.email_verified
+        u.email_verified,
+        u.is_deleted AS user_is_deleted,
+        u.deleted_at AS user_deleted_at
       FROM nurses n
       JOIN users u ON n.user_id = u.id
       WHERE LOWER(u.email) = LOWER($1)
+        ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
       LIMIT 1
     `, [email]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -595,18 +641,22 @@ async function getNurseByEmail(email) {
   }
 }
 
-async function getNurseByUserId(userId) {
+async function getNurseByUserId(userId, options = {}) {
   try {
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
     const result = await pool.query(`
       SELECT
         n.*,
         n.profile_image_url,
         u.email,
         u.phone_number,
-        u.email_verified
+        u.email_verified,
+        u.is_deleted AS user_is_deleted,
+        u.deleted_at AS user_deleted_at
       FROM nurses n
       JOIN users u ON u.id = n.user_id
       WHERE n.user_id = $1
+        ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
       LIMIT 1
     `, [userId]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -619,12 +669,13 @@ async function getNurseByUserId(userId) {
 async function createNurse(nurse) {
   try {
     const result = await pool.query(`
-      INSERT INTO nurses (user_id, full_name, city, gender, status, profile_image_path, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO nurses (user_id, full_name, city, gender, status, profile_image_path, current_status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `, [
       nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
       nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+      nurse.currentStatus || 'Available for Work',
       nurse.createdAt || new Date().toISOString()
     ]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -653,14 +704,13 @@ async function updateNurse(id, updates) {
         aadharImageUrl: 'aadhar_image_url',
         experienceYears: 'experience_years',
         experienceMonths: 'experience_months',
-        availabilityStatus: 'availability_status',
+        currentStatus: 'current_status',
         availability: 'availability',
         workLocations: 'work_locations',
         workCity: 'work_city',
         currentAddress: 'current_address',
         skills: 'skills',
-        educationLevel: 'education_level',
-        isAvailable: 'is_available',
+        isPublic: 'admin_visible',
         referralCode: 'referral_code',
         profileStatus: 'profile_status',
         qualifications: 'qualifications',
@@ -698,9 +748,16 @@ async function deleteNurse(id) {
 }
 
 // Agents
-async function getAgents() {
+async function getAgents(options = {}) {
   try {
-    const result = await pool.query('SELECT * FROM agents ORDER BY id');
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
+    const result = await pool.query(`
+      SELECT a.*, u.is_deleted AS user_is_deleted
+      FROM agents a
+      JOIN users u ON u.id = a.user_id
+      ${includeDeletedUsers ? "" : "WHERE COALESCE(u.is_deleted, false) = false"}
+      ORDER BY a.id
+    `);
     return result.rows.map(transformAgentFromDB);
   } catch (error) {
     console.error('Error getting agents:', error);
@@ -708,9 +765,17 @@ async function getAgents() {
   }
 }
 
-async function getAgentById(id) {
+async function getAgentById(id, options = {}) {
   try {
-    const result = await pool.query('SELECT * FROM agents WHERE id = $1', [id]);
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
+    const result = await pool.query(`
+      SELECT a.*, u.is_deleted AS user_is_deleted
+      FROM agents a
+      JOIN users u ON u.id = a.user_id
+      WHERE a.id = $1
+      ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+      LIMIT 1
+    `, [id]);
     return result.rows[0] ? transformAgentFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting agent by id:', error);
@@ -718,9 +783,17 @@ async function getAgentById(id) {
   }
 }
 
-async function getAgentByEmail(email) {
+async function getAgentByEmail(email, options = {}) {
   try {
-    const result = await pool.query('SELECT * FROM agents WHERE LOWER(email) = LOWER($1)', [email]);
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
+    const result = await pool.query(`
+      SELECT a.*, u.is_deleted AS user_is_deleted
+      FROM agents a
+      JOIN users u ON u.id = a.user_id
+      WHERE LOWER(a.email) = LOWER($1)
+      ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+      LIMIT 1
+    `, [email]);
     return result.rows[0] ? transformAgentFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error getting agent by email:', error);
