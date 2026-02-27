@@ -1,0 +1,176 @@
+<%- include("../partials/head", { title }) %>
+
+<%
+const marketplaceRequests = Array.isArray(requests) ? requests : [];
+const assignedItems = Array.isArray(assignedRequests) ? assignedRequests : [];
+const completedItems = Array.isArray(completedRequests) ? completedRequests : [];
+const pendingItems = Array.isArray(pendingApplications) ? pendingApplications : [];
+const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
+%>
+
+<section class="nurse-marketplace-hero">
+  <div class="nurse-marketplace-hero__copy">
+    <p class="nurse-marketplace-hero__eyebrow">Verified Nurse Marketplace</p>
+    <h1>Care Request Dashboard</h1>
+    <p>Track open jobs, your assignments, completed work history, and pending applications.</p>
+  </div>
+  <div class="nurse-marketplace-hero__stats">
+    <div class="nurse-marketplace-hero__stat">
+      <span class="nurse-marketplace-hero__stat-label">Marketplace</span>
+      <strong class="nurse-marketplace-hero__stat-value"><%= marketplaceRequests.length %></strong>
+    </div>
+    <div class="nurse-marketplace-hero__stat">
+      <span class="nurse-marketplace-hero__stat-label">My Assigned</span>
+      <strong class="nurse-marketplace-hero__stat-value"><%= assignedItems.length %></strong>
+    </div>
+    <div class="nurse-marketplace-hero__stat">
+      <span class="nurse-marketplace-hero__stat-label">Completed</span>
+      <strong class="nurse-marketplace-hero__stat-value"><%= completedItems.length %></strong>
+    </div>
+    <div class="nurse-marketplace-hero__stat">
+      <span class="nurse-marketplace-hero__stat-label">My Applications</span>
+      <strong class="nurse-marketplace-hero__stat-value"><%= pendingItems.length %></strong>
+    </div>
+  </div>
+</section>
+
+<section class="content-section">
+  <h2>Marketplace (Open Jobs)</h2>
+  <% if (!marketplaceRequests.length) { %>
+    <div class="empty-state">
+      <p>No open care requests right now.</p>
+    </div>
+  <% } else { %>
+    <div class="nurse-marketplace-grid">
+      <% marketplaceRequests.forEach((request, index) => { %>
+        <article class="nurse-marketplace-card" style="--card-delay:<%= index %>;">
+          <div class="nurse-marketplace-card__top">
+            <h3><%= request.patient_condition %></h3>
+            <span class="nurse-marketplace-chip">open</span>
+          </div>
+
+          <p><strong>Location:</strong> <%= request.location %></p>
+          <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
+          <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
+          <p>
+            <strong>Price/Day:</strong>
+            <%= request.price_per_day !== null ? Number(request.price_per_day).toFixed(2) : '-' %>
+          </p>
+
+          <div class="nurse-marketplace-card__actions">
+            <% if (appliedRequestIds.includes(request.id)) { %>
+              <button class="nurse-marketplace-btn nurse-marketplace-btn--applied" disabled>Applied</button>
+            <% } else { %>
+              <form method="POST" action="/nurse/care-requests/<%= request.id %>/apply">
+                <button class="nurse-marketplace-btn nurse-marketplace-btn--apply" type="submit">I'm Interested</button>
+              </form>
+            <% } %>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<section class="content-section">
+  <h2>My Assigned Jobs</h2>
+  <% if (!assignedItems.length) { %>
+    <div class="empty-state">
+      <p>No assigned jobs in progress.</p>
+    </div>
+  <% } else { %>
+    <div class="nurse-marketplace-grid">
+      <% assignedItems.forEach((request) => { %>
+        <article class="nurse-marketplace-card">
+          <div class="nurse-marketplace-card__top">
+            <h3><%= request.patient_condition %></h3>
+            <span class="nurse-marketplace-chip nurse-marketplace-chip--status"><%= request.status %></span>
+          </div>
+          <p><strong>Location:</strong> <%= request.location %></p>
+          <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
+          <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
+          <p><strong>Comment:</strong> <%= request.assignment_comment || '-' %></p>
+          <p><strong>Notified:</strong> <%= request.nurse_notified ? 'Yes' : 'No' %></p>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<section class="content-section">
+  <h2>My Completed Jobs</h2>
+  <% if (!completedItems.length) { %>
+    <div class="empty-state">
+      <p>No completed jobs yet.</p>
+    </div>
+  <% } else { %>
+    <div class="nurse-marketplace-grid">
+      <% completedItems.forEach((request) => { %>
+        <article class="nurse-marketplace-card">
+          <div class="nurse-marketplace-card__top">
+            <h3><%= request.patient_condition %></h3>
+            <span class="nurse-marketplace-chip nurse-marketplace-chip--done">completed</span>
+          </div>
+          <p><strong>Location:</strong> <%= request.location %></p>
+          <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
+          <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
+          <p><strong>Rating:</strong> <%= request.nurse_rating || '-' %></p>
+          <p><strong>Rating Note:</strong> <%= request.rating_feedback || '-' %></p>
+          <p><strong>Net Earnings:</strong> <%= request.net_amount !== null && typeof request.net_amount !== 'undefined' ? Number(request.net_amount).toFixed(2) : '-' %></p>
+          <p><strong>Payout:</strong> <%= request.payout_status || '-' %></p>
+          <p><strong>Completed On:</strong> <%= new Date(request.created_at).toISOString().slice(0, 10) %></p>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<section class="content-section">
+  <h2>My Applications (Pending)</h2>
+  <% if (!pendingItems.length) { %>
+    <div class="empty-state">
+      <p>No pending applications.</p>
+    </div>
+  <% } else { %>
+    <div class="nurse-marketplace-grid">
+      <% pendingItems.forEach((item) => { %>
+        <article class="nurse-marketplace-card">
+          <div class="nurse-marketplace-card__top">
+            <h3>Request #<%= item.request_id %></h3>
+            <span class="nurse-marketplace-chip nurse-marketplace-chip--pending">pending</span>
+          </div>
+          <p><strong>Condition:</strong> <%= item.patient_condition %></p>
+          <p><strong>Location:</strong> <%= item.location %></p>
+          <p><strong>Timing:</strong> <%= item.shift_timing || '-' %></p>
+          <p><strong>Request Status:</strong> <%= item.request_status %></p>
+          <p><strong>Applied On:</strong> <%= new Date(item.applied_at).toISOString().slice(0, 10) %></p>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<style>
+.nurse-marketplace-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 0.5rem;
+}
+
+.nurse-marketplace-chip--status {
+  background: #e8f1ff;
+  color: #194f9c;
+}
+
+.nurse-marketplace-chip--done {
+  background: #e8f7ec;
+  color: #0d6b36;
+}
+
+.nurse-marketplace-chip--pending {
+  background: #fff4df;
+  color: #9a5b00;
+}
+</style>
+
+<%- include("../partials/footer") %>

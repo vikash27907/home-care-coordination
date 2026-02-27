@@ -1,0 +1,244 @@
+<%- include("../partials/head", { title }) %>
+
+<%- include("sidebar") %>
+
+<%
+const tabs = Array.isArray(marketplaceTabs) ? marketplaceTabs : [];
+const selectedTab = activeTab || "open";
+const statusPillClass = (status) => {
+  if (status === "open") return "pill-open";
+  if (status === "assigned") return "pill-assigned";
+  if (status === "payment_pending") return "pill-payment-pending";
+  if (status === "active") return "pill-active";
+  if (status === "completed") return "pill-completed";
+  if (status === "cancelled") return "pill-cancelled";
+  return "";
+};
+%>
+
+<div class="admin-main">
+  <section class="dashboard-header">
+    <h1>Marketplace Lifecycle Dashboard</h1>
+    <p>Monitor marketplace-ready care requests across all lifecycle stages.</p>
+  </section>
+
+  <section class="content-section">
+    <div class="marketplace-tabs">
+      <% tabs.forEach((tab) => { %>
+        <a
+          class="tab-chip <%= tab.value === selectedTab ? 'active' : '' %>"
+          href="/admin/marketplace?tab=<%= encodeURIComponent(tab.value) %>"
+        >
+          <span><%= tab.label %></span>
+          <strong><%= tab.count %></strong>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <h2>Tab: <%= selectedTab %></h2>
+
+    <% if (!requests || !requests.length) { %>
+      <div class="empty-state">
+        <p>No marketplace requests in this lifecycle stage.</p>
+      </div>
+    <% } else { %>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Patient</th>
+              <th>Condition</th>
+              <th>Location</th>
+              <th>Timing</th>
+              <th>Price/Day</th>
+              <th>Status</th>
+              <th>Payment</th>
+              <th>Assigned Nurse</th>
+              <th>Applications</th>
+              <th>Comment</th>
+              <th>Notified</th>
+              <th>Rating</th>
+              <th>Net Earnings</th>
+              <th>Payout</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% requests.forEach((request) => { %>
+              <tr>
+                <td>
+                  <strong>#<%= request.id %></strong>
+                  <% if (request.patient_request_id) { %>
+                    <div><small><%= request.patient_request_id %></small></div>
+                  <% } %>
+                </td>
+                <td><%= request.patient_name || '-' %></td>
+                <td><%= request.patient_condition %></td>
+                <td><%= request.location %></td>
+                <td><%= request.shift_timing || '-' %></td>
+                <td><%= request.price_per_day !== null ? Number(request.price_per_day).toFixed(2) : '-' %></td>
+                <td>
+                  <span class="pill <%= statusPillClass(request.status) %>"><%= request.status %></span>
+                </td>
+                <td><%= request.payment_status || 'pending' %></td>
+                <td>
+                  <% if (request.assigned_nurse_id) { %>
+                    N-<%= request.assigned_nurse_id %>
+                    <div><small><%= request.assigned_nurse_name || '-' %></small></div>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
+                <td>
+                  <a href="/admin/marketplace/<%= request.id %>/applications?tab=<%= encodeURIComponent(selectedTab) %>" class="btn small">
+                    Review (<%= request.total_applications %>)
+                  </a>
+                  <div class="applications-meta">
+                    <small>Pending: <%= request.pending_applications %></small>
+                    <small>Accepted: <%= request.accepted_applications %></small>
+                  </div>
+                </td>
+                <td><%= request.assignment_comment || '-' %></td>
+                <td><%= request.nurse_notified ? 'Yes' : 'No' %></td>
+                <td><%= request.nurse_rating || '-' %></td>
+                <td><%= request.net_amount !== null && typeof request.net_amount !== 'undefined' ? Number(request.net_amount).toFixed(2) : '-' %></td>
+                <td><%= request.payout_status || '-' %></td>
+                <td>
+                  <div class="action-buttons">
+                    <% if (request.marketplace_ready) { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/marketplace-ready">
+                        <input type="hidden" name="marketplace_ready" value="false" />
+                        <input type="hidden" name="redirect_to" value="/admin/marketplace?tab=<%= encodeURIComponent(selectedTab) %>" />
+                        <button type="submit" class="btn small">Unpublish</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'assigned') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/payment-pending">
+                        <input type="hidden" name="redirect_to" value="/admin/marketplace?tab=<%= encodeURIComponent(selectedTab) %>" />
+                        <button type="submit" class="btn small">Payment Pending</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'assigned' || request.status === 'payment_pending') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/confirm-payment">
+                        <input type="hidden" name="redirect_to" value="/admin/marketplace?tab=<%= encodeURIComponent(selectedTab) %>" />
+                        <button type="submit" class="btn small btn-primary">Confirm Payment</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'active') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/complete">
+                        <input type="hidden" name="redirect_to" value="/admin/marketplace?tab=<%= encodeURIComponent(selectedTab) %>" />
+                        <button type="submit" class="btn small">Complete</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'assigned' || request.status === 'payment_pending' || request.status === 'active') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/reassign">
+                        <input type="hidden" name="redirect_to" value="/admin/marketplace?tab=<%= encodeURIComponent(selectedTab) %>" />
+                        <input type="hidden" name="assignment_comment" value="Reassigned by admin from marketplace dashboard." />
+                        <button type="submit" class="btn small">Reassign</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'open' || request.status === 'assigned' || request.status === 'payment_pending' || request.status === 'active') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/cancel" onsubmit="return confirm('Cancel this care request?');">
+                        <input type="hidden" name="redirect_to" value="/admin/marketplace?tab=<%= encodeURIComponent(selectedTab) %>" />
+                        <input type="hidden" name="assignment_comment" value="Cancelled by admin from marketplace dashboard." />
+                        <button type="submit" class="btn small danger">Cancel</button>
+                      </form>
+                    <% } %>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.marketplace-tabs {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.tab-chip {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  border: 1px solid #d5e2f2;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  color: #2f4c6a;
+  text-decoration: none;
+  background: #ffffff;
+}
+
+.tab-chip.active {
+  border-color: #175799;
+  background: #e7f1ff;
+  color: #0f3f73;
+}
+
+.pill-open {
+  background: #e5f8ef;
+  color: #0b8f4d;
+}
+
+.pill-assigned {
+  background: #e7f0ff;
+  color: #1f5fbf;
+}
+
+.pill-payment-pending {
+  background: #fff4dc;
+  color: #955f00;
+}
+
+.pill-active {
+  background: #e5f3ff;
+  color: #0e4f97;
+}
+
+.pill-completed {
+  background: #e6faef;
+  color: #0f6937;
+}
+
+.pill-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.applications-meta {
+  margin-top: 0.35rem;
+  display: grid;
+  gap: 0.15rem;
+  color: #4f6880;
+}
+
+.applications-meta small {
+  font-size: 0.76rem;
+}
+
+.btn.danger {
+  background: #de3f4f;
+  color: #ffffff;
+}
+</style>
+
+<%- include("../partials/footer") %>

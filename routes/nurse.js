@@ -134,6 +134,215 @@ function qualificationDocumentUploadMiddleware(req, res, next) {
   });
 }
 
+async function requireVerifiedNurse(req, res, next) {
+  try {
+    if (!req.session.user || req.session.user.role !== "nurse") {
+      return res.redirect("/login");
+    }
+
+    const nurseResult = await pool.query(
+      "SELECT id, status FROM nurses WHERE user_id = $1 LIMIT 1",
+      [req.session.user.id]
+    );
+
+    if (!nurseResult.rows.length || nurseResult.rows[0].status !== "Approved") {
+      return res.status(403).render("nurse/not-verified", {
+        title: "Verification Required",
+        user: req.session.user
+      });
+    }
+
+    req.nurseId = nurseResult.rows[0].id;
+    return next();
+  } catch (error) {
+    console.error("requireVerifiedNurse error:", error);
+    setFlash(req, "error", "Unable to verify your profile right now.");
+    return res.redirect("/nurse/profile");
+  }
+}
+
+router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE care_requests
+       SET nurse_notified = TRUE
+       WHERE assigned_nurse_id = $1
+         AND status IN ('assigned', 'payment_pending', 'active')
+         AND nurse_notified = FALSE`,
+      [req.nurseId]
+    );
+
+    const [marketplaceResult, assignedResult, completedResult, pendingApplicationsResult, appliedResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            cr.id,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            NULL::text AS required_qualification,
+            NULL::date AS shift_start,
+            NULL::date AS shift_end,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+            cr.status,
+            cr.payment_status,
+            cr.created_at
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         WHERE cr.status = 'open'
+           AND cr.marketplace_ready = TRUE
+         ORDER BY cr.created_at DESC`
+      ),
+      pool.query(
+        `SELECT
+            cr.id,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            NULL::text AS required_qualification,
+            NULL::date AS shift_start,
+            NULL::date AS shift_end,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+            cr.status,
+            cr.payment_status,
+            cr.assignment_comment,
+            cr.nurse_notified,
+            cr.created_at
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         WHERE cr.assigned_nurse_id = $1
+           AND cr.status IN ('assigned', 'payment_pending', 'active')
+         ORDER BY cr.created_at DESC`,
+        [req.nurseId]
+      ),
+      pool.query(
+        `SELECT
+            cr.id,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+            cr.status,
+            cr.payment_status,
+            rr.rating AS nurse_rating,
+            rr.feedback AS rating_feedback,
+            ce.net_amount,
+            ce.payout_status,
+            cr.created_at
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         LEFT JOIN care_request_ratings rr ON rr.request_id = cr.id
+         LEFT JOIN care_request_earnings ce ON ce.request_id = cr.id
+         WHERE cr.assigned_nurse_id = $1
+           AND cr.status = 'completed'
+         ORDER BY cr.created_at DESC`,
+        [req.nurseId]
+      ),
+      pool.query(
+        `SELECT
+            ca.id AS application_id,
+            ca.request_id,
+            ca.applied_at,
+            cr.status AS request_status,
+            cr.payment_status,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day
+         FROM care_applications ca
+         JOIN care_requests cr ON cr.id = ca.request_id
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         WHERE ca.nurse_id = $1
+           AND ca.status = 'pending'
+         ORDER BY ca.applied_at DESC`,
+        [req.nurseId]
+      ),
+      pool.query(
+        "SELECT request_id FROM care_applications WHERE nurse_id = $1",
+        [req.nurseId]
+      )
+    ]);
+
+    const appliedIds = appliedResult.rows.map((item) => item.request_id);
+
+    return res.render("nurse/care-requests", {
+      title: "Care Request Dashboard",
+      user: req.session.user,
+      requests: marketplaceResult.rows,
+      assignedRequests: assignedResult.rows,
+      completedRequests: completedResult.rows,
+      pendingApplications: pendingApplicationsResult.rows,
+      appliedIds
+    });
+  } catch (error) {
+    console.error("Nurse care requests list error:", error);
+    setFlash(req, "error", "Unable to load care requests right now.");
+    return res.redirect("/nurse/profile");
+  }
+});
+
+router.post("/care-requests/:id/apply", requireVerifiedNurse, async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect("/nurse/care-requests");
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO care_applications (request_id, nurse_id)
+       SELECT $1, $2
+       WHERE EXISTS (
+         SELECT 1
+         FROM care_requests
+         WHERE id = $1
+           AND status = 'open'
+           AND marketplace_ready = TRUE
+       )
+       ON CONFLICT (request_id, nurse_id) DO NOTHING`,
+      [requestId, req.nurseId]
+    );
+
+    setFlash(req, "success", "Application submitted.");
+    return res.redirect("/nurse/care-requests");
+  } catch (error) {
+    console.error("Nurse care request apply error:", error);
+    setFlash(req, "error", "Unable to apply right now.");
+    return res.redirect("/nurse/care-requests");
+  }
+});
+
 router.post(
   "/profile/qualifications",
   requireRole("nurse"),

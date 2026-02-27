@@ -60,6 +60,9 @@
                 >
                   Dashboard
                 </a>
+                <% if (session.user.role === 'nurse') { %>
+                <a href="/nurse/care-requests" role="menuitem">Care Requests</a>
+                <% } %>
                 <form method="POST" action="/logout">
                   <button type="submit" role="menuitem">Logout</button>
                 </form>

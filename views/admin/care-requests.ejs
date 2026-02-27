@@ -1,0 +1,301 @@
+<%- include("../partials/head", { title }) %>
+
+<%- include("sidebar") %>
+
+<%
+const statusPillClass = (status) => {
+  if (status === "open") return "pill-open";
+  if (status === "assigned") return "pill-assigned";
+  if (status === "payment_pending") return "pill-payment-pending";
+  if (status === "active") return "pill-active";
+  if (status === "completed") return "pill-completed";
+  if (status === "cancelled") return "pill-cancelled";
+  return "";
+};
+const currentStatusFilter = statusFilter || "all";
+const currentPaymentFilter = paymentFilter || "all";
+const statusCountMap = statusCounts || {};
+const paymentCountMap = paymentCounts || {};
+const statusFilterValues = ["all", "open", "assigned", "payment_pending", "active", "completed", "cancelled"];
+const paymentFilterValues = ["all", "pending", "paid", "refunded"];
+const statusFilterLabels = {
+  all: "All",
+  open: "Open",
+  assigned: "Assigned",
+  payment_pending: "Payment Pending",
+  active: "Active",
+  completed: "Completed",
+  cancelled: "Cancelled"
+};
+const paymentFilterLabels = {
+  all: "All Payments",
+  pending: "Pending",
+  paid: "Paid",
+  refunded: "Refunded"
+};
+const currentCareRequestListUrl = `/admin/care-requests?status=${encodeURIComponent(currentStatusFilter)}&payment=${encodeURIComponent(currentPaymentFilter)}`;
+%>
+
+<div class="admin-main">
+  <section class="dashboard-header">
+    <h1>Care Requests</h1>
+    <p>Manage lifecycle transitions, assignments, marketplace visibility, and payment progress.</p>
+  </section>
+
+  <section class="content-section">
+    <h2>All Care Requests</h2>
+    <div class="filter-groups">
+      <div class="filter-row">
+        <% statusFilterValues.forEach((value) => { %>
+          <a
+            class="filter-chip <%= currentStatusFilter === value ? 'active' : '' %>"
+            href="/admin/care-requests?status=<%= encodeURIComponent(value) %>&payment=<%= encodeURIComponent(currentPaymentFilter) %>"
+          >
+            <span><%= statusFilterLabels[value] %></span>
+            <strong><%= statusCountMap[value] || 0 %></strong>
+          </a>
+        <% }) %>
+      </div>
+      <div class="filter-row">
+        <% paymentFilterValues.forEach((value) => { %>
+          <a
+            class="filter-chip <%= currentPaymentFilter === value ? 'active' : '' %>"
+            href="/admin/care-requests?status=<%= encodeURIComponent(currentStatusFilter) %>&payment=<%= encodeURIComponent(value) %>"
+          >
+            <span><%= paymentFilterLabels[value] %></span>
+            <strong><%= paymentCountMap[value] || 0 %></strong>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+
+    <% if (!requests || !requests.length) { %>
+      <div class="empty-state">
+        <p>No care requests found for selected filters.</p>
+      </div>
+    <% } else { %>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Request</th>
+              <th>Patient</th>
+              <th>Condition</th>
+              <th>Location</th>
+              <th>Schedule</th>
+              <th>Budget/Day</th>
+              <th>Marketplace</th>
+              <th>Status</th>
+              <th>Payment</th>
+              <th>Assigned Nurse</th>
+              <th>Applications</th>
+              <th>Comment</th>
+              <th>Notified</th>
+              <th>Rating</th>
+              <th>Net Earnings</th>
+              <th>Payout</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% requests.forEach((request) => { %>
+              <tr>
+                <td>
+                  <strong>#<%= request.id %></strong>
+                  <% if (request.patient_request_id) { %>
+                    <div><small><%= request.patient_request_id %></small></div>
+                  <% } %>
+                </td>
+                <td>
+                  <%= request.patient_name || '-' %>
+                  <% if (request.patient_phone_number) { %>
+                    <div><small><%= request.patient_phone_number %></small></div>
+                  <% } %>
+                </td>
+                <td><%= request.patient_condition %></td>
+                <td><%= request.location %></td>
+                <td><%= request.shift_timing || '-' %></td>
+                <td><%= request.price_per_day !== null ? Number(request.price_per_day).toFixed(2) : '-' %></td>
+                <td>
+                  <span class="pill <%= request.marketplace_ready ? 'pill-ready' : 'pill-not-ready' %>">
+                    <%= request.marketplace_ready ? 'Ready' : 'Not Ready' %>
+                  </span>
+                </td>
+                <td>
+                  <span class="pill <%= statusPillClass(request.status) %>"><%= request.status %></span>
+                </td>
+                <td><%= request.payment_status || 'pending' %></td>
+                <td>
+                  <% if (request.assigned_nurse_id) { %>
+                    N-<%= request.assigned_nurse_id %>
+                    <div><small><%= request.assigned_nurse_name || '-' %></small></div>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
+                <td>
+                  <%= request.total_applications || 0 %>
+                  <% if (request.total_applications > 0) { %>
+                    <div>
+                      <a href="/admin/care-requests/<%= request.id %>/applications?status=<%= encodeURIComponent(currentStatusFilter) %>&payment=<%= encodeURIComponent(currentPaymentFilter) %>" class="btn tiny">View</a>
+                    </div>
+                  <% } %>
+                </td>
+                <td><%= request.assignment_comment || '-' %></td>
+                <td><%= request.nurse_notified ? 'Yes' : 'No' %></td>
+                <td><%= request.nurse_rating || '-' %></td>
+                <td><%= request.net_amount !== null && typeof request.net_amount !== 'undefined' ? Number(request.net_amount).toFixed(2) : '-' %></td>
+                <td><%= request.payout_status || '-' %></td>
+                <td>
+                  <div class="action-buttons">
+                    <form method="POST" action="/admin/care-requests/<%= request.id %>/marketplace-ready">
+                      <input type="hidden" name="marketplace_ready" value="<%= request.marketplace_ready ? 'false' : 'true' %>" />
+                      <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                      <button type="submit" class="btn small <%= request.marketplace_ready ? '' : 'btn-primary' %>">
+                        <%= request.marketplace_ready ? 'Unpublish' : 'Publish' %>
+                      </button>
+                    </form>
+
+                    <% if (request.status === 'assigned') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/payment-pending">
+                        <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                        <button type="submit" class="btn small">Payment Pending</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'assigned' || request.status === 'payment_pending') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/confirm-payment">
+                        <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                        <button type="submit" class="btn small">Confirm Payment</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'active') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/complete">
+                        <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                        <button type="submit" class="btn small">Complete</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'assigned' || request.status === 'payment_pending' || request.status === 'active') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/reassign" onsubmit="return confirm('Reassign and reopen this request?');">
+                        <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                        <input type="hidden" name="assignment_comment" value="Reassigned by admin from care requests list." />
+                        <button type="submit" class="btn small">Reassign</button>
+                      </form>
+                    <% } %>
+
+                    <% if (request.status === 'open' || request.status === 'assigned' || request.status === 'payment_pending' || request.status === 'active') { %>
+                      <form method="POST" action="/admin/care-requests/<%= request.id %>/cancel" onsubmit="return confirm('Cancel this care request?');">
+                        <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                        <input type="hidden" name="assignment_comment" value="Cancelled by admin from care requests list." />
+                        <button type="submit" class="btn small danger">Cancel</button>
+                      </form>
+                    <% } %>
+
+                    <form method="POST" action="/admin/care-requests/<%= request.id %>/delete" onsubmit="return confirm('Delete this care request?');">
+                      <input type="hidden" name="redirect_to" value="<%= currentCareRequestListUrl %>" />
+                      <button type="submit" class="btn small danger">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.pill-open {
+  background: #e5f8ef;
+  color: #0b8f4d;
+}
+
+.pill-assigned {
+  background: #e7f0ff;
+  color: #1f5fbf;
+}
+
+.pill-payment-pending {
+  background: #fff4dc;
+  color: #955f00;
+}
+
+.pill-active {
+  background: #e5f3ff;
+  color: #0e4f97;
+}
+
+.pill-completed {
+  background: #e6faef;
+  color: #0f6937;
+}
+
+.pill-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.pill-ready {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.pill-not-ready {
+  background: #fff4e6;
+  color: #9a4d00;
+  border: 1px solid #f8c98b;
+}
+
+.filter-groups {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #d4e1ef;
+  border-radius: 999px;
+  color: #2d4b67;
+  text-decoration: none;
+  background: #fff;
+}
+
+.filter-chip.active {
+  border-color: #1a5d9b;
+  background: #e8f2ff;
+  color: #114677;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.btn.tiny {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.74rem;
+}
+
+.btn.danger {
+  background: #de3f4f;
+  color: #ffffff;
+}
+</style>
+
+<%- include("../partials/footer") %>

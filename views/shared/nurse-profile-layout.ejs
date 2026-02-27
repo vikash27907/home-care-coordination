@@ -116,6 +116,7 @@ const aadhaarDisplay = isAdmin ? (aadhaarRaw || "Not provided") : maskAadhar(aad
 const editAction = isAdmin ? `/admin/nurses/${nurseId}/update` : "/nurse/profile/basic-edit";
 const backLink = isAdmin ? "/admin/nurses" : (isAgent ? "/agent" : "");
 const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : "");
+const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
 %>
 
 <section
@@ -125,6 +126,17 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
 >
   <% if (backLink) { %>
     <a class="np-back-link" href="<%= backLink %>"><%= backLabel %></a>
+  <% } %>
+
+  <% if (isNurse) { %>
+    <nav class="np-quick-nav">
+      <a href="/nurse/profile" class="np-quick-link <%= safeCurrentPath.startsWith('/nurse/profile') ? 'active' : '' %>">
+        Profile
+      </a>
+      <a href="/nurse/care-requests" class="np-quick-link <%= safeCurrentPath.startsWith('/nurse/care-requests') ? 'active' : '' %>">
+        Care Requests
+      </a>
+    </nav>
   <% } %>
 
   <article class="np-card np-header-card">
@@ -669,6 +681,37 @@ const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Dashboard" : 
   color: #0f5d9b;
   font-weight: 700;
   text-decoration: none;
+}
+
+.np-quick-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem;
+  border: 1px solid #d8e7f3;
+  border-radius: 12px;
+  background: #ffffff;
+  width: fit-content;
+}
+
+.np-quick-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  border-radius: 9px;
+  color: #1f4c75;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.np-quick-link:hover {
+  background: #edf5fc;
+}
+
+.np-quick-link.active {
+  background: #0f5d9b;
+  color: #ffffff;
 }
 
 .np-card {

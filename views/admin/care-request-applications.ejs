@@ -1,0 +1,292 @@
+<%- include("../partials/head", { title }) %>
+
+<%- include("sidebar") %>
+
+<%
+const safeBackHref = backHref || "/admin/care-requests";
+const safeActionBasePath = actionBasePath || "/admin/care-requests";
+const actionQuerySuffix = safeBackHref.includes("?")
+  ? safeBackHref.slice(safeBackHref.indexOf("?"))
+  : "";
+const lifecycleLogItems = typeof lifecycleLogs !== "undefined" ? lifecycleLogs : [];
+const logs = Array.isArray(lifecycleLogItems) ? lifecycleLogItems : [];
+const payoutStatuses = ["pending", "approved", "paid", "on_hold", "cancelled"];
+const canAccept = requestItem.status === "open";
+const canReject = ["open", "assigned", "payment_pending"].includes(requestItem.status);
+%>
+
+<div class="admin-main">
+  <section class="page-header">
+    <h1><span class="page-icon">CR</span> Care Request Applications</h1>
+    <p>Review applicants and keep assignment pointer aligned with lifecycle state.</p>
+  </section>
+
+  <section class="content-section request-summary-shell">
+    <div class="request-summary-grid">
+      <div><strong>Request ID:</strong> <%= requestItem.id %></div>
+      <div><strong>Status:</strong> <span class="pill"><%= requestItem.status %></span></div>
+      <div><strong>Payment:</strong> <%= requestItem.payment_status || 'pending' %></div>
+      <div><strong>Marketplace:</strong> <%= requestItem.marketplace_ready ? 'Ready' : 'Not Ready' %></div>
+      <div><strong>Assigned Nurse:</strong> <%= requestItem.assigned_nurse_id ? `N-${requestItem.assigned_nurse_id}` : '-' %></div>
+      <div><strong>Assigned Nurse Name:</strong> <%= requestItem.assigned_nurse_name || '-' %></div>
+      <div><strong>Patient:</strong> <%= requestItem.patient_name || '-' %></div>
+      <div><strong>Patient Ref:</strong> <%= requestItem.patient_request_id || '-' %></div>
+      <div><strong>Condition:</strong> <%= requestItem.patient_condition %></div>
+      <div><strong>Location:</strong> <%= requestItem.location %></div>
+      <div><strong>Timing:</strong> <%= requestItem.shift_timing || '-' %></div>
+      <div><strong>Price/Day:</strong> <%= requestItem.price_per_day !== null ? Number(requestItem.price_per_day).toFixed(2) : '-' %></div>
+      <div><strong>Comment:</strong> <%= requestItem.assignment_comment || '-' %></div>
+      <div><strong>Nurse Notified:</strong> <%= requestItem.nurse_notified ? 'Yes' : 'No' %></div>
+      <div><strong>Rating:</strong> <%= requestItem.nurse_rating || '-' %></div>
+      <div><strong>Rating Note:</strong> <%= requestItem.rating_feedback || '-' %></div>
+      <div><strong>Earnings:</strong> <%= requestItem.net_amount !== null && typeof requestItem.net_amount !== 'undefined' ? Number(requestItem.net_amount).toFixed(2) : '-' %></div>
+      <div><strong>Payout Status:</strong> <%= requestItem.payout_status || '-' %></div>
+    </div>
+
+    <div class="action-buttons">
+      <% if (requestItem.status === 'assigned') { %>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/payment-pending">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <button type="submit" class="btn small">Payment Pending</button>
+        </form>
+      <% } %>
+
+      <% if (requestItem.status === 'assigned' || requestItem.status === 'payment_pending') { %>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/confirm-payment">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <button type="submit" class="btn small btn-primary">Confirm Payment</button>
+        </form>
+      <% } %>
+
+      <% if (requestItem.status === 'active') { %>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/complete">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <button type="submit" class="btn small">Complete</button>
+        </form>
+      <% } %>
+
+      <% if (requestItem.status === 'completed') { %>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/rating" class="inline-form">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <input type="number" min="1" max="5" name="rating" value="<%= requestItem.nurse_rating || '' %>" placeholder="1-5" required />
+          <input type="text" name="feedback" value="<%= requestItem.rating_feedback || '' %>" placeholder="Rating feedback" />
+          <button type="submit" class="btn small">Save Rating</button>
+        </form>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/earnings/payout-status" class="inline-form">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <select name="payout_status" required>
+            <% payoutStatuses.forEach((status) => { %>
+              <option value="<%= status %>" <%= requestItem.payout_status === status ? 'selected' : '' %>><%= status %></option>
+            <% }) %>
+          </select>
+          <input type="text" name="payout_reference" value="<%= requestItem.payout_reference || '' %>" placeholder="Payout reference" />
+          <input type="text" name="payout_notes" value="<%= requestItem.earnings_notes || '' %>" placeholder="Payout notes" />
+          <button type="submit" class="btn small">Update Payout</button>
+        </form>
+      <% } %>
+
+      <% if (requestItem.status === 'assigned' || requestItem.status === 'payment_pending' || requestItem.status === 'active') { %>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/reassign" onsubmit="return confirm('Reassign and reopen this request?');">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <input type="hidden" name="assignment_comment" value="Reassigned by admin from applications view." />
+          <button type="submit" class="btn small">Reassign</button>
+        </form>
+      <% } %>
+
+      <% if (requestItem.status === 'open' || requestItem.status === 'assigned' || requestItem.status === 'payment_pending' || requestItem.status === 'active') { %>
+        <form method="POST" action="/admin/care-requests/<%= requestItem.id %>/cancel" onsubmit="return confirm('Cancel this request?');">
+          <input type="hidden" name="redirect_to" value="<%= safeBackHref %>" />
+          <input type="hidden" name="assignment_comment" value="Cancelled by admin from applications view." />
+          <button type="submit" class="btn small danger">Cancel</button>
+        </form>
+      <% } %>
+
+      <a href="<%= safeBackHref %>" class="btn small">Back</a>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <h2>Nurse Applications</h2>
+
+    <% if (!applications || !applications.length) { %>
+      <div class="empty-state">
+        <p>No nurse applications yet for this request.</p>
+      </div>
+    <% } else { %>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th>Nurse</th>
+              <th>City</th>
+              <th>Experience</th>
+              <th>Current Status</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Applied At</th>
+              <th>Application Status</th>
+              <th>Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% applications.forEach((item) => { %>
+              <tr>
+                <td>#<%= item.id %></td>
+                <td>
+                  <div><strong><%= item.full_name %></strong></div>
+                  <small>Nurse ID: <%= item.nurse_id %></small>
+                </td>
+                <td><%= item.city || '-' %></td>
+                <td><%= item.experience_years || 0 %> years</td>
+                <td><%= item.current_status || '-' %></td>
+                <td><%= item.email || '-' %></td>
+                <td><%= item.phone_number || '-' %></td>
+                <td><%= new Date(item.applied_at).toISOString().slice(0, 10) %></td>
+                <td>
+                  <span class="pill app-pill <%= item.status %>"><%= item.status %></span>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <% if (canAccept) { %>
+                      <form
+                        method="POST"
+                        action="<%= safeActionBasePath %>/<%= requestItem.id %>/applications/<%= item.id %>/accept<%= actionQuerySuffix %>"
+                        onsubmit="return confirm('Accept this nurse? This will reject all other applications.');"
+                      >
+                        <button type="submit" class="btn small">Accept</button>
+                      </form>
+                    <% } %>
+
+                    <% if (canReject) { %>
+                      <form
+                        method="POST"
+                        action="<%= safeActionBasePath %>/<%= requestItem.id %>/applications/<%= item.id %>/reject<%= actionQuerySuffix %>"
+                        onsubmit="return confirm('Reject this application?');"
+                      >
+                        <button type="submit" class="btn small danger">Reject</button>
+                      </form>
+                    <% } %>
+
+                    <% if (!canAccept && !canReject) { %>
+                      <small>No actions in current lifecycle stage</small>
+                    <% } %>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="content-section">
+    <h2>Lifecycle Timeline</h2>
+
+    <% if (!logs.length) { %>
+      <div class="empty-state">
+        <p>No lifecycle log entries yet.</p>
+      </div>
+    <% } else { %>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Event</th>
+              <th>Status</th>
+              <th>Payment</th>
+              <th>Assigned Nurse</th>
+              <th>Actor</th>
+              <th>Comment</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% logs.forEach((log) => { %>
+              <tr>
+                <td><%= new Date(log.created_at).toISOString().replace('T', ' ').slice(0, 16) %></td>
+                <td><%= log.event_type %></td>
+                <td>
+                  <%= log.previous_status || '-' %>
+                  <strong>→</strong>
+                  <%= log.next_status || '-' %>
+                </td>
+                <td>
+                  <%= log.previous_payment_status || '-' %>
+                  <strong>→</strong>
+                  <%= log.next_payment_status || '-' %>
+                </td>
+                <td><%= typeof log.assigned_nurse_id === 'number' ? `N-${log.assigned_nurse_id}` : '-' %></td>
+                <td><%= log.changed_by_role || 'system' %><% if (log.changed_by_user_id) { %> (#<%= log.changed_by_user_id %>)<% } %></td>
+                <td><%= log.comment || '-' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.request-summary-shell {
+  background: #ffffff;
+  border: 1px solid #d6e3f1;
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.request-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inline-form input,
+.inline-form select {
+  min-height: 32px;
+  border: 1px solid #c9d8e8;
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+}
+
+.app-pill.pending {
+  background: #fff2db;
+  color: #a16207;
+  border: 1px solid #fcd58d;
+}
+
+.app-pill.accepted {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.app-pill.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.btn.danger {
+  background: #de3f4f;
+  color: #ffffff;
+}
+</style>
+
+<%- include("../partials/footer") %>

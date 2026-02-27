@@ -328,6 +328,32 @@ const CONCERN_CATEGORIES = [
   "Other"
 ];
 const COMMISSION_TYPES = ["Percent", "Flat"];
+const CARE_REQUEST_STATUSES = [
+  "open",
+  "assigned",
+  "payment_pending",
+  "active",
+  "completed",
+  "cancelled"
+];
+const CARE_REQUEST_PAYMENT_STATUSES = ["pending", "paid", "refunded"];
+const CARE_REQUEST_EARNINGS_PAYOUT_STATUSES = ["pending", "approved", "paid", "on_hold", "cancelled"];
+const CARE_REQUEST_MARKETPLACE_TABS = [
+  "open",
+  "assigned",
+  "payment_pending",
+  "active",
+  "completed",
+  "cancelled"
+];
+const CARE_REQUEST_TRANSITIONS = {
+  open: new Set(["assigned", "cancelled"]),
+  assigned: new Set(["open", "payment_pending", "active", "cancelled"]),
+  payment_pending: new Set(["assigned", "active", "cancelled"]),
+  active: new Set(["open", "completed", "cancelled"]),
+  completed: new Set(),
+  cancelled: new Set()
+};
 
 const NURSE_STATUS_INPUT_MAP = {
   pending: "Pending",
@@ -367,6 +393,27 @@ function normalizeCurrentStatusInput(value) {
     return "Not Available";
   }
   return PROFILE_CURRENT_STATUS_OPTIONS.includes(clean) ? clean : "";
+}
+
+function normalizeCareRequestStatusInput(value) {
+  const status = String(value || "").trim().toLowerCase();
+  return CARE_REQUEST_STATUSES.includes(status) ? status : "";
+}
+
+function normalizeCareRequestPaymentStatusInput(value) {
+  const paymentStatus = String(value || "").trim().toLowerCase();
+  return CARE_REQUEST_PAYMENT_STATUSES.includes(paymentStatus) ? paymentStatus : "";
+}
+
+function normalizeCareRequestPayoutStatusInput(value) {
+  const payoutStatus = String(value || "").trim().toLowerCase();
+  return CARE_REQUEST_EARNINGS_PAYOUT_STATUSES.includes(payoutStatus) ? payoutStatus : "";
+}
+
+function canTransitionCareRequestStatus(currentStatus, nextStatus) {
+  if (currentStatus === nextStatus) return true;
+  const allowedTransitions = CARE_REQUEST_TRANSITIONS[currentStatus];
+  return Boolean(allowedTransitions && allowedTransitions.has(nextStatus));
 }
 
 const SERVICE_SCHEDULE_OPTIONS = [
@@ -1963,9 +2010,12 @@ app.post("/request-care", async (req, res) => {
 
   const patientId = nextId(store, "patient");
   const referenceId = generateRequestId(store);
+  const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((s) => s.value === serviceSchedule)?.label || serviceSchedule;
+  const preferredDate = String(req.body.preferredDate || "").trim();
+  const patientCondition = String(req.body.patientCondition || req.body.notes || "").trim();
   
   // Default status is "Requested"
-const defaultStatus = "New";
+  const defaultStatus = "New";
   
   const patient = {
     id: patientId,
@@ -2000,14 +2050,73 @@ const defaultStatus = "New";
     createdAt: now()
   };
   
-  await createPatient(patient);
+  let createdPatient = null;
+  try {
+    createdPatient = await createPatient(patient);
+    const createdCareRequestResult = await pool.query(
+      `INSERT INTO care_requests
+        (
+          patient_id,
+          care_type,
+          duration_value,
+          duration_unit,
+          budget_min,
+          budget_max,
+          marketplace_ready,
+          status,
+          payment_status,
+          nurse_notified
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'open', 'pending', FALSE)
+       RETURNING id, status, payment_status, assigned_nurse_id`,
+      [
+        createdPatient.id,
+        patientCondition || serviceScheduleLabel || "General care support required",
+        durationValue,
+        durationUnit,
+        budget,
+        budget
+      ]
+    );
+
+    try {
+      const createdCareRequest = createdCareRequestResult.rows[0];
+      const actor = buildCareRequestLifecycleActor(req, "patient");
+      await insertCareRequestLifecycleLog(pool, {
+        requestId: createdCareRequest.id,
+        eventType: "created_by_patient",
+        previousStatus: null,
+        nextStatus: createdCareRequest.status,
+        previousPaymentStatus: null,
+        nextPaymentStatus: createdCareRequest.payment_status,
+        assignedNurseId: createdCareRequest.assigned_nurse_id,
+        comment: "Care request created by patient/user submission.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          source: "request-care",
+          patientId: createdPatient.id || null
+        }
+      });
+    } catch (logError) {
+      console.error("Care request lifecycle log creation failed (patient flow):", logError);
+    }
+  } catch (error) {
+    if (createdPatient && createdPatient.id) {
+      try {
+        await deletePatient(createdPatient.id);
+      } catch (rollbackError) {
+        console.error("Patient rollback after care request insert failure:", rollbackError);
+      }
+    }
+    console.error("Request care persistence error:", error);
+    setFlash(req, "error", "Unable to submit care request right now. Please try again.");
+    return res.redirect("/request-care");
+  }
 
   // Send confirmation email asynchronously (do not block request submission).
-  const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((s) => s.value === serviceSchedule)?.label || serviceSchedule;
   const userEmail = email;
   const userName = fullName;
-  const preferredDate = String(req.body.preferredDate || "").trim();
-  const patientCondition = String(req.body.patientCondition || req.body.notes || "").trim();
 
   try {
     const emailResult = await sendRequestConfirmationEmail(
@@ -2835,6 +2944,1507 @@ app.post("/admin/patients/:id/update", requireRole("admin"), (req, res) => {
   setFlash(req, "success", "Patient record updated.");
   return res.redirect(`/admin/patients?status=${encodeURIComponent(statusFilter)}`);
 });
+
+function getCareRequestListRedirectTarget(rawTarget) {
+  const target = String(rawTarget || "").trim();
+  if (target.startsWith("/admin/marketplace")) return target;
+  return target.startsWith("/admin/care-requests") ? target : "/admin/care-requests";
+}
+
+function getCareRequestApplicationsBasePath(req) {
+  return req.path.startsWith("/admin/marketplace") ? "/admin/marketplace" : "/admin/care-requests";
+}
+
+function getCareRequestApplicationsRedirectUrl(req, requestId) {
+  const basePath = `${getCareRequestApplicationsBasePath(req)}/${requestId}/applications`;
+  if (req.path.startsWith("/admin/marketplace")) {
+    const tab = normalizeMarketplaceTabInput(req.query.tab);
+    return `${basePath}?tab=${encodeURIComponent(tab)}`;
+  }
+  const status = normalizeCareRequestStatusFilterInput(req.query.status);
+  const payment = normalizeCareRequestPaymentFilterInput(req.query.payment);
+  return `${basePath}?status=${encodeURIComponent(status)}&payment=${encodeURIComponent(payment)}`;
+}
+
+function normalizeMarketplaceTabInput(value) {
+  const tab = String(value || "").trim().toLowerCase();
+  return CARE_REQUEST_MARKETPLACE_TABS.includes(tab) ? tab : "open";
+}
+
+function normalizeCareRequestStatusFilterInput(value) {
+  const filter = String(value || "all").trim().toLowerCase();
+  return filter === "all" || CARE_REQUEST_STATUSES.includes(filter) ? filter : "all";
+}
+
+function normalizeCareRequestPaymentFilterInput(value) {
+  const filter = String(value || "all").trim().toLowerCase();
+  return filter === "all" || CARE_REQUEST_PAYMENT_STATUSES.includes(filter) ? filter : "all";
+}
+
+function normalizeAssignmentCommentInput(value) {
+  const comment = String(value || "").trim();
+  return comment || null;
+}
+
+function assertCareRequestTransition(currentStatus, nextStatus) {
+  if (!normalizeCareRequestStatusInput(currentStatus)) {
+    throw new Error("Invalid current lifecycle state.");
+  }
+  if (!normalizeCareRequestStatusInput(nextStatus)) {
+    throw new Error("Invalid lifecycle transition target.");
+  }
+  if (!canTransitionCareRequestStatus(currentStatus, nextStatus)) {
+    throw new Error(`Cannot transition request from ${currentStatus} to ${nextStatus}.`);
+  }
+}
+
+function buildCareRequestLifecycleActor(req, fallbackRole = "system") {
+  return {
+    userId: req && req.currentUser && Number.isInteger(req.currentUser.id) ? req.currentUser.id : null,
+    role: req && req.currentUser && req.currentUser.role ? req.currentUser.role : fallbackRole
+  };
+}
+
+async function insertCareRequestLifecycleLog(client, payload) {
+  const metadata = payload && typeof payload.metadata === "object" && payload.metadata !== null
+    ? payload.metadata
+    : {};
+
+  await client.query(
+    `INSERT INTO care_request_lifecycle_logs (
+        request_id,
+        event_type,
+        previous_status,
+        next_status,
+        previous_payment_status,
+        next_payment_status,
+        assigned_nurse_id,
+        comment,
+        changed_by_user_id,
+        changed_by_role,
+        metadata
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,
+    [
+      payload.requestId,
+      payload.eventType || "status_update",
+      payload.previousStatus || null,
+      payload.nextStatus || null,
+      payload.previousPaymentStatus || null,
+      payload.nextPaymentStatus || null,
+      typeof payload.assignedNurseId === "number" ? payload.assignedNurseId : null,
+      payload.comment || null,
+      typeof payload.changedByUserId === "number" ? payload.changedByUserId : null,
+      payload.changedByRole || "system",
+      JSON.stringify(metadata)
+    ]
+  );
+}
+
+async function upsertCareRequestEarnings(client, requestId, actor, note) {
+  const detailsResult = await client.query(
+    `SELECT
+        cr.id,
+        cr.patient_id,
+        cr.assigned_nurse_id,
+        COALESCE(
+          p.nurse_amount,
+          NULLIF(cr.budget_max, 0),
+          NULLIF(cr.budget_min, 0),
+          p.budget,
+          0
+        ) AS gross_amount,
+        COALESCE(p.commission_amount, 0) AS platform_fee,
+        COALESCE(p.referral_commission_amount, 0) AS referral_fee,
+        p.nurse_net_amount
+     FROM care_requests cr
+     LEFT JOIN patients p ON p.id = cr.patient_id
+     WHERE cr.id = $1
+     LIMIT 1`,
+    [requestId]
+  );
+  const details = detailsResult.rows[0];
+  if (!details || !details.assigned_nurse_id) {
+    return null;
+  }
+
+  const grossAmount = Number.parseFloat(details.gross_amount) || 0;
+  const platformFee = Number.parseFloat(details.platform_fee) || 0;
+  const referralFee = Number.parseFloat(details.referral_fee) || 0;
+  const rawNetAmount = details.nurse_net_amount !== null && typeof details.nurse_net_amount !== "undefined"
+    ? Number.parseFloat(details.nurse_net_amount) || 0
+    : grossAmount - platformFee - referralFee;
+  const netAmount = Math.max(Number(rawNetAmount.toFixed(2)), 0);
+
+  const earningsUpsertResult = await client.query(
+    `INSERT INTO care_request_earnings (
+        request_id,
+        nurse_id,
+        patient_id,
+        gross_amount,
+        platform_fee,
+        referral_fee,
+        net_amount,
+        payout_status,
+        notes,
+        generated_by_user_id,
+        generated_at,
+        updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,NOW(),NOW())
+      ON CONFLICT (request_id)
+      DO UPDATE SET
+        nurse_id = EXCLUDED.nurse_id,
+        patient_id = EXCLUDED.patient_id,
+        gross_amount = EXCLUDED.gross_amount,
+        platform_fee = EXCLUDED.platform_fee,
+        referral_fee = EXCLUDED.referral_fee,
+        net_amount = EXCLUDED.net_amount,
+        notes = EXCLUDED.notes,
+        generated_by_user_id = EXCLUDED.generated_by_user_id,
+        updated_at = NOW()
+      RETURNING *`,
+    [
+      requestId,
+      details.assigned_nurse_id,
+      details.patient_id || null,
+      Number(grossAmount.toFixed(2)),
+      Number(platformFee.toFixed(2)),
+      Number(referralFee.toFixed(2)),
+      netAmount,
+      note || "Earnings generated on completion.",
+      actor && typeof actor.userId === "number" ? actor.userId : null
+    ]
+  );
+  const earnings = earningsUpsertResult.rows[0] || null;
+  if (earnings) {
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "earnings_generated",
+      previousStatus: null,
+      nextStatus: null,
+      previousPaymentStatus: null,
+      nextPaymentStatus: null,
+      assignedNurseId: details.assigned_nurse_id,
+      comment: note || "Earnings generated/updated for completed request.",
+      changedByUserId: actor && typeof actor.userId === "number" ? actor.userId : null,
+      changedByRole: actor && actor.role ? actor.role : "system",
+      metadata: {
+        earningsId: earnings.id,
+        grossAmount: Number(grossAmount.toFixed(2)),
+        platformFee: Number(platformFee.toFixed(2)),
+        referralFee: Number(referralFee.toFixed(2)),
+        netAmount
+      }
+    });
+  }
+
+  return earnings;
+}
+
+app.get("/admin/care-requests", requireRole("admin"), async (req, res) => {
+  const statusFilter = normalizeCareRequestStatusFilterInput(req.query.status);
+  const paymentFilter = normalizeCareRequestPaymentFilterInput(req.query.payment);
+
+  try {
+    const [result, statusCountsResult, paymentCountsResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            cr.id,
+            cr.patient_id,
+            p.request_id AS patient_request_id,
+            p.full_name AS patient_name,
+            p.phone_number AS patient_phone_number,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            NULL::text AS required_qualification,
+            NULL::date AS shift_start,
+            NULL::date AS shift_end,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+            cr.marketplace_ready,
+            cr.assigned_nurse_id,
+            n.full_name AS assigned_nurse_name,
+            cr.status,
+            cr.payment_status,
+            cr.assignment_comment,
+            cr.nurse_notified,
+            rr.rating AS nurse_rating,
+            rr.feedback AS rating_feedback,
+            rr.updated_at AS rating_updated_at,
+            ce.gross_amount,
+            ce.platform_fee,
+            ce.referral_fee,
+            ce.net_amount,
+            ce.payout_status,
+            ce.updated_at AS earnings_updated_at,
+            cr.created_at,
+            COALESCE(ca.total_applications, 0) AS total_applications
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         LEFT JOIN nurses n ON n.id = cr.assigned_nurse_id
+         LEFT JOIN care_request_ratings rr ON rr.request_id = cr.id
+         LEFT JOIN care_request_earnings ce ON ce.request_id = cr.id
+         LEFT JOIN (
+           SELECT request_id, COUNT(*) AS total_applications
+           FROM care_applications
+           GROUP BY request_id
+         ) ca ON ca.request_id = cr.id
+         WHERE ($1 = 'all' OR cr.status = $1)
+           AND ($2 = 'all' OR cr.payment_status = $2)
+         ORDER BY cr.created_at DESC`,
+        [statusFilter, paymentFilter]
+      ),
+      pool.query(
+        `SELECT status, COUNT(*)::int AS total
+         FROM care_requests
+         GROUP BY status`
+      ),
+      pool.query(
+        `SELECT payment_status, COUNT(*)::int AS total
+         FROM care_requests
+         GROUP BY payment_status`
+      )
+    ]);
+
+    const statusCounts = { all: 0 };
+    CARE_REQUEST_STATUSES.forEach((status) => { statusCounts[status] = 0; });
+    statusCountsResult.rows.forEach((row) => {
+      const normalizedStatus = normalizeCareRequestStatusInput(row.status);
+      if (normalizedStatus) {
+        statusCounts[normalizedStatus] = Number.parseInt(row.total, 10) || 0;
+      }
+    });
+    statusCounts.all = CARE_REQUEST_STATUSES.reduce(
+      (sum, status) => sum + (statusCounts[status] || 0),
+      0
+    );
+
+    const paymentCounts = { all: 0 };
+    CARE_REQUEST_PAYMENT_STATUSES.forEach((paymentStatus) => { paymentCounts[paymentStatus] = 0; });
+    paymentCountsResult.rows.forEach((row) => {
+      const normalizedPaymentStatus = normalizeCareRequestPaymentStatusInput(row.payment_status);
+      if (normalizedPaymentStatus) {
+        paymentCounts[normalizedPaymentStatus] = Number.parseInt(row.total, 10) || 0;
+      }
+    });
+    paymentCounts.all = CARE_REQUEST_PAYMENT_STATUSES.reduce(
+      (sum, paymentStatus) => sum + (paymentCounts[paymentStatus] || 0),
+      0
+    );
+
+    return res.render("admin/care-requests", {
+      title: "Care Requests",
+      requests: result.rows,
+      statusFilter,
+      paymentFilter,
+      statusCounts,
+      paymentCounts
+    });
+  } catch (error) {
+    console.error("Admin care requests list error:", error);
+    setFlash(req, "error", "Unable to load care requests right now.");
+    return res.redirect("/admin");
+  }
+});
+
+app.get("/admin/marketplace", requireRole("admin"), async (req, res) => {
+  const activeTab = normalizeMarketplaceTabInput(req.query.tab);
+  const tabLabels = {
+    open: "Open",
+    assigned: "Assigned",
+    payment_pending: "Payment Pending",
+    active: "Active",
+    completed: "Completed",
+    cancelled: "Cancelled"
+  };
+
+  try {
+    const [result, countsResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            cr.id,
+            cr.patient_id,
+            p.request_id AS patient_request_id,
+            p.full_name AS patient_name,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            NULL::text AS required_qualification,
+            NULL::date AS shift_start,
+            NULL::date AS shift_end,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+            cr.marketplace_ready,
+            cr.assigned_nurse_id,
+            n.full_name AS assigned_nurse_name,
+            cr.status,
+            cr.payment_status,
+            cr.assignment_comment,
+            cr.nurse_notified,
+            rr.rating AS nurse_rating,
+            ce.net_amount,
+            ce.payout_status,
+            cr.created_at,
+            COALESCE(ca.total_applications, 0) AS total_applications,
+            COALESCE(ca.pending_applications, 0) AS pending_applications,
+            COALESCE(ca.accepted_applications, 0) AS accepted_applications
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         LEFT JOIN nurses n ON n.id = cr.assigned_nurse_id
+         LEFT JOIN care_request_ratings rr ON rr.request_id = cr.id
+         LEFT JOIN care_request_earnings ce ON ce.request_id = cr.id
+         LEFT JOIN (
+           SELECT
+             request_id,
+             COUNT(*) AS total_applications,
+             COUNT(*) FILTER (WHERE status = 'pending') AS pending_applications,
+             COUNT(*) FILTER (WHERE status = 'accepted') AS accepted_applications
+           FROM care_applications
+           GROUP BY request_id
+         ) ca ON ca.request_id = cr.id
+         WHERE cr.marketplace_ready = TRUE
+           AND cr.status = $1
+         ORDER BY cr.created_at DESC`,
+        [activeTab]
+      ),
+      pool.query(
+        `SELECT status, COUNT(*)::int AS total
+         FROM care_requests
+         WHERE marketplace_ready = TRUE
+         GROUP BY status`
+      )
+    ]);
+
+    const countByStatus = CARE_REQUEST_MARKETPLACE_TABS.reduce((acc, status) => {
+      acc[status] = 0;
+      return acc;
+    }, {});
+    countsResult.rows.forEach((row) => {
+      const normalizedStatus = normalizeCareRequestStatusInput(row.status);
+      if (normalizedStatus) {
+        countByStatus[normalizedStatus] = Number.parseInt(row.total, 10) || 0;
+      }
+    });
+    const marketplaceTabs = CARE_REQUEST_MARKETPLACE_TABS.map((status) => ({
+      value: status,
+      label: tabLabels[status] || status,
+      count: countByStatus[status] || 0
+    }));
+
+    return res.render("admin/marketplace", {
+      title: "Care Requests Dashboard",
+      requests: result.rows,
+      activeTab,
+      marketplaceTabs
+    });
+  } catch (error) {
+    console.error("Admin marketplace dashboard error:", error);
+    setFlash(req, "error", "Unable to load marketplace dashboard right now.");
+    return res.redirect("/admin");
+  }
+});
+
+app.post("/admin/care-requests/:id/marketplace-ready", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+
+  const isMarketplaceReady = String(req.body.marketplace_ready || "").trim().toLowerCase() === "true";
+
+  try {
+    const updateResult = await pool.query(
+      "UPDATE care_requests SET marketplace_ready = $2 WHERE id = $1",
+      [requestId, isMarketplaceReady]
+    );
+    if (!updateResult.rowCount) {
+      setFlash(req, "error", "Care request not found.");
+      return res.redirect(redirectTarget);
+    }
+
+    if (isMarketplaceReady) {
+      setFlash(req, "success", "Request moved to marketplace dashboard.");
+    } else {
+      setFlash(req, "success", "Request removed from marketplace dashboard.");
+    }
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    console.error("Admin care request marketplace toggle error:", error);
+    setFlash(req, "error", "Unable to update marketplace status right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+app.get(
+  ["/admin/care-requests/:id/applications", "/admin/marketplace/:id/applications"],
+  requireRole("admin"),
+  async (req, res) => {
+    const requestId = Number.parseInt(req.params.id, 10);
+    const applicationsBasePath = getCareRequestApplicationsBasePath(req);
+    const backHref = applicationsBasePath === "/admin/marketplace"
+      ? `/admin/marketplace?tab=${encodeURIComponent(normalizeMarketplaceTabInput(req.query.tab))}`
+      : `/admin/care-requests?status=${encodeURIComponent(normalizeCareRequestStatusFilterInput(req.query.status))}&payment=${encodeURIComponent(normalizeCareRequestPaymentFilterInput(req.query.payment))}`;
+    if (Number.isNaN(requestId)) {
+      setFlash(req, "error", "Invalid care request.");
+      return res.redirect(backHref);
+    }
+
+    try {
+      const requestResult = await pool.query(
+        `SELECT
+            cr.id,
+            cr.patient_id,
+            p.request_id AS patient_request_id,
+            p.full_name AS patient_name,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            NULL::text AS required_qualification,
+            NULL::date AS shift_start,
+            NULL::date AS shift_end,
+            COALESCE(
+              NULLIF(p.service_schedule, ''),
+              CASE
+                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+                ELSE NULL
+              END,
+              '-'
+            ) AS shift_timing,
+            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+            cr.marketplace_ready,
+            cr.assigned_nurse_id,
+            n.full_name AS assigned_nurse_name,
+            cr.status,
+            cr.payment_status,
+            cr.assignment_comment,
+            cr.nurse_notified,
+            rr.rating AS nurse_rating,
+            rr.feedback AS rating_feedback,
+            rr.updated_at AS rating_updated_at,
+            ce.id AS earnings_id,
+            ce.gross_amount,
+            ce.platform_fee,
+            ce.referral_fee,
+            ce.net_amount,
+            ce.payout_status,
+            ce.payout_reference,
+            ce.notes AS earnings_notes,
+            ce.updated_at AS earnings_updated_at,
+            cr.created_at
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         LEFT JOIN nurses n ON n.id = cr.assigned_nurse_id
+         LEFT JOIN care_request_ratings rr ON rr.request_id = cr.id
+         LEFT JOIN care_request_earnings ce ON ce.request_id = cr.id
+         WHERE cr.id = $1
+         LIMIT 1`,
+        [requestId]
+      );
+
+      if (!requestResult.rows.length) {
+        setFlash(req, "error", "Care request not found.");
+        return res.redirect(backHref);
+      }
+
+      const applicationsResult = await pool.query(
+        `SELECT
+            ca.id,
+            ca.request_id,
+            ca.nurse_id,
+            ca.status,
+            ca.applied_at,
+            n.full_name,
+            n.city,
+            n.experience_years,
+            n.current_status,
+            u.email,
+            u.phone_number
+         FROM care_applications ca
+         JOIN nurses n ON n.id = ca.nurse_id
+         JOIN users u ON u.id = n.user_id
+         WHERE ca.request_id = $1
+           AND COALESCE(u.is_deleted, false) = false
+         ORDER BY
+           CASE ca.status
+             WHEN 'accepted' THEN 0
+             WHEN 'pending' THEN 1
+             ELSE 2
+           END,
+           ca.applied_at DESC`,
+        [requestId]
+      );
+      const lifecycleLogsResult = await pool.query(
+        `SELECT
+            id,
+            event_type,
+            previous_status,
+            next_status,
+            previous_payment_status,
+            next_payment_status,
+            assigned_nurse_id,
+            comment,
+            changed_by_user_id,
+            changed_by_role,
+            metadata,
+            created_at
+         FROM care_request_lifecycle_logs
+         WHERE request_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT 100`,
+        [requestId]
+      );
+
+      return res.render("admin/care-request-applications", {
+        title: "Care Request Applications",
+        requestItem: requestResult.rows[0],
+        applications: applicationsResult.rows,
+        lifecycleLogs: lifecycleLogsResult.rows,
+        backHref,
+        actionBasePath: applicationsBasePath
+      });
+    } catch (error) {
+      console.error("Admin care request applications list error:", error);
+      setFlash(req, "error", "Unable to load care applications right now.");
+      return res.redirect(backHref);
+    }
+  }
+);
+
+app.post(
+  [
+    "/admin/care-requests/:requestId/applications/:applicationId/accept",
+    "/admin/marketplace/:requestId/applications/:applicationId/accept"
+  ],
+  requireRole("admin"),
+  async (req, res) => {
+    const requestId = Number.parseInt(req.params.requestId, 10);
+    const applicationId = Number.parseInt(req.params.applicationId, 10);
+    const applicationsBasePath = getCareRequestApplicationsBasePath(req);
+    const applicationsRedirectUrl = getCareRequestApplicationsRedirectUrl(req, requestId);
+    if (Number.isNaN(requestId) || Number.isNaN(applicationId)) {
+      setFlash(req, "error", "Invalid application request.");
+      return res.redirect(applicationsBasePath);
+    }
+
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+
+      const applicationResult = await client.query(
+        `SELECT
+            ca.id,
+            ca.request_id,
+            ca.nurse_id,
+            cr.status AS request_status,
+            cr.payment_status AS request_payment_status,
+            cr.assigned_nurse_id AS request_assigned_nurse_id,
+            cr.marketplace_ready
+         FROM care_applications ca
+         JOIN care_requests cr ON cr.id = ca.request_id
+         WHERE ca.id = $1
+           AND ca.request_id = $2
+         FOR UPDATE OF ca, cr`,
+        [applicationId, requestId]
+      );
+      if (!applicationResult.rows.length) {
+        throw new Error("Application not found for this care request.");
+      }
+
+      const requestStatus = normalizeCareRequestStatusInput(applicationResult.rows[0].request_status);
+      if (requestStatus !== "open") {
+        throw new Error("Only open requests can accept nurse applications.");
+      }
+      if (applicationResult.rows[0].marketplace_ready !== true) {
+        throw new Error("Request must be marketplace-ready before accepting applications.");
+      }
+      const previousPaymentStatus = normalizeCareRequestPaymentStatusInput(
+        applicationResult.rows[0].request_payment_status
+      ) || "pending";
+      const previousAssignedNurseId = Number.isInteger(applicationResult.rows[0].request_assigned_nurse_id)
+        ? applicationResult.rows[0].request_assigned_nurse_id
+        : null;
+      const actor = buildCareRequestLifecycleActor(req, "admin");
+
+      await client.query(
+        "UPDATE care_applications SET status = 'rejected' WHERE request_id = $1 AND id <> $2",
+        [requestId, applicationId]
+      );
+      await client.query(
+        "UPDATE care_applications SET status = 'accepted' WHERE id = $1",
+        [applicationId]
+      );
+      await client.query(
+        `UPDATE care_requests
+         SET status = 'assigned',
+             assigned_nurse_id = $2,
+             payment_status = 'pending',
+             assignment_comment = NULL,
+             nurse_notified = FALSE
+         WHERE id = $1`,
+        [requestId, applicationResult.rows[0].nurse_id]
+      );
+      await insertCareRequestLifecycleLog(client, {
+        requestId,
+        eventType: "application_accepted",
+        previousStatus: requestStatus,
+        nextStatus: "assigned",
+        previousPaymentStatus,
+        nextPaymentStatus: "pending",
+        assignedNurseId: applicationResult.rows[0].nurse_id,
+        comment: "Application accepted by admin.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          applicationId,
+          previousAssignedNurseId
+        }
+      });
+
+      await client.query("COMMIT");
+      client.release();
+      client = null;
+
+      setFlash(req, "success", "Application accepted and request marked as assigned.");
+      return res.redirect(applicationsRedirectUrl);
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Admin accept application rollback error:", rollbackError);
+        }
+        client.release();
+      }
+      console.error("Admin accept application error:", error);
+      setFlash(req, "error", error.message || "Unable to accept application right now.");
+      return res.redirect(applicationsRedirectUrl);
+    }
+  }
+);
+
+app.post(
+  [
+    "/admin/care-requests/:requestId/applications/:applicationId/reject",
+    "/admin/marketplace/:requestId/applications/:applicationId/reject"
+  ],
+  requireRole("admin"),
+  async (req, res) => {
+    const requestId = Number.parseInt(req.params.requestId, 10);
+    const applicationId = Number.parseInt(req.params.applicationId, 10);
+    const applicationsBasePath = getCareRequestApplicationsBasePath(req);
+    const applicationsRedirectUrl = getCareRequestApplicationsRedirectUrl(req, requestId);
+    if (Number.isNaN(requestId) || Number.isNaN(applicationId)) {
+      setFlash(req, "error", "Invalid application request.");
+      return res.redirect(applicationsBasePath);
+    }
+
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+
+      const applicationResult = await client.query(
+        `SELECT
+            ca.id,
+            cr.status AS request_status,
+            cr.payment_status AS request_payment_status,
+            cr.assigned_nurse_id AS request_assigned_nurse_id
+         FROM care_applications ca
+         JOIN care_requests cr ON cr.id = ca.request_id
+         WHERE ca.id = $1
+           AND ca.request_id = $2
+         FOR UPDATE OF ca, cr`,
+        [applicationId, requestId]
+      );
+      if (!applicationResult.rows.length) {
+        throw new Error("Application not found for this care request.");
+      }
+      const requestStatus = normalizeCareRequestStatusInput(applicationResult.rows[0].request_status);
+      if (!["open", "assigned", "payment_pending"].includes(requestStatus)) {
+        throw new Error("Applications can only be modified while request is open/assigned/payment_pending.");
+      }
+      const previousPaymentStatus = normalizeCareRequestPaymentStatusInput(
+        applicationResult.rows[0].request_payment_status
+      ) || "pending";
+      const previousAssignedNurseId = Number.isInteger(applicationResult.rows[0].request_assigned_nurse_id)
+        ? applicationResult.rows[0].request_assigned_nurse_id
+        : null;
+      const actor = buildCareRequestLifecycleActor(req, "admin");
+      let nextStatus = requestStatus;
+      let nextPaymentStatus = previousPaymentStatus;
+      let nextAssignedNurseId = previousAssignedNurseId;
+
+      await client.query(
+        "UPDATE care_applications SET status = 'rejected' WHERE id = $1",
+        [applicationId]
+      );
+
+      const acceptedCountResult = await client.query(
+        "SELECT COUNT(*)::int AS accepted_count FROM care_applications WHERE request_id = $1 AND status = 'accepted'",
+        [requestId]
+      );
+      if (acceptedCountResult.rows[0].accepted_count === 0) {
+        await client.query(
+          `UPDATE care_requests
+           SET status = 'open',
+               assigned_nurse_id = NULL,
+               payment_status = 'pending',
+               nurse_notified = FALSE
+           WHERE id = $1`,
+          [requestId]
+        );
+        nextStatus = "open";
+        nextPaymentStatus = "pending";
+        nextAssignedNurseId = null;
+      } else {
+        const acceptedNurseResult = await client.query(
+          `SELECT nurse_id
+           FROM care_applications
+           WHERE request_id = $1
+             AND status = 'accepted'
+           ORDER BY applied_at DESC
+           LIMIT 1`,
+          [requestId]
+        );
+        if (acceptedNurseResult.rows[0]) {
+          await client.query(
+            `UPDATE care_requests
+             SET assigned_nurse_id = $2,
+                 status = CASE WHEN status = 'open' THEN 'assigned' ELSE status END
+             WHERE id = $1`,
+            [requestId, acceptedNurseResult.rows[0].nurse_id]
+          );
+          nextAssignedNurseId = acceptedNurseResult.rows[0].nurse_id;
+          if (requestStatus === "open") {
+            nextStatus = "assigned";
+          }
+        }
+      }
+      await insertCareRequestLifecycleLog(client, {
+        requestId,
+        eventType: "application_rejected",
+        previousStatus: requestStatus,
+        nextStatus,
+        previousPaymentStatus,
+        nextPaymentStatus,
+        assignedNurseId: typeof nextAssignedNurseId === "number" ? nextAssignedNurseId : null,
+        comment: "Application rejected by admin.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          applicationId,
+          previousAssignedNurseId
+        }
+      });
+
+      await client.query("COMMIT");
+      client.release();
+      client = null;
+
+      setFlash(req, "success", "Application rejected.");
+      return res.redirect(applicationsRedirectUrl);
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Admin reject application rollback error:", rollbackError);
+        }
+        client.release();
+      }
+      console.error("Admin reject application error:", error);
+      setFlash(req, "error", error.message || "Unable to reject application right now.");
+      return res.redirect(applicationsRedirectUrl);
+    }
+  }
+);
+
+app.post("/admin/care-requests/create", requireRole("admin"), async (req, res) => {
+  const patientCondition = String(req.body.patient_condition || "").trim();
+  const location = String(req.body.location || "").trim();
+  const requiredQualification = String(req.body.required_qualification || "").trim();
+  const durationValueRaw = String(req.body.duration_value || "").trim();
+  const durationUnit = String(req.body.duration_unit || "").trim();
+  const pricePerDayRaw = String(req.body.price_per_day || "").trim();
+
+  if (!patientCondition || !location) {
+    setFlash(req, "error", "Patient condition and location are required.");
+    return res.redirect("/admin/care-requests");
+  }
+
+  const pricePerDay = pricePerDayRaw === "" ? null : Number.parseFloat(pricePerDayRaw);
+  const durationValue = durationValueRaw === "" ? null : Number.parseInt(durationValueRaw, 10);
+  if (pricePerDayRaw !== "" && (Number.isNaN(pricePerDay) || pricePerDay < 0)) {
+    setFlash(req, "error", "Price per day must be a valid non-negative number.");
+    return res.redirect("/admin/care-requests");
+  }
+
+  try {
+    const createdRequestResult = await pool.query(
+      `INSERT INTO care_requests
+        (
+          patient_id,
+          care_type,
+          duration_value,
+          duration_unit,
+          budget_min,
+          budget_max,
+          marketplace_ready,
+          status,
+          payment_status,
+          nurse_notified
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'open', 'pending', FALSE)
+       RETURNING id, status, payment_status, assigned_nurse_id`,
+      [
+        null,
+        patientCondition || requiredQualification || location || "General care support required",
+        Number.isNaN(durationValue) ? null : durationValue,
+        durationUnit || null,
+        pricePerDay || 0,
+        pricePerDay || 0
+      ]
+    );
+
+    try {
+      const createdRequest = createdRequestResult.rows[0];
+      const actor = buildCareRequestLifecycleActor(req, "admin");
+      await insertCareRequestLifecycleLog(pool, {
+        requestId: createdRequest.id,
+        eventType: "created_by_admin",
+        previousStatus: null,
+        nextStatus: createdRequest.status,
+        previousPaymentStatus: null,
+        nextPaymentStatus: createdRequest.payment_status,
+        assignedNurseId: createdRequest.assigned_nurse_id,
+        comment: "Care request created manually by admin.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          source: "admin-create"
+        }
+      });
+    } catch (logError) {
+      console.error("Care request lifecycle log creation failed (admin flow):", logError);
+    }
+
+    setFlash(req, "success", "Care request created.");
+    return res.redirect("/admin/care-requests");
+  } catch (error) {
+    console.error("Admin care request create error:", error);
+    setFlash(req, "error", "Unable to create care request right now.");
+    return res.redirect("/admin/care-requests");
+  }
+});
+
+app.post("/admin/care-requests/:id/delete", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+
+  try {
+    await pool.query("DELETE FROM care_requests WHERE id = $1", [requestId]);
+    setFlash(req, "success", "Care request deleted.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    console.error("Admin care request delete error:", error);
+    setFlash(req, "error", "Unable to delete care request right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+async function getCareRequestForUpdate(client, requestId) {
+  const requestResult = await client.query(
+    `SELECT id, status, payment_status, assigned_nurse_id
+     FROM care_requests
+     WHERE id = $1
+     FOR UPDATE`,
+    [requestId]
+  );
+  return requestResult.rows[0] || null;
+}
+
+app.post("/admin/care-requests/:id/payment-pending", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  const assignmentComment = normalizeAssignmentCommentInput(req.body.assignment_comment);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const currentRequest = await getCareRequestForUpdate(client, requestId);
+    if (!currentRequest) {
+      throw new Error("Care request not found.");
+    }
+    if (!currentRequest.assigned_nurse_id) {
+      throw new Error("Assign a nurse before moving to payment pending.");
+    }
+    assertCareRequestTransition(currentRequest.status, "payment_pending");
+    const actor = buildCareRequestLifecycleActor(req, "admin");
+
+    await client.query(
+      `UPDATE care_requests
+       SET status = 'payment_pending',
+           payment_status = 'pending',
+           assignment_comment = COALESCE($2, assignment_comment)
+       WHERE id = $1`,
+      [requestId, assignmentComment]
+    );
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "payment_marked_pending",
+      previousStatus: currentRequest.status,
+      nextStatus: "payment_pending",
+      previousPaymentStatus: currentRequest.payment_status,
+      nextPaymentStatus: "pending",
+      assignedNurseId: currentRequest.assigned_nurse_id,
+      comment: assignmentComment || "Request moved to payment_pending by admin.",
+      changedByUserId: actor.userId,
+      changedByRole: actor.role
+    });
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    setFlash(req, "success", "Request moved to payment pending.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin payment-pending rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Admin payment-pending transition error:", error);
+    setFlash(req, "error", error.message || "Unable to move request to payment pending.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+app.post("/admin/care-requests/:id/confirm-payment", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  const assignmentComment = normalizeAssignmentCommentInput(req.body.assignment_comment);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const currentRequest = await getCareRequestForUpdate(client, requestId);
+    if (!currentRequest) {
+      throw new Error("Care request not found.");
+    }
+    if (!currentRequest.assigned_nurse_id) {
+      throw new Error("Assign a nurse before confirming payment.");
+    }
+    if (!["assigned", "payment_pending"].includes(currentRequest.status)) {
+      throw new Error("Payment can only be confirmed for assigned/payment_pending requests.");
+    }
+    assertCareRequestTransition(currentRequest.status, "active");
+    const actor = buildCareRequestLifecycleActor(req, "admin");
+
+    await client.query(
+      `UPDATE care_requests
+       SET status = 'active',
+           payment_status = 'paid',
+           assignment_comment = COALESCE($2, assignment_comment),
+           nurse_notified = FALSE
+       WHERE id = $1`,
+      [requestId, assignmentComment]
+    );
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "payment_confirmed",
+      previousStatus: currentRequest.status,
+      nextStatus: "active",
+      previousPaymentStatus: currentRequest.payment_status,
+      nextPaymentStatus: "paid",
+      assignedNurseId: currentRequest.assigned_nurse_id,
+      comment: assignmentComment || "Payment confirmed by admin.",
+      changedByUserId: actor.userId,
+      changedByRole: actor.role
+    });
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    setFlash(req, "success", "Payment confirmed. Request moved to active.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin confirm-payment rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Admin confirm-payment transition error:", error);
+    setFlash(req, "error", error.message || "Unable to confirm payment right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+app.post("/admin/care-requests/:id/complete", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const currentRequest = await getCareRequestForUpdate(client, requestId);
+    if (!currentRequest) {
+      throw new Error("Care request not found.");
+    }
+    assertCareRequestTransition(currentRequest.status, "completed");
+    const actor = buildCareRequestLifecycleActor(req, "admin");
+
+    await client.query(
+      `UPDATE care_requests
+       SET status = 'completed'
+       WHERE id = $1`,
+      [requestId]
+    );
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "service_completed",
+      previousStatus: currentRequest.status,
+      nextStatus: "completed",
+      previousPaymentStatus: currentRequest.payment_status,
+      nextPaymentStatus: currentRequest.payment_status,
+      assignedNurseId: currentRequest.assigned_nurse_id,
+      comment: "Service marked completed by admin.",
+      changedByUserId: actor.userId,
+      changedByRole: actor.role
+    });
+    await upsertCareRequestEarnings(
+      client,
+      requestId,
+      actor,
+      "Earnings generated after service completion."
+    );
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    setFlash(req, "success", "Request marked as completed.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin complete rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Admin complete transition error:", error);
+    setFlash(req, "error", error.message || "Unable to complete request right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+app.post("/admin/care-requests/:id/reassign", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  const assignmentComment = normalizeAssignmentCommentInput(req.body.assignment_comment)
+    || "Reassigned by admin.";
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const currentRequest = await getCareRequestForUpdate(client, requestId);
+    if (!currentRequest) {
+      throw new Error("Care request not found.");
+    }
+    if (!["assigned", "payment_pending", "active"].includes(currentRequest.status)) {
+      throw new Error("Only assigned/payment_pending/active requests can be reassigned.");
+    }
+    assertCareRequestTransition(currentRequest.status, "open");
+    const actor = buildCareRequestLifecycleActor(req, "admin");
+
+    await client.query(
+      `UPDATE care_requests
+       SET status = 'open',
+           assigned_nurse_id = NULL,
+           payment_status = 'pending',
+           assignment_comment = $2,
+           nurse_notified = FALSE
+       WHERE id = $1`,
+      [requestId, assignmentComment]
+    );
+    await client.query(
+      `UPDATE care_applications
+       SET status = 'rejected'
+       WHERE request_id = $1`,
+      [requestId]
+    );
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "request_reassigned",
+      previousStatus: currentRequest.status,
+      nextStatus: "open",
+      previousPaymentStatus: currentRequest.payment_status,
+      nextPaymentStatus: "pending",
+      assignedNurseId: null,
+      comment: assignmentComment,
+      changedByUserId: actor.userId,
+      changedByRole: actor.role,
+      metadata: {
+        previousAssignedNurseId: currentRequest.assigned_nurse_id
+      }
+    });
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    setFlash(req, "success", "Request reassigned and reopened for marketplace applications.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin reassign rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Admin reassign transition error:", error);
+    setFlash(req, "error", error.message || "Unable to reassign request right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+app.post(
+  ["/admin/care-requests/:id/cancel", "/admin/care-requests/:id/close"],
+  requireRole("admin"),
+  async (req, res) => {
+    const requestId = Number.parseInt(req.params.id, 10);
+    const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+    const assignmentComment = normalizeAssignmentCommentInput(req.body.assignment_comment)
+      || "Cancelled by admin.";
+    if (Number.isNaN(requestId)) {
+      setFlash(req, "error", "Invalid care request.");
+      return res.redirect(redirectTarget);
+    }
+
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+
+      const currentRequest = await getCareRequestForUpdate(client, requestId);
+      if (!currentRequest) {
+        throw new Error("Care request not found.");
+      }
+      assertCareRequestTransition(currentRequest.status, "cancelled");
+      const actor = buildCareRequestLifecycleActor(req, "admin");
+
+      await client.query(
+        `UPDATE care_requests
+         SET status = 'cancelled',
+             marketplace_ready = FALSE,
+             assignment_comment = $2
+         WHERE id = $1`,
+        [requestId, assignmentComment]
+      );
+      await client.query(
+        `UPDATE care_applications
+         SET status = 'rejected'
+         WHERE request_id = $1
+           AND status <> 'rejected'`,
+        [requestId]
+      );
+      await insertCareRequestLifecycleLog(client, {
+        requestId,
+        eventType: "request_cancelled",
+        previousStatus: currentRequest.status,
+        nextStatus: "cancelled",
+        previousPaymentStatus: currentRequest.payment_status,
+        nextPaymentStatus: currentRequest.payment_status,
+        assignedNurseId: currentRequest.assigned_nurse_id,
+        comment: assignmentComment,
+        changedByUserId: actor.userId,
+        changedByRole: actor.role
+      });
+
+      await client.query("COMMIT");
+      client.release();
+      client = null;
+      setFlash(req, "success", "Care request cancelled.");
+      return res.redirect(redirectTarget);
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Admin cancel rollback error:", rollbackError);
+        }
+        client.release();
+      }
+      console.error("Admin cancel transition error:", error);
+      setFlash(req, "error", error.message || "Unable to cancel care request right now.");
+      return res.redirect(redirectTarget);
+    }
+  }
+);
+
+app.post("/admin/care-requests/:id/rating", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  const rating = Number.parseInt(String(req.body.rating || "").trim(), 10);
+  const feedback = String(req.body.feedback || "").trim();
+
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    setFlash(req, "error", "Rating must be between 1 and 5.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const requestResult = await client.query(
+      `SELECT id, status, assigned_nurse_id, patient_id
+       FROM care_requests
+       WHERE id = $1
+       FOR UPDATE`,
+      [requestId]
+    );
+    const careRequest = requestResult.rows[0];
+    if (!careRequest) {
+      throw new Error("Care request not found.");
+    }
+    if (careRequest.status !== "completed") {
+      throw new Error("Ratings can only be recorded for completed requests.");
+    }
+    if (!careRequest.assigned_nurse_id) {
+      throw new Error("No assigned nurse found for this request.");
+    }
+
+    const actor = buildCareRequestLifecycleActor(req, "admin");
+
+    await client.query(
+      `INSERT INTO care_request_ratings (
+          request_id,
+          nurse_id,
+          patient_id,
+          rating,
+          feedback,
+          rated_by_user_id,
+          rated_by_role,
+          created_at,
+          updated_at
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
+        ON CONFLICT (request_id)
+        DO UPDATE SET
+          nurse_id = EXCLUDED.nurse_id,
+          patient_id = EXCLUDED.patient_id,
+          rating = EXCLUDED.rating,
+          feedback = EXCLUDED.feedback,
+          rated_by_user_id = EXCLUDED.rated_by_user_id,
+          rated_by_role = EXCLUDED.rated_by_role,
+          updated_at = NOW()`,
+      [
+        requestId,
+        careRequest.assigned_nurse_id,
+        careRequest.patient_id || null,
+        rating,
+        feedback || null,
+        actor.userId,
+        actor.role
+      ]
+    );
+
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "rating_recorded",
+      previousStatus: null,
+      nextStatus: null,
+      previousPaymentStatus: null,
+      nextPaymentStatus: null,
+      assignedNurseId: careRequest.assigned_nurse_id,
+      comment: feedback || `Rating recorded: ${rating}/5`,
+      changedByUserId: actor.userId,
+      changedByRole: actor.role,
+      metadata: {
+        rating
+      }
+    });
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    setFlash(req, "success", "Nurse rating updated.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin rating rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Admin rating update error:", error);
+    setFlash(req, "error", error.message || "Unable to save rating right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
+app.post("/admin/care-requests/:id/earnings/payout-status", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const redirectTarget = getCareRequestListRedirectTarget(req.body.redirect_to);
+  const payoutStatus = normalizeCareRequestPayoutStatusInput(req.body.payout_status);
+  const payoutReference = String(req.body.payout_reference || "").trim();
+  const payoutNotes = String(req.body.payout_notes || "").trim();
+
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect(redirectTarget);
+  }
+  if (!payoutStatus) {
+    setFlash(req, "error", "Invalid payout status.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const requestResult = await client.query(
+      `SELECT id, status, assigned_nurse_id
+       FROM care_requests
+       WHERE id = $1
+       FOR UPDATE`,
+      [requestId]
+    );
+    const careRequest = requestResult.rows[0];
+    if (!careRequest) {
+      throw new Error("Care request not found.");
+    }
+    if (careRequest.status !== "completed") {
+      throw new Error("Payout status can only be managed for completed requests.");
+    }
+
+    const actor = buildCareRequestLifecycleActor(req, "admin");
+    const ensuredEarnings = await upsertCareRequestEarnings(
+      client,
+      requestId,
+      actor,
+      "Earnings ensured before payout status update."
+    );
+    if (!ensuredEarnings) {
+      throw new Error("Unable to initialize earnings for this request.");
+    }
+
+    const previousPayoutStatus = String(ensuredEarnings.payout_status || "pending");
+
+    const earningsUpdateResult = await client.query(
+      `UPDATE care_request_earnings
+       SET payout_status = $2,
+           payout_reference = COALESCE(NULLIF($3, ''), payout_reference),
+           notes = COALESCE(NULLIF($4, ''), notes),
+           updated_at = NOW()
+       WHERE request_id = $1
+       RETURNING id, payout_status`,
+      [requestId, payoutStatus, payoutReference, payoutNotes]
+    );
+    const earnings = earningsUpdateResult.rows[0];
+
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "payout_status_updated",
+      previousStatus: null,
+      nextStatus: null,
+      previousPaymentStatus: null,
+      nextPaymentStatus: null,
+      assignedNurseId: careRequest.assigned_nurse_id,
+      comment: payoutNotes || `Payout status updated to ${payoutStatus}.`,
+      changedByUserId: actor.userId,
+      changedByRole: actor.role,
+      metadata: {
+        earningsId: earnings && earnings.id ? earnings.id : null,
+        previousPayoutStatus,
+        nextPayoutStatus: earnings && earnings.payout_status ? earnings.payout_status : payoutStatus,
+        payoutReference: payoutReference || null
+      }
+    });
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    setFlash(req, "success", "Payout status updated.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin payout status rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Admin payout status update error:", error);
+    setFlash(req, "error", error.message || "Unable to update payout status right now.");
+    return res.redirect(redirectTarget);
+  }
+});
+
 app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
   const agentEmail = normalizeEmail(req.currentUser.email);
   const store = readNormalizedStore();

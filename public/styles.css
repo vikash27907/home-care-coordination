@@ -2146,3 +2146,189 @@ thead th {
     right: 15px;
   }
 }
+
+/* ============================================================
+   NURSE MARKETPLACE (CARE REQUESTS)
+   ============================================================ */
+
+.nurse-marketplace-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid #cfe1f5;
+  background: linear-gradient(135deg, #0e4b83 0%, #1e88e5 55%, #1ea091 100%);
+  box-shadow: var(--shadow-soft);
+  padding: clamp(1.1rem, 2.2vw, 1.6rem);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.nurse-marketplace-hero::before {
+  content: "";
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  right: -80px;
+  top: -120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.nurse-marketplace-hero__copy,
+.nurse-marketplace-hero__stat {
+  position: relative;
+  z-index: 1;
+}
+
+.nurse-marketplace-hero__eyebrow {
+  color: #d9efff;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.nurse-marketplace-hero h1 {
+  margin-top: 0.35rem;
+  color: #ffffff;
+  font-size: clamp(1.5rem, 3.2vw, 2rem);
+}
+
+.nurse-marketplace-hero p {
+  margin-top: 0.5rem;
+  color: #e7f5ff;
+  max-width: 640px;
+  line-height: 1.45;
+}
+
+.nurse-marketplace-hero__stat {
+  min-width: 138px;
+  border: 1px solid rgba(230, 245, 255, 0.45);
+  border-radius: 14px;
+  background: rgba(7, 38, 67, 0.34);
+  padding: 0.75rem 0.85rem;
+}
+
+.nurse-marketplace-hero__stat-label {
+  display: block;
+  color: #d8edff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.nurse-marketplace-hero__stat-value {
+  margin-top: 0.18rem;
+  display: block;
+  color: #ffffff;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.nurse-marketplace-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.nurse-marketplace-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fcff 100%);
+  border: 1px solid #d5e4f3;
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  padding: 1rem;
+  transform: translateY(8px);
+  opacity: 0;
+  animation: marketplace-card-in 0.5s ease forwards;
+  animation-delay: calc(var(--card-delay, 0) * 60ms);
+}
+
+.nurse-marketplace-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 38px rgba(16, 42, 68, 0.14);
+}
+
+.nurse-marketplace-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.nurse-marketplace-card h3 {
+  font-size: 1.05rem;
+  color: #0f3559;
+}
+
+.nurse-marketplace-card p {
+  margin-top: 0.36rem;
+  color: #43617d;
+}
+
+.nurse-marketplace-card strong {
+  color: #143b5e;
+}
+
+.nurse-marketplace-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #0a6d46;
+  background: #dcfce7;
+  border: 1px solid #a7f3c8;
+}
+
+.nurse-marketplace-card__actions {
+  margin-top: 0.9rem;
+}
+
+.nurse-marketplace-btn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 0.62rem 0.78rem;
+  font-family: "Inter", sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nurse-marketplace-btn--apply {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f5baf 0%, #1e88e5 100%);
+}
+
+.nurse-marketplace-btn--apply:hover {
+  background: linear-gradient(135deg, #0d4f97 0%, #1669b5 100%);
+}
+
+.nurse-marketplace-btn--applied {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1d7f4a 0%, #27ae60 100%);
+  cursor: not-allowed;
+  opacity: 0.95;
+}
+
+@keyframes marketplace-card-in {
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .nurse-marketplace-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nurse-marketplace-hero__stat {
+    width: 100%;
+  }
+}

@@ -11,6 +11,8 @@ async function resetDatabase() {
   try {
     console.log('Dropping all tables...');
     
+    await client.query('DROP TABLE IF EXISTS care_applications CASCADE');
+    await client.query('DROP TABLE IF EXISTS care_requests CASCADE');
     await client.query('DROP TABLE IF EXISTS concerns CASCADE');
     await client.query('DROP TABLE IF EXISTS patients CASCADE');
     await client.query('DROP TABLE IF EXISTS agents CASCADE');
