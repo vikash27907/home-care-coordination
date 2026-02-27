@@ -656,6 +656,7 @@ if (isProduction) {
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use("/webhook/whatsapp", require("./routes/whatsapp"));
 
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
