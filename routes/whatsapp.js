@@ -26,62 +26,105 @@ router.post("/", async (req, res) => {
     const change = entry?.changes?.[0];
     const message = change?.value?.messages?.[0];
 
-    // Ignore status updates
     if (!message) return;
 
     const from = message.from;
     console.log("📩 Message from:", from);
 
-    // 2️⃣ Send interactive button menu
-    await axios.post(
-      `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: from,
-        type: "interactive",
-        interactive: {
-          type: "button",
-          body: {
-            text: "Welcome to Prisha Home Care 👩‍⚕️\n\nPlease choose an option:"
-          },
-          action: {
-            buttons: [
-              {
-                type: "reply",
-                reply: {
-                  id: "nurse_register",
-                  title: "Apply as Nurse"
-                }
-              },
-              {
-                type: "reply",
-                reply: {
-                  id: "need_nurse",
-                  title: "Need a Nurse"
-                }
-              },
-              {
-                type: "reply",
-                reply: {
-                  id: "talk_admin",
-                  title: "Talk to Admin"
-                }
-              }
-            ]
-          }
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json"
-        }
+    // 🔹 BUTTON CLICK HANDLER
+    if (message.type === "interactive") {
+      const buttonId = message.interactive.button_reply.id;
+      console.log("🔘 Button clicked:", buttonId);
+
+      if (buttonId === "nurse_register") {
+        await sendTextMessage(from, "Great 👩‍⚕️\nPlease enter your Full Name:");
       }
-    );
+
+      if (buttonId === "need_nurse") {
+        await sendTextMessage(from, "Please enter Patient Name:");
+      }
+
+      if (buttonId === "talk_admin") {
+        await sendTextMessage(from, "Our admin will contact you shortly.");
+      }
+
+      return;
+    }
+
+    // 🔹 FIRST TIME MESSAGE (TEXT)
+    if (message.type === "text") {
+      await sendMainMenu(from);
+    }
 
   } catch (error) {
     console.error("Webhook Error:", error.response?.data || error.message);
   }
 });
+
+async function sendTextMessage(to, text) {
+  await axios.post(
+    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to,
+      type: "text",
+      text: { body: text }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
+
+async function sendMainMenu(to) {
+  await axios.post(
+    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: {
+          text: "Welcome to Prisha Home Care 👩‍⚕️\n\nPlease choose an option:"
+        },
+        action: {
+          buttons: [
+            {
+              type: "reply",
+              reply: {
+                id: "nurse_register",
+                title: "Apply as Nurse"
+              }
+            },
+            {
+              type: "reply",
+              reply: {
+                id: "need_nurse",
+                title: "Need a Nurse"
+              }
+            },
+            {
+              type: "reply",
+              reply: {
+                id: "talk_admin",
+                title: "Talk to Admin"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+}
 
 module.exports = router;
