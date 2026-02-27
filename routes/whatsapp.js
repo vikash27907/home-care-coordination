@@ -37,10 +37,12 @@ router.post("/", async (req, res) => {
       console.log("🔘 Button clicked:", buttonId);
 
       if (buttonId === "nurse_register") {
+        await upsertSession(from, "nurse", "ask_full_name", {});
         await sendTextMessage(from, "Great 👩‍⚕️\nPlease enter your Full Name:");
       }
 
       if (buttonId === "need_nurse") {
+        await upsertSession(from, "care_request", "ask_patient_name", {});
         await sendTextMessage(from, "Please enter Patient Name:");
       }
 
