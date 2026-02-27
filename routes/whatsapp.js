@@ -1,6 +1,7 @@
 ﻿const express = require("express");
 const router = express.Router();
 const axios = require("axios");
+const { pool } = require("../src/db");
 
 // 🔹 Webhook Verification (GET)
 router.get("/", (req, res) => {
@@ -129,4 +130,29 @@ async function sendMainMenu(to) {
   );
 }
 
+
+async function getSession(phone) {
+  const result = await pool.query(
+    "SELECT * FROM whatsapp_sessions WHERE phone = $1",
+    [phone]
+  );
+  return result.rows[0];
+}
+
+async function upsertSession(phone, flow, step, tempData = {}) {
+  await pool.query(
+    `
+    INSERT INTO whatsapp_sessions (phone, current_flow, step, temp_data, updated_at)
+    VALUES ($1, $2, $3, $4, NOW())
+    ON CONFLICT (phone)
+    DO UPDATE SET
+      current_flow = EXCLUDED.current_flow,
+      step = EXCLUDED.step,
+      temp_data = EXCLUDED.temp_data,
+      updated_at = NOW()
+    `,
+    [phone, flow, step, tempData]
+  );
+}
 module.exports = router;
+
