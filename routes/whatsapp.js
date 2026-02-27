@@ -56,6 +56,78 @@ router.post("/", async (req, res) => {
 
     // 🔹 FIRST TIME MESSAGE (TEXT)
     if (message.type === "text") {
+
+      const session = await getSession(from);
+
+      // No session → show main menu
+      if (!session) {
+        await sendMainMenu(from);
+        return;
+      }
+
+      // ===========================
+      // NURSE FLOW
+      // ===========================
+
+      if (session.current_flow === "nurse") {
+
+        // STEP 1: Full Name
+        if (session.step === "ask_full_name") {
+
+          const updatedData = {
+            ...session.temp_data,
+            full_name: message.text.body.trim()
+          };
+
+          await upsertSession(from, "nurse", "ask_experience", updatedData);
+
+          await sendTextMessage(from, "How many years of experience do you have?");
+          return;
+        }
+
+        // STEP 2: Experience
+        if (session.step === "ask_experience") {
+
+          const years = parseInt(message.text.body.trim(), 10);
+
+          if (isNaN(years)) {
+            await sendTextMessage(from, "Please enter a valid number (example: 3).");
+            return;
+          }
+
+          const updatedData = {
+            ...session.temp_data,
+            experience_years: years
+          };
+
+          await upsertSession(from, "nurse", "ask_city", updatedData);
+
+          await sendTextMessage(from, "Which city are you currently in?");
+          return;
+        }
+
+        // STEP 3: City
+        if (session.step === "ask_city") {
+
+          const updatedData = {
+            ...session.temp_data,
+            city: message.text.body.trim()
+          };
+
+          await upsertSession(from, "nurse", "completed", updatedData);
+
+          console.log("🧠 Final Nurse Data:", updatedData);
+
+          await sendTextMessage(
+            from,
+            "Thank you! Your details are saved. We will now create your profile."
+          );
+
+          return;
+        }
+      }
+
+      // fallback
       await sendMainMenu(from);
     }
 
