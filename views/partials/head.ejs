@@ -27,19 +27,22 @@
     <header class="site-header">
       <div class="wrap nav-wrap">
         <nav class="navbar">
+          <% const isHomeActive = homeLink === "/" ? currentPath === "/" : (currentPath === homeLink || currentPath.startsWith(`${homeLink}/`)); %>
           <div class="nav-left">
-            <a class="brand" href="/">
+            <a class="brand" href="<%= homeLink %>">
               <span class="brand-mark" aria-hidden="true">&#10084;</span>
               <span>Prisha Home Care</span>
             </a>
           </div>
           <div class="nav-links" id="navLinks">
-            <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Home</a>
+            <a href="<%= homeLink %>" class="<%= isHomeActive ? 'active' : '' %>">Home</a>
             <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
             <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
           </div>
           <div class="nav-right">
             <% if (session && session.user) { %>
+            <% const profileHref = session.user.role === "user" ? "/" : `/${session.user.role}/profile`; %>
+            <% const dashboardHref = homeLink || "/"; %>
             <div class="notification-center" id="notificationCenter">
               <button
                 type="button"
@@ -65,7 +68,7 @@
             </div>
             <div class="profile-menu-shell">
               <a
-                href="<%= session.user.role === 'user' ? '/dashboard' : `/${session.user.role}/profile` %>"
+                href="<%= profileHref %>"
                 class="avatar-btn"
                 aria-label="Open profile"
               >
@@ -87,16 +90,10 @@
                 &#9776;
               </button>
               <div class="dropdown-menu" id="profile-dropdown" role="menu" aria-label="Account menu">
-                <a
-                  href="<%= session.user.role === 'user' ? '/dashboard' : `/${session.user.role}/profile` %>"
-                  role="menuitem"
-                >
+                <a href="<%= profileHref %>" role="menuitem">
                   My Profile
                 </a>
-                <a
-                  href="<%= session.user.role === 'user' ? '/dashboard' : `/${session.user.role}/dashboard` %>"
-                  role="menuitem"
-                >
+                <a href="<%= dashboardHref %>" role="menuitem">
                   Dashboard
                 </a>
                 <form method="POST" action="/logout">

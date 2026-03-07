@@ -895,12 +895,16 @@ function getApprovedAgents(store) {
   return store.agents.filter((agent) => agent.status === "Approved" && !isStoreUserDeleted(store, agent.userId));
 }
 
-function redirectByRole(role) {
-  if (role === "admin") return "/admin/dashboard";
-  if (role === "agent") return "/agent/dashboard";
+function getHomeLinkForUser(userOrRole) {
+  const role = typeof userOrRole === "string" ? userOrRole : userOrRole && userOrRole.role;
   if (role === "nurse") return "/nurse/dashboard";
-  // For regular users (user role), redirect to their dashboard
-  return "/dashboard";
+  if (role === "agent") return "/agent/dashboard";
+  if (role === "admin") return "/admin";
+  return "/";
+}
+
+function redirectByRole(role) {
+  return getHomeLinkForUser(role);
 }
 
 function generateReferralCode(usedCodes) {
@@ -1544,6 +1548,7 @@ app.use((req, res, next) => {
   res.locals.currentUser = req.currentUser;
   res.locals.currentPath = req.path;
   res.locals.flash = consumeFlash(req);
+  res.locals.homeLink = getHomeLinkForUser(req.currentUser || req.session?.user || null);
   res.locals.nurseStatuses = NURSE_STATUSES;
   res.locals.agentStatuses = AGENT_STATUSES;
   res.locals.patientStatuses = PATIENT_STATUSES;
@@ -2434,33 +2439,11 @@ app.get("/user/profile", requireAuth, (req, res) => {
   if (req.currentUser.role !== "user") {
     return res.redirect(redirectByRole(req.currentUser.role));
   }
-  return res.redirect("/dashboard");
+  return res.redirect("/");
 });
 
-// User Dashboard - for logged-in users who are not admin/agent/nurse
-// Shows their care requests
 app.get("/dashboard", requireAuth, (req, res) => {
-  // Redirect admin, agent, and nurse to their respective dashboards
-  if (req.currentUser.role === "admin") {
-    return res.redirect("/admin");
-  }
-  if (req.currentUser.role === "agent") {
-    return res.redirect("/agent");
-  }
-  if (req.currentUser.role === "nurse") {
-    return res.redirect("/nurse/profile");
-  }
-  
-  // For regular users, show their requests
-  const store = readNormalizedStore();
-  const userRequests = store.patients
-    .filter((item) => item.userId === req.currentUser.id)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  return res.render("public/user-dashboard", {
-    title: "My Dashboard",
-    userRequests
-  });
+  return res.redirect(redirectByRole(req.currentUser.role));
 });
 
 app.get("/notifications", async (req, res) => {
