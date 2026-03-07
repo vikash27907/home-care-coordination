@@ -2732,3 +2732,88 @@ thead th {
     text-align: center;
   }
 }
+
+.profile-menu-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d7e4f2;
+  background: #ffffff;
+  color: #203446;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.menu-btn:hover {
+  background: #f5f9ff;
+  border-color: #b7cde6;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  padding: 10px 0;
+  display: none;
+  min-width: 180px;
+  z-index: 1000;
+}
+
+.dropdown-menu.show {
+  display: block;
+}
+
+.dropdown-menu a,
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  padding: 12px 18px;
+  text-decoration: none;
+  color: #333333;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dropdown-menu form {
+  margin: 0;
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu button:hover {
+  background: #f4f6f8;
+}
+
+@media (max-width: 768px) {
+  .menu-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .dropdown-menu {
+    right: 0;
+  }
+}

@@ -51,9 +51,8 @@ if (heroRotator) {
   }
 }
 
-const navProfile = document.querySelector(".nav-profile");
-const navAvatar = document.getElementById("navAvatar");
-const navDropdown = document.getElementById("navDropdown");
+const menuBtn = document.getElementById("menu-toggle");
+const dropdown = document.querySelector(".dropdown-menu");
 const notificationCenter = document.getElementById("notificationCenter");
 const notificationBell = document.getElementById("notificationBell");
 const notificationDropdown = document.getElementById("notificationDropdown");
@@ -62,35 +61,24 @@ const notificationList = document.getElementById("notification-list");
 const navToggle = document.getElementById("navToggle");
 const navLinks = document.getElementById("navLinks");
 
-if (navProfile && navAvatar && navDropdown) {
+if (menuBtn && dropdown) {
   const setExpanded = (isExpanded) => {
-    navAvatar.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+    menuBtn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
   };
 
   const closeDropdown = () => {
-    navProfile.classList.remove("is-open");
+    dropdown.classList.remove("show");
     setExpanded(false);
   };
 
-  const toggleDropdown = () => {
-    const isOpen = navProfile.classList.toggle("is-open");
-    setExpanded(isOpen);
-  };
-
-  navAvatar.addEventListener("click", (event) => {
+  menuBtn.addEventListener("click", (event) => {
     event.stopPropagation();
-    toggleDropdown();
-  });
-
-  navAvatar.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      toggleDropdown();
-    }
+    const isOpen = dropdown.classList.toggle("show");
+    setExpanded(isOpen);
   });
 
   document.addEventListener("click", (event) => {
-    if (!navProfile.contains(event.target)) {
+    if (!dropdown.contains(event.target) && !menuBtn.contains(event.target)) {
       closeDropdown();
     }
   });
