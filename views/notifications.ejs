@@ -1,0 +1,82 @@
+<%- include("./partials/head", { title }) %>
+
+<section class="notifications-wrapper">
+  <h2>Your Notifications</h2>
+
+  <% if (!notifications || notifications.length === 0) { %>
+    <div class="notif-card">
+      <p>No notifications yet.</p>
+    </div>
+  <% } %>
+
+  <% notifications.forEach((n) => { %>
+    <div class="notif-card <%= n.is_read ? '' : 'unread' %>">
+      <h4><%= n.title %></h4>
+      <p><%= n.message %></p>
+      <small><%= new Date(n.created_at).toLocaleString() %></small>
+
+      <div class="notif-actions">
+        <% if (n.related_request_id) { %>
+          <a href="/track-request?requestId=<%= n.related_request_id %>" class="btn small">View Request</a>
+        <% } %>
+        <% if (!n.is_read) { %>
+          <button type="button" class="btn small" onclick="markRead(<%= n.id %>)">Mark as Read</button>
+        <% } %>
+      </div>
+    </div>
+  <% }) %>
+</section>
+
+<style>
+.notifications-wrapper {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.notifications-wrapper h2 {
+  margin-bottom: 14px;
+}
+
+.notif-card {
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: #ffffff;
+}
+
+.notif-card.unread {
+  border-color: #99c2ff;
+  background: #eef6ff;
+}
+
+.notif-card h4 {
+  margin: 0 0 6px;
+}
+
+.notif-card p {
+  margin: 0 0 6px;
+  color: #334155;
+}
+
+.notif-card small {
+  color: #64748b;
+}
+
+.notif-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+</style>
+
+<script>
+async function markRead(id) {
+  const response = await fetch(`/notifications/${id}/read`, { method: "POST" });
+  if (response.ok) {
+    window.location.reload();
+  }
+}
+</script>
+
+<%- include("./partials/footer") %>

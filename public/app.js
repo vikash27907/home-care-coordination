@@ -54,6 +54,11 @@ if (heroRotator) {
 const navProfile = document.querySelector(".nav-profile");
 const navAvatar = document.getElementById("navAvatar");
 const navDropdown = document.getElementById("navDropdown");
+const notificationCenter = document.getElementById("notificationCenter");
+const notificationBell = document.getElementById("notificationBell");
+const notificationDropdown = document.getElementById("notificationDropdown");
+const notificationBadge = document.getElementById("notification-count");
+const notificationList = document.getElementById("notification-list");
 const navToggle = document.getElementById("navToggle");
 const navLinks = document.getElementById("navLinks");
 
@@ -95,6 +100,109 @@ if (navProfile && navAvatar && navDropdown) {
       closeDropdown();
     }
   });
+}
+
+if (notificationCenter && notificationBell && notificationDropdown && notificationBadge && notificationList) {
+  const setBellExpanded = (isExpanded) => {
+    notificationBell.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+  };
+
+  const closeNotificationDropdown = () => {
+    notificationCenter.classList.remove("is-open");
+    setBellExpanded(false);
+  };
+
+  const formatTimestamp = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  };
+
+  const escapeHtml = (value) => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  const renderNotificationList = (items) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      notificationList.innerHTML = '<p class="notification-empty">No recent notifications.</p>';
+      return;
+    }
+
+    notificationList.innerHTML = items.slice(0, 10).map((item) => {
+      const unreadClass = item.is_read ? "" : " unread";
+      const safeTitle = escapeHtml(item.title || "Notification");
+      const safeMessage = escapeHtml(item.message || "");
+      const safeTime = escapeHtml(formatTimestamp(item.created_at));
+      return `
+        <a class="notification-item${unreadClass}" href="/notifications-page">
+          <p class="notification-item-title">${safeTitle}</p>
+          <p class="notification-item-message">${safeMessage}</p>
+          <div class="notification-item-time">${safeTime}</div>
+        </a>
+      `;
+    }).join("");
+  };
+
+  const loadNotificationCount = async () => {
+    try {
+      const res = await fetch("/notifications/unread-count", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const count = Number.parseInt(data && data.count, 10) || 0;
+      if (count > 0) {
+        notificationBadge.style.display = "inline-block";
+        notificationBadge.textContent = String(count);
+      } else {
+        notificationBadge.style.display = "none";
+        notificationBadge.textContent = "0";
+      }
+    } catch (error) {
+      // Silent fail: polling should never block UI interactions.
+    }
+  };
+
+  const loadNotificationPreview = async () => {
+    try {
+      const res = await fetch("/notifications?limit=10", { credentials: "same-origin" });
+      if (!res.ok) {
+        renderNotificationList([]);
+        return;
+      }
+      const data = await res.json();
+      renderNotificationList(data);
+    } catch (error) {
+      renderNotificationList([]);
+    }
+  };
+
+  notificationBell.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const isOpen = notificationCenter.classList.toggle("is-open");
+    setBellExpanded(isOpen);
+    if (isOpen) {
+      await loadNotificationPreview();
+      await loadNotificationCount();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!notificationCenter.contains(event.target)) {
+      closeNotificationDropdown();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeNotificationDropdown();
+    }
+  });
+
+  loadNotificationCount();
+  window.setInterval(loadNotificationCount, 30000);
 }
 
 if (navToggle && navLinks) {

@@ -2,86 +2,75 @@
 
 <section class="dashboard-header">
   <h1>Admin Dashboard</h1>
-  <p>Full control center for manual coordination and approval workflows.</p>
+  <p>Operational intelligence across requests and marketplace activity.</p>
 </section>
 
-<section class="metrics-grid">
-  <a href="/admin/nurses?status=Pending" class="metric clickable">
-    <h3>Pending Nurses</h3>
-    <p class="highlight"><%= metrics.pendingNurses %></p>
-    <small>Click to review approvals</small>
+<div class="dashboard-grid">
+  <a href="/admin/care-requests?status=open" class="dash-card blue">
+    <h3><%= stats.open_requests %></h3>
+    <p>Open Requests</p>
   </a>
-  <a href="/admin/patients?status=New" class="metric clickable">
-    <h3>New Patients</h3>
-    <p class="highlight"><%= metrics.newPatients %></p>
-    <small>Click to view requests</small>
-  </a>
-  <a href="/admin/agents?status=Pending" class="metric clickable">
-    <h3>Pending Agents</h3>
-    <p class="highlight"><%= metrics.pendingAgents %></p>
-    <small>Click to review approvals</small>
-  </a>
-</section>
 
-<section class="quick-stats">
-  <div class="stat-item">
-    <span class="stat-label">Total Nurses:</span>
-    <span class="stat-value"><%= metrics.totalNurses %></span>
-  </div>
-  <div class="stat-item">
-    <span class="stat-label">Available:</span>
-    <span class="stat-value"><%= metrics.availableNurses %></span>
-  </div>
-  <div class="stat-item">
-    <span class="stat-label">Total Patients:</span>
-    <span class="stat-value"><%= metrics.totalPatients %></span>
-  </div>
-  <div class="stat-item">
-    <span class="stat-label">Total Agents:</span>
-    <span class="stat-value"><%= metrics.totalAgents %></span>
-  </div>
-</section>
+  <a href="/admin/care-requests?marketplace=true" class="dash-card green">
+    <h3><%= stats.live_marketplace %></h3>
+    <p>Live on Marketplace</p>
+  </a>
 
-<section class="content-section">
-  <h2>Admin Actions</h2>
-  <div class="cards-grid">
-    <a href="/admin/nurses?status=Pending" class="card link-card approval-card">
-      <div class="card-icon">👩‍⚕️</div>
-      <h3>Pending Nurses</h3>
-      <p><%= metrics.pendingNurses %> waiting for approval</p>
-      <span class="btn btn-primary">Review Now</span>
-    </a>
-    <a href="/admin/nurses?status=Approved" class="card link-card">
-      <div class="card-icon">✅</div>
-      <h3>Approved Nurses</h3>
-      <p>Manage approved nurses</p>
-      <span class="btn btn-secondary">View All</span>
-    </a>
-    <a href="/admin/agents?status=Pending" class="card link-card approval-card">
-      <div class="card-icon">🤝</div>
-      <h3>Pending Agents</h3>
-      <p><%= metrics.pendingAgents %> waiting for approval</p>
-      <span class="btn btn-primary">Review Now</span>
-    </a>
-    <a href="/admin/agents?status=Approved" class="card link-card">
-      <div class="card-icon">✅</div>
-      <h3>Approved Agents</h3>
-      <p>Manage approved agents</p>
-      <span class="btn btn-secondary">View All</span>
-    </a>
-    <a href="/admin/patients" class="card link-card">
-      <div class="card-icon">🏥</div>
-      <h3>Patient Requests</h3>
-      <p><%= metrics.newPatients %> new requests</p>
-      <span class="btn btn-secondary">Coordinate</span>
-    </a>
-    <a href="/admin/concerns" class="card link-card">
-      <div class="card-icon">💬</div>
-      <h3>Concerns</h3>
-      <p>View user support requests</p>
-      <span class="btn btn-secondary">View All</span>
-    </a>
-  </div>
-</section>
+  <a href="/admin/applications?status=pending" class="dash-card orange">
+    <h3><%= stats.pending_apps %></h3>
+    <p>Pending Applications</p>
+  </a>
+
+  <a href="/admin/care-requests?status=assigned" class="dash-card purple">
+    <h3><%= stats.assigned_requests %></h3>
+    <p>Assigned Jobs</p>
+  </a>
+
+  <a href="/admin/care-requests?status=active" class="dash-card dark">
+    <h3><%= stats.active_requests %></h3>
+    <p>Active Jobs</p>
+  </a>
+
+  <a href="/admin/care-requests?status=completed" class="dash-card gray">
+    <h3><%= stats.completed_requests %></h3>
+    <p>Completed Jobs</p>
+  </a>
+</div>
+
+<style>
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  padding: 30px 0;
+}
+
+.dash-card {
+  padding: 25px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: white;
+  cursor: pointer;
+  display: block;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  transition: 0.3s ease;
+}
+
+.dash-card:hover {
+  transform: translateY(-6px);
+}
+
+.dash-card h3 {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.blue { background: linear-gradient(90deg, #0052cc, #0077ff); }
+.green { background: linear-gradient(90deg, #198754, #20c997); }
+.orange { background: linear-gradient(90deg, #ff9800, #ffb703); }
+.purple { background: linear-gradient(90deg, #6f42c1, #9b5de5); }
+.dark { background: linear-gradient(90deg, #343a40, #495057); }
+.gray { background: linear-gradient(90deg, #6c757d, #adb5bd); }
+</style>
 
 <%- include("../partials/footer") %>

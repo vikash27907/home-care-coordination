@@ -1968,7 +1968,7 @@ app.post("/request-care", async (req, res) => {
   const durationValue = Number(req.body.durationValue);
   const budget = Number(req.body.budget);
 
-  if (!durationUnit || !["days", "months"].includes(durationUnit)) {
+  if (!durationUnit || !["days", "weeks", "months"].includes(durationUnit)) {
     setFlash(req, "error", "Please select a valid duration unit.");
     return res.redirect("/request-care");
   }
@@ -2463,27 +2463,146 @@ app.get("/dashboard", requireAuth, (req, res) => {
   });
 });
 
+app.get("/notifications", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  try {
+    const rawLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isNaN(rawLimit)
+      ? 20
+      : Math.max(1, Math.min(rawLimit, 50));
+    const result = await pool.query(
+      `SELECT id, type, title, message, related_request_id, is_read, created_at
+       FROM notifications
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [req.session.user.id, limit]
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Notifications list error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
+app.get("/notifications-page", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, type, title, message, related_request_id, is_read, created_at
+       FROM notifications
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [req.currentUser.id]
+    );
+    return res.render("notifications", {
+      title: "Notifications",
+      notifications: result.rows
+    });
+  } catch (error) {
+    console.error("Notifications page load error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
+app.get("/notifications/unread-count", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) AS count
+       FROM notifications
+       WHERE user_id = $1
+         AND is_read = FALSE`,
+      [req.session.user.id]
+    );
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Notifications unread count error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
+app.post("/notifications/:id/read", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).send("Unauthorized");
+  }
+
+  const id = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).send("Invalid ID");
+  }
+
+  try {
+    await pool.query(
+      `UPDATE notifications
+       SET is_read = TRUE
+       WHERE id = $1
+         AND user_id = $2`,
+      [id, req.session.user.id]
+    );
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Notification mark-read error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
 app.use("/admin", requireRole("admin"), adminContextMiddleware);
 
 app.get("/admin", requireRole("admin"), (req, res) => {
-  const store = readNormalizedStore();
-  const activeNurses = store.nurses.filter((item) => !isStoreUserDeleted(store, item.userId));
-  const metrics = {
-    totalNurses: activeNurses.length,
-    availableNurses: activeNurses.filter((item) => item.status === "Approved" && item.isAvailable !== false).length,
-    pendingNurses: activeNurses.filter((item) => item.status === "Pending").length,
-    totalPatients: store.patients.length,
-    newPatients: store.patients.filter((item) => item.status === "New").length,
-    totalAgents: store.agents.length,
-    pendingAgents: store.agents.filter((item) => item.status === "Pending").length,
-    openConcerns: getOpenConcernsCount(store)
-  };
-  return res.render("admin/dashboard", { title: "Admin Dashboard", metrics });
+  return res.redirect("/admin/dashboard");
 });
 
-// Admin Dashboard route - redirects to /admin
-app.get("/admin/dashboard", requireRole("admin"), (req, res) => {
-  return res.redirect("/admin");
+app.get("/admin/dashboard", requireRole("admin"), async (req, res) => {
+  try {
+    const requestStats = await pool.query(
+      `SELECT
+          COUNT(*) FILTER (WHERE status = 'open') AS open_requests,
+          COUNT(*) FILTER (WHERE status = 'assigned') AS assigned_requests,
+          COUNT(*) FILTER (WHERE status = 'active') AS active_requests,
+          COUNT(*) FILTER (WHERE status = 'completed') AS completed_requests,
+          COUNT(*) FILTER (
+            WHERE status = 'open' AND marketplace_ready = TRUE
+          ) AS live_marketplace
+       FROM care_requests`
+    );
+
+    const applicationStats = await pool.query(
+      `SELECT
+          COUNT(*) FILTER (WHERE status = 'pending') AS pending_apps,
+          COUNT(*) FILTER (WHERE status = 'accepted') AS accepted_apps
+       FROM care_applications`
+    );
+
+    return res.render("admin/dashboard", {
+      title: "Admin Dashboard",
+      user: req.session.user,
+      stats: {
+        ...requestStats.rows[0],
+        ...applicationStats.rows[0]
+      }
+    });
+  } catch (error) {
+    console.error("Admin dashboard stats error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
+app.get("/admin/applications", requireRole("admin"), (req, res) => {
+  const status = String(req.query.status || "").trim().toLowerCase();
+  if (status === "pending") {
+    return res.redirect("/admin/marketplace?tab=open");
+  }
+  if (status === "accepted") {
+    return res.redirect("/admin/care-requests?status=assigned");
+  }
+  return res.redirect("/admin/marketplace?tab=open");
 });
 
 app.get("/admin/nurses", requireRole("admin"), async (req, res) => {
@@ -2881,25 +3000,60 @@ app.post("/admin/agents/:id/update", requireRole("admin"), (req, res) => {
   return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
 });
 
-app.get("/admin/patients", requireRole("admin"), (req, res) => {
-  const statusFilter = String(req.query.status || "All");
-  const store = readNormalizedStore();
-  const approvedAgents = getApprovedAgents(store);
-  const nurseIndex = store.nurses.reduce((acc, nurse) => {
-    acc[nurse.id] = nurse.fullName;
-    return acc;
-  }, {});
-  const patients = store.patients
-    .filter((item) => (statusFilter === "All" ? true : item.status === statusFilter))
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+app.get("/admin/patients", requireRole("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+          cr.id,
+          cr.status,
+          COALESCE(NULLIF(p.city, ''), '-') AS location,
+          COALESCE(
+            NULLIF(p.service_schedule, ''),
+            CASE
+              WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
+              THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
+              ELSE NULL
+            END,
+            '-'
+          ) AS shift_timing,
+          NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
+          COALESCE(NULLIF(p.full_name, ''), 'Patient') AS full_name,
+          COALESCE(apps.app_count, 0)::int AS application_count
+       FROM care_requests cr
+       LEFT JOIN patients p ON p.id = cr.patient_id
+       LEFT JOIN (
+         SELECT request_id, COUNT(*) AS app_count
+         FROM care_applications
+         GROUP BY request_id
+       ) apps ON apps.request_id = cr.id
+       ORDER BY cr.created_at DESC`
+    );
 
-  return res.render("admin/patients", {
-    title: "Manage Patients",
-    statusFilter,
-    patients,
-    approvedAgents,
-    nurseIndex
-  });
+    return res.render("admin/patients", {
+      title: "Patient Management",
+      requests: result.rows,
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error("Admin patients list error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
+app.get("/admin/care-request/:id", requireRole("admin"), (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    return res.redirect("/admin/patients");
+  }
+  return res.redirect(`/admin/care-requests/${requestId}/applications`);
+});
+
+app.get("/admin/care-request/:id/applicants", requireRole("admin"), (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    return res.redirect("/admin/patients");
+  }
+  return res.redirect(`/admin/care-requests/${requestId}/applications`);
 });
 
 app.post("/admin/patients/:id/update", requireRole("admin"), (req, res) => {
@@ -3146,6 +3300,7 @@ async function upsertCareRequestEarnings(client, requestId, actor, note) {
 app.get("/admin/care-requests", requireRole("admin"), async (req, res) => {
   const statusFilter = normalizeCareRequestStatusFilterInput(req.query.status);
   const paymentFilter = normalizeCareRequestPaymentFilterInput(req.query.payment);
+  const marketplaceOnly = String(req.query.marketplace || "").trim().toLowerCase() === "true";
 
   try {
     const [result, statusCountsResult, paymentCountsResult] = await Promise.all([
@@ -3201,8 +3356,9 @@ app.get("/admin/care-requests", requireRole("admin"), async (req, res) => {
          ) ca ON ca.request_id = cr.id
          WHERE ($1 = 'all' OR cr.status = $1)
            AND ($2 = 'all' OR cr.payment_status = $2)
+           AND ($3 = FALSE OR (cr.status = 'open' AND cr.marketplace_ready = TRUE))
          ORDER BY cr.created_at DESC`,
-        [statusFilter, paymentFilter]
+        [statusFilter, paymentFilter, marketplaceOnly]
       ),
       pool.query(
         `SELECT status, COUNT(*)::int AS total
@@ -3583,6 +3739,7 @@ app.post(
       const previousAssignedNurseId = Number.isInteger(applicationResult.rows[0].request_assigned_nurse_id)
         ? applicationResult.rows[0].request_assigned_nurse_id
         : null;
+      const nurseId = applicationResult.rows[0].nurse_id;
       const actor = buildCareRequestLifecycleActor(req, "admin");
 
       await client.query(
@@ -3597,11 +3754,49 @@ app.post(
         `UPDATE care_requests
          SET status = 'assigned',
              assigned_nurse_id = $2,
+             marketplace_ready = FALSE,
              payment_status = 'pending',
              assignment_comment = NULL,
              nurse_notified = FALSE
          WHERE id = $1`,
-        [requestId, applicationResult.rows[0].nurse_id]
+        [requestId, nurseId]
+      );
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, related_request_id)
+         SELECT user_id,
+                'application_accepted',
+                'Application Accepted',
+                'Congratulations! You have been assigned to a care request.',
+                $1
+         FROM nurses
+         WHERE id = $2`,
+        [requestId, nurseId]
+      );
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, related_request_id)
+         SELECT n.user_id,
+                'application_rejected',
+                'Application Update',
+                'This care request has been assigned to another nurse.',
+                $1
+         FROM care_applications ca
+         JOIN nurses n ON ca.nurse_id = n.id
+         WHERE ca.request_id = $1
+           AND ca.nurse_id <> $2`,
+        [requestId, nurseId]
+      );
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, related_request_id)
+         SELECT p.user_id,
+                'job_assigned',
+                'Nurse Assigned',
+                'A nurse has been successfully assigned to your care request.',
+                $1
+         FROM care_requests cr
+         JOIN patients p ON p.id = cr.patient_id
+         WHERE cr.id = $1
+           AND p.user_id IS NOT NULL`,
+        [requestId]
       );
       await insertCareRequestLifecycleLog(client, {
         requestId,
@@ -3610,7 +3805,7 @@ app.post(
         nextStatus: "assigned",
         previousPaymentStatus,
         nextPaymentStatus: "pending",
-        assignedNurseId: applicationResult.rows[0].nurse_id,
+        assignedNurseId: nurseId,
         comment: "Application accepted by admin.",
         changedByUserId: actor.userId,
         changedByRole: actor.role,
@@ -3730,7 +3925,8 @@ app.post(
           await client.query(
             `UPDATE care_requests
              SET assigned_nurse_id = $2,
-                 status = CASE WHEN status = 'open' THEN 'assigned' ELSE status END
+                 status = CASE WHEN status = 'open' THEN 'assigned' ELSE status END,
+                 marketplace_ready = FALSE
              WHERE id = $1`,
             [requestId, acceptedNurseResult.rows[0].nurse_id]
           );
@@ -4807,9 +5003,45 @@ app.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, async (req
   });
 });
 
-// Nurse Dashboard route - redirects to /nurse/profile
-app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, (req, res) => {
-  return res.redirect("/nurse/profile");
+app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
+  try {
+    const nurseResult = await pool.query(
+      "SELECT id FROM nurses WHERE user_id = $1",
+      [req.session.user.id]
+    );
+
+    if (!nurseResult.rows.length) {
+      return res.status(403).send("Nurse profile not found");
+    }
+
+    const nurseId = nurseResult.rows[0].id;
+    const statsResult = await pool.query(
+      `SELECT
+          COUNT(*) FILTER (WHERE ca.status = 'pending') AS pending_apps,
+          COUNT(*) FILTER (WHERE ca.status = 'accepted') AS accepted_apps,
+          COUNT(*) FILTER (
+            WHERE cr.status = 'assigned'
+              AND cr.assigned_nurse_id = $1
+          ) AS active_assignments
+       FROM care_applications ca
+       JOIN care_requests cr ON ca.request_id = cr.id
+       WHERE ca.nurse_id = $1`,
+      [nurseId]
+    );
+
+    return res.render("nurse/dashboard", {
+      title: "Nurse Dashboard",
+      user: req.session.user,
+      stats: statsResult.rows[0]
+    });
+  } catch (error) {
+    console.error("Nurse dashboard stats error:", error);
+    return res.status(500).send("Server Error");
+  }
+});
+
+app.get("/nurse/applications", requireRole("nurse"), requireApprovedNurse, (req, res) => {
+  return res.redirect("/nurse/care-requests");
 });
 
 app.post("/nurse/password/change", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
@@ -6263,7 +6495,7 @@ async function bootstrapApp() {
 
 function startServer() {
   app.listen(PORT, () => {
-    console.log(`SERVER_RUNNING_ON_PORT_${PORT}`);
+    console.log(`🚀 Prisha Home Care running at: http://localhost:${PORT}`);
   });
   bootstrapApp();
 }

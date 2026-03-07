@@ -40,6 +40,29 @@
           </div>
           <div class="nav-right">
             <% if (session && session.user) { %>
+            <div class="notification-center" id="notificationCenter">
+              <button
+                type="button"
+                class="notification-bell"
+                id="notificationBell"
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-controls="notificationDropdown"
+                title="Notifications"
+              >
+                <span aria-hidden="true">&#128276;</span>
+                <span id="notification-count" class="notif-badge">0</span>
+              </button>
+              <div class="notification-dropdown" id="notificationDropdown" role="menu" aria-label="Notifications">
+                <div class="notification-dropdown-header">
+                  <strong>Notifications</strong>
+                  <a href="/notifications-page">View all</a>
+                </div>
+                <div id="notification-list" class="notification-list">
+                  <p class="notification-empty">Loading...</p>
+                </div>
+              </div>
+            </div>
             <div class="nav-profile">
               <img
                 src="<%= session.user.profileImageUrl || '/images/default-avatar.png' %>"

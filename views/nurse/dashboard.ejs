@@ -1,0 +1,58 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="dashboard-header">
+  <h1>Nurse Dashboard</h1>
+  <p>Personal application and assignment intelligence.</p>
+</section>
+
+<div class="dashboard-grid">
+  <a href="/nurse/applications?status=pending" class="dash-card blue">
+    <h3><%= stats.pending_apps %></h3>
+    <p>Pending Applications</p>
+  </a>
+
+  <a href="/nurse/applications?status=accepted" class="dash-card green">
+    <h3><%= stats.accepted_apps %></h3>
+    <p>Accepted Applications</p>
+  </a>
+
+  <a href="/nurse/care-requests" class="dash-card purple">
+    <h3><%= stats.active_assignments %></h3>
+    <p>Active Assignments</p>
+  </a>
+</div>
+
+<style>
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  padding: 30px 0;
+}
+
+.dash-card {
+  padding: 25px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: white;
+  cursor: pointer;
+  display: block;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  transition: 0.3s ease;
+}
+
+.dash-card:hover {
+  transform: translateY(-6px);
+}
+
+.dash-card h3 {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.blue { background: linear-gradient(90deg, #0052cc, #0077ff); }
+.green { background: linear-gradient(90deg, #198754, #20c997); }
+.purple { background: linear-gradient(90deg, #6f42c1, #9b5de5); }
+</style>
+
+<%- include("../partials/footer") %>

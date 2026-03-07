@@ -189,6 +189,19 @@ async function initializeDatabase() {
       )
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        related_request_id INTEGER REFERENCES care_requests(id) ON DELETE CASCADE,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Audit trail for lifecycle and payment transitions
     await pool.query(`
       CREATE TABLE IF NOT EXISTS care_request_lifecycle_logs (
@@ -578,6 +591,18 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_care_request_earnings_nurse
       ON care_request_earnings (nurse_id, payout_status, generated_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_id
+      ON notifications(user_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_unread
+      ON notifications(user_id, is_read)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_notifications_related_request
+      ON notifications(related_request_id)
     `);
 
     // Create concerns table

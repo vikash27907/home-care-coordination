@@ -44,8 +44,8 @@
     </label>
     
     <label>
-      City <span class="required-indicator" title="Required"></span>
-      <input name="city" type="text" required />
+      Patient City <span class="required-indicator" title="Required"></span>
+      <input name="city" type="text" placeholder="Enter patient city" required />
     </label>
     
     <!-- Service Schedule -->
@@ -65,20 +65,21 @@
     <!-- Duration -->
     <label class="full-width">
       Duration <span class="required-indicator" title="Required"></span>
-      <div class="duration-inputs" style="display: flex; gap: 10px; align-items: center;">
-        <input 
-          type="number" 
-          name="durationValue" 
-          id="durationValue" 
-          min="1" 
-          required 
-          placeholder="Enter number"
-          style="width: 120px;"
-        />
-        <select name="durationUnit" id="durationUnit" required style="flex: 1;">
-          <option value="">Select Unit</option>
+      <div class="duration-wrapper">
+        <div class="duration-input-group">
+          <input
+            type="number"
+            id="durationValue"
+            name="durationValue"
+            min="1"
+            required
+          />
+          <span id="durationLabel">Months</span>
+        </div>
+        <select id="durationUnit" name="durationUnit" required>
+          <option value="months" selected>Months</option>
+          <option value="weeks">Weeks</option>
           <option value="days">Days</option>
-          <option value="months">Months</option>
         </select>
       </div>
     </label>
@@ -98,8 +99,8 @@
     
     <!-- Notes -->
     <label class="full-width">
-      Additional Notes
-      <textarea name="notes" rows="3" placeholder="Any specific requirements, medical conditions, or special instructions..."></textarea>
+      Patient Condition (Additional Notes)
+      <textarea name="notes" rows="3" placeholder="Mention patient's health condition, special care requirements, etc."></textarea>
     </label>
     
     <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
@@ -111,25 +112,33 @@
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const durationUnitSelect = document.getElementById("durationUnit");
+      const durationLabel = document.getElementById("durationLabel");
       const budgetLabel = document.getElementById("budgetLabel");
+
+      function updateDurationLabel() {
+        const selectedText = durationUnitSelect.options[durationUnitSelect.selectedIndex].text;
+        durationLabel.textContent = selectedText;
+      }
 
       function updateBudgetLabel() {
         const unit = durationUnitSelect.value;
 
         if (unit === "days") {
           budgetLabel.innerText = "Per Day Budget (INR)";
+        } else if (unit === "weeks") {
+          budgetLabel.innerText = "Weekly Budget (INR)";
         } else if (unit === "months") {
-          budgetLabel.innerText = "Monthly Budget (INR)";
-        } else if (unit === "years") {
           budgetLabel.innerText = "Monthly Budget (INR)";
         } else {
           budgetLabel.innerText = "Budget (INR)";
         }
       }
 
+      durationUnitSelect.addEventListener("change", updateDurationLabel);
       durationUnitSelect.addEventListener("change", updateBudgetLabel);
 
       // Run once on page load
+      updateDurationLabel();
       updateBudgetLabel();
     });
   </script>
