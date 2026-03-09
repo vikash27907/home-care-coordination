@@ -13,7 +13,7 @@ const roleIcon = '🏢';
     
     <div class="profile-info">
       <h3 class="profile-name"><%= agent.fullName %></h3>
-      <span class="status-badge <%= agent.status.toLowerCase() %>"><%= agent.status %></span>
+      <span class="status-badge <%= String(agent.status || 'pending').toLowerCase() %>" data-status="<%= String(agent.status || 'pending').toLowerCase() %>"><%= String(agent.status || 'pending').charAt(0).toUpperCase() + String(agent.status || 'pending').slice(1).toLowerCase() %></span>
     </div>
   </div>
   
@@ -28,7 +28,7 @@ const roleIcon = '🏢';
     </div>
     <div class="detail-row">
       <span class="detail-icon">🌍</span>
-      <span class="detail-value"><%= agent.region || 'Not specified' %></span>
+      <span class="detail-value"><%= agent.workingRegion || agent.region || 'Not specified' %></span>
     </div>
     <div class="detail-row">
       <span class="detail-icon">👤</span>
@@ -41,12 +41,24 @@ const roleIcon = '🏢';
   </div>
   
   <div class="card-footer">
-    <div class="availability-indicator <%= agent.status === 'Approved' ? 'available' : 'unavailable' %>">
-      <span class="availability-dot"></span>
-      <span><%= agent.status === 'Approved' ? 'Active' : 'Inactive' %></span>
-    </div>
-    <span class="click-hint">Click to manage →</span>
+  <div class="availability-indicator <%= String(agent.status || '').toLowerCase() === 'approved' ? 'available' : 'unavailable' %>">
+    <span class="availability-dot"></span>
+    <span><%= String(agent.status || '').toLowerCase() === 'approved' ? 'Active' : 'Inactive' %></span>
   </div>
+  <div class="card-actions">
+    <% if (String(agent.status || '').toLowerCase() === 'pending') { %>
+      <form method="POST" action="/admin/agents/<%= agent.id %>/approve" onclick="event.stopPropagation();">
+        <button type="submit" class="btn small">Approve</button>
+      </form>
+    <% } else { %>
+      <span class="click-hint">Click to manage -></span>
+    <% } %>
+    <form method="POST" action="/admin/agents/<%= agent.id %>/delete" onclick="event.stopPropagation();" onsubmit="return confirm('Delete this agent permanently?');">
+      <input type="hidden" name="statusFilter" value="<%= typeof statusFilter === 'string' ? statusFilter : 'all' %>">
+      <button type="submit" class="btn small danger">Delete</button>
+    </form>
+  </div>
+</div>
 </div>
 
 <style>
@@ -191,6 +203,26 @@ const roleIcon = '🏢';
   border-top: 1px solid #e8f0f8;
 }
 
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-actions form {
+  margin: 0;
+}
+
+.card-actions .btn.danger {
+  border: 1px solid #fecdca;
+  background: #fff5f4;
+  color: #b42318;
+}
+
+.card-actions .btn.danger:hover {
+  background: #ffe9e7;
+}
+
 .availability-indicator {
   display: flex;
   align-items: center;
@@ -233,3 +265,5 @@ const roleIcon = '🏢';
   opacity: 1;
 }
 </style>
+
+

@@ -14,6 +14,12 @@ let storeCache = {
 
 let isInitialized = false;
 const DEFAULT_NURSE_GENDER = 'Not Specified';
+const AGENT_ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'deleted']);
+
+function normalizeAgentStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return AGENT_ALLOWED_STATUSES.has(normalized) ? normalized : 'pending';
+}
 
 /**
  * Initialize store from database (called on server startup)
@@ -204,11 +210,11 @@ async function persistStoreToDb(store) {
     // Insert agents
     for (const agent of store.agents || []) {
       await client.query(`
-        INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, region, status, created_by_agent_email, created_at)
+        INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `, [
         agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '', 
-        agent.region || '', agent.status, agent.createdByAgentEmail || '', agent.createdAt
+        agent.workingRegion || agent.region || '', normalizeAgentStatus(agent.status), agent.createdByAgentEmail || '', agent.createdAt
       ]);
     }
 
@@ -364,9 +370,10 @@ function transformAgentFromDB(row) {
     email: row.email,
     phoneNumber: row.phone_number || '',
     companyName: row.company_name || '',
-    region: row.region || '',
+    workingRegion: row.working_region || row.region || '',
+    region: row.working_region || row.region || '',
     userIsDeleted: row.user_is_deleted === true,
-    status: row.status || 'Pending',
+    status: normalizeAgentStatus(row.status),
     createdByAgentEmail: row.created_by_agent_email || '',
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
   };
@@ -518,7 +525,13 @@ async function createUser(user) {
     ]);
     return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('Error creating user:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      email: user.email,
+      role: user.role
+    });
     return null;
   }
 }
@@ -718,7 +731,7 @@ async function updateNurse(id, updates) {
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);
-        values.push(value);
+        values.push(key === 'status' ? normalizeAgentStatus(value) : value);
         paramCount++;
       }
     }
@@ -803,17 +816,34 @@ async function getAgentByEmail(email, options = {}) {
 
 async function createAgent(agent) {
   try {
-    const result = await pool.query(`
-      INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, region, status, created_by_agent_email, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *
-    `, [
-      agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
-      agent.region || '', agent.status || 'Pending', agent.createdByAgentEmail || '', agent.createdAt || new Date().toISOString()
-    ]);
+    const status = normalizeAgentStatus(agent.status);
+    const hasExplicitId = Number.isInteger(agent.id);
+    const result = hasExplicitId
+      ? await pool.query(`
+          INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING *
+        `, [
+          agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
+          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '', agent.createdAt || new Date().toISOString()
+        ])
+      : await pool.query(`
+          INSERT INTO agents (user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING *
+        `, [
+          agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
+          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '', agent.createdAt || new Date().toISOString()
+        ]);
     return result.rows[0] ? transformAgentFromDB(result.rows[0]) : null;
   } catch (error) {
-    console.error('Error creating agent:', error);
+    console.error('Error creating agent:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      email: agent.email,
+      userId: agent.userId
+    });
     return null;
   }
 }
@@ -827,7 +857,7 @@ async function updateAgent(id, updates) {
     for (const [key, value] of Object.entries(updates)) {
       const dbKey = {
         fullName: 'full_name', phoneNumber: 'phone_number', companyName: 'company_name',
-        region: 'region', status: 'status', createdByAgentEmail: 'created_by_agent_email'
+        workingRegion: 'working_region', region: 'working_region', status: 'status', createdByAgentEmail: 'created_by_agent_email'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);

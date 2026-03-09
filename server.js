@@ -309,7 +309,7 @@ function validateRequest(req, res, next) {
 app.use(validateRequest);
 
 const NURSE_STATUSES = ["Pending", "Approved", "Rejected"];
-const AGENT_STATUSES = ["Pending", "Approved", "Rejected"];
+const AGENT_STATUSES = ["pending", "approved", "rejected", "deleted"];
 // Standardized request statuses
 const REQUEST_STATUSES = [
   "Requested",
@@ -370,6 +370,15 @@ const PROFILE_CURRENT_STATUS_OPTIONS = [
 function normalizeNurseStatusInput(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return NURSE_STATUS_INPUT_MAP[normalized] || "";
+}
+
+function normalizeAgentStatusInput(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return AGENT_STATUSES.includes(normalized) ? normalized : "";
+}
+
+function isApprovedAgentStatus(value) {
+  return normalizeAgentStatusInput(value) === "approved";
 }
 
 function normalizeCurrentStatusInput(value) {
@@ -892,7 +901,7 @@ function consumeFlash(req) {
 }
 
 function getApprovedAgents(store) {
-  return store.agents.filter((agent) => agent.status === "Approved" && !isStoreUserDeleted(store, agent.userId));
+  return store.agents.filter((agent) => isApprovedAgentStatus(agent.status) && !isStoreUserDeleted(store, agent.userId));
 }
 
 function getHomeLinkForUser(userOrRole) {
@@ -1421,17 +1430,42 @@ function requireRole(role) {
   };
 }
 
-function requireApprovedAgent(req, res, next) {
+async function requireApprovedAgent(req, res, next) {
   if (!req.currentUser || req.currentUser.role !== "agent") {
     return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
   }
-  const store = readNormalizedStore();
-  const agentRecord = store.agents.find((item) => item.userId === req.currentUser.id);
-  if (!agentRecord || agentRecord.status !== "Approved") {
-    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+
+  try {
+    const result = await pool.query(
+      `SELECT a.*, COALESCE(u.is_deleted, false) AS user_is_deleted
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.user_id = $1
+       LIMIT 1`,
+      [req.currentUser.id]
+    );
+    const row = result.rows[0];
+    if (!row || row.user_is_deleted || !isApprovedAgentStatus(row.status)) {
+      return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+    }
+    req.agentRecord = {
+      id: row.id,
+      userId: row.user_id,
+      fullName: row.full_name || "",
+      email: row.email || "",
+      phoneNumber: row.phone_number || "",
+      companyName: row.company_name || "",
+      workingRegion: row.working_region || row.region || "",
+      region: row.working_region || row.region || "",
+      status: normalizeAgentStatusInput(row.status) || "pending",
+      createdByAgentEmail: row.created_by_agent_email || "",
+      createdAt: row.created_at
+    };
+    return next();
+  } catch (error) {
+    console.error("requireApprovedAgent DB check failed:", error);
+    return res.status(500).render("shared/forbidden", { title: "Access Restricted" });
   }
-  req.agentRecord = agentRecord;
-  return next();
 }
 
 async function requireApprovedNurse(req, res, next) {
@@ -1768,105 +1802,144 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
 }
 
 async function createAgentUnderAgent(req, res, failRedirect) {
-  const fullName = String(req.body.fullName || "").trim();
-  const emailInput = String(req.body.email || "").trim();
-  const password = String(req.body.password || "");
-  const phoneNumber = String(req.body.phoneNumber || "").trim();
-  const region = String(req.body.region || "").trim();
+  const contentType = String(req.headers["content-type"] || "");
+  console.log("[Agent Registration] Request received", {
+    path: req.path,
+    contentType,
+    hasFile: Boolean(req.file),
+    body: req.body
+  });
 
-  // Validate required fields
-  if (!fullName || !emailInput || !password || !phoneNumber || !region) {
-    setFlash(req, "error", "Please complete all agent details.");
+  try {
+    const fullName = String(req.body.fullName || "").trim();
+    const emailInput = String(req.body.email || "").trim();
+    const password = String(req.body.password || "");
+    const phoneNumber = String(req.body.phoneNumber || "").trim();
+    const workingRegion = String(req.body.workingRegion || req.body.region || "").trim();
+    const companyName = String(req.body.companyName || "").trim();
+
+    // Validate required fields
+    if (!fullName || !emailInput || !password || !phoneNumber || !workingRegion) {
+      setFlash(req, "error", "Please complete all agent details.");
+      return res.redirect(failRedirect);
+    }
+
+    // Validate email format
+    const emailValidation = validateEmail(emailInput);
+    if (!emailValidation.valid) {
+      setFlash(req, "error", emailValidation.error);
+      return res.redirect(failRedirect);
+    }
+    const email = emailValidation.value;
+
+    // Validate India phone number
+    const phoneValidation = validateIndiaPhone(phoneNumber);
+    if (!phoneValidation.valid) {
+      setFlash(req, "error", phoneValidation.error);
+      return res.redirect(failRedirect);
+    }
+
+    // Check if email already exists using async helper
+    const existingUserByEmail = await getUserByEmail(email);
+    if (existingUserByEmail) {
+      setFlash(req, "error", "This email already has a registered account.");
+      return res.redirect(failRedirect);
+    }
+
+    // Check if phone already exists
+    const users = await getUsers();
+    const nurses = await getNurses();
+    const agents = await getAgents();
+
+    const hasRegisteredPhone = (phone) => {
+      const normalized = normalizePhone(phone);
+      if (!normalized) return false;
+      if (users.some((u) => normalizePhone(u.phoneNumber) === normalized)) return true;
+      if (agents.some((a) => normalizePhone(a.phoneNumber) === normalized)) return true;
+      if (nurses.some((n) => normalizePhone(n.phoneNumber) === normalized)) return true;
+      return false;
+    };
+
+    if (hasRegisteredPhone(phoneNumber)) {
+      setFlash(req, "error", "This phone number already has a registered account.");
+      return res.redirect(failRedirect);
+    }
+
+    const creatorAgentEmail = req.currentUser && req.currentUser.role === "agent"
+      ? normalizeEmail(req.currentUser.email)
+      : "";
+
+    // ============================================================
+    // STEP 1: Insert into USERS table (authentication)
+    // ============================================================
+    const user = {
+      fullName,
+      email,
+      phoneNumber,
+      passwordHash: bcrypt.hashSync(password, 10),
+      role: "agent",
+      status: "pending",
+      // Public agent registration has no OTP verification flow.
+      emailVerified: true,
+      createdAt: now()
+    };
+
+    const createdUser = await createUser(user);
+    if (!createdUser) {
+      console.error("[Agent Registration] User insert failed", {
+        email,
+        phoneNumber,
+        workingRegion
+      });
+      setFlash(req, "error", "Unable to create account right now. Please try again.");
+      return res.redirect(failRedirect);
+    }
+
+    // ============================================================
+    // STEP 2: Insert into AGENTS table (profile data only)
+    // ============================================================
+    const agent = {
+      userId: createdUser.id,
+      fullName,
+      email,
+      phoneNumber,
+      companyName,
+      workingRegion,
+      status: "pending",
+      createdByAgentEmail: creatorAgentEmail,
+      createdAt: now()
+    };
+
+    const createdAgent = await createAgent(agent);
+    if (!createdAgent) {
+      console.error("[Agent Registration] Agent insert failed after user insert", {
+        userId: createdUser.id,
+        email,
+        phoneNumber
+      });
+      await deleteUser(createdUser.id);
+      setFlash(req, "error", "Unable to create agent profile right now. Please try again.");
+      return res.redirect(failRedirect);
+    }
+
+    console.log("[Agent Registration] Success", {
+      userId: createdUser.id,
+      agentId: createdAgent.id,
+      email
+    });
+
+    if (creatorAgentEmail) {
+      setFlash(req, "success", "Agent account created. Admin approval is required before login.");
+      return res.redirect("/agent");
+    }
+
+    setFlash(req, "success", "Agent registration submitted. Admin approval is required before login.");
+    return res.redirect("/agent-registration");
+  } catch (error) {
+    console.error("[Agent Registration] Unexpected error:", error);
+    setFlash(req, "error", "Agent registration failed due to a server error. Please try again.");
     return res.redirect(failRedirect);
   }
-  
-  // Validate email format
-  const emailValidation = validateEmail(emailInput);
-  if (!emailValidation.valid) {
-    setFlash(req, "error", emailValidation.error);
-    return res.redirect(failRedirect);
-  }
-  const email = emailValidation.value;
-  
-  // Validate India phone number
-  const phoneValidation = validateIndiaPhone(phoneNumber);
-  if (!phoneValidation.valid) {
-    setFlash(req, "error", phoneValidation.error);
-    return res.redirect(failRedirect);
-  }
-
-  // Check if email already exists using async helper
-  const existingUserByEmail = await getUserByEmail(email);
-  if (existingUserByEmail) {
-    setFlash(req, "error", "This email already has a registered account.");
-    return res.redirect(failRedirect);
-  }
-  
-  // Check if phone already exists
-  const users = await getUsers();
-  const nurses = await getNurses();
-  const agents = await getAgents();
-  
-  const hasRegisteredPhone = (phone) => {
-    const normalized = normalizePhone(phone);
-    if (!normalized) return false;
-    if (users.some(u => normalizePhone(u.phoneNumber) === normalized)) return true;
-    if (agents.some(a => normalizePhone(a.phoneNumber) === normalized)) return true;
-    if (nurses.some(n => normalizePhone(n.phoneNumber) === normalized)) return true;
-    return false;
-  };
-  
-  if (hasRegisteredPhone(phoneNumber)) {
-    setFlash(req, "error", "This phone number already has a registered account.");
-    return res.redirect(failRedirect);
-  }
-
-  // Get next IDs from store
-  const store = readStore();
-  const userId = nextId(store, "user");
-  const agentId = nextId(store, "agent");
-  const creatorAgentEmail = req.currentUser && req.currentUser.role === "agent" ? normalizeEmail(req.currentUser.email) : "";
-
-  // ============================================================
-  // STEP 1: Insert into USERS table (authentication)
-  // ============================================================
-  const user = {
-    id: userId,
-    fullName,
-    email,
-    phoneNumber,
-    passwordHash: bcrypt.hashSync(password, 10),
-    role: "agent",
-    status: "Pending",
-    createdAt: now()
-  };
-  
-  await createUser(user);
-
-  // ============================================================
-  // STEP 2: Insert into AGENTS table (profile data only)
-  // ============================================================
-  const agent = {
-    id: agentId,
-    userId,
-    fullName,
-    email,
-    phoneNumber,
-    region,
-    status: "Pending",
-    createdByAgentEmail: creatorAgentEmail,
-    createdAt: now()
-  };
-  
-  await createAgent(agent);
-
-  if (creatorAgentEmail) {
-    setFlash(req, "success", "Agent account created. Admin approval is required before login.");
-    return res.redirect("/agent");
-  }
-
-  setFlash(req, "success", "Agent registration submitted. Admin approval is required before login.");
-  return res.redirect("/agent-registration");
 }
 
 // Commented out seedAdmin - now using ensureAdmin() for PostgreSQL
@@ -2395,20 +2468,33 @@ app.post("/login", loginRateLimiter, async (req, res) => {
   const identifierRaw = String(req.body.identifier || req.body.email || "").trim();
   const password = String(req.body.password || "");
   const normalizedEmail = normalizeEmail(identifierRaw);
+  const normalizedPhone = normalizePhone(identifierRaw);
+  console.log("[Login] Attempt", { identifier: identifierRaw });
 
-  if (!normalizedEmail) {
-    setFlash(req, "error", "Please enter a valid email address.");
+  if (!normalizedEmail && !normalizedPhone) {
+    console.warn("[Login] Invalid identifier format", { identifier: identifierRaw });
+    setFlash(req, "error", "Please enter a valid email or phone number.");
     return res.redirect("/login");
   }
 
-  // Login is email-primary and loads nurse profile name through JOIN in store helper.
-  const user = await getUserByEmail(normalizedEmail);
+  // Login supports either email or phone number.
+  let user = null;
+  if (normalizedEmail) {
+    user = await getUserByEmail(normalizedEmail);
+  }
+  if (!user && normalizedPhone) {
+    const users = await getUsers();
+    user = users.find((item) => normalizePhone(item.phoneNumber) === normalizedPhone) || null;
+  }
+
   if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
+    console.warn("[Login] Invalid credentials", { identifier: normalizedEmail || normalizedPhone || identifierRaw });
     setFlash(req, "error", "Invalid credentials.");
     return res.redirect("/login");
   }
 
   if (!user.emailVerified) {
+    console.warn("[Login] Blocked: email not verified", { userId: user.id, role: user.role, email: user.email });
     setFlash(req, "error", "Please verify your email before logging in.");
     return res.redirect("/login");
   }
@@ -2416,6 +2502,7 @@ app.post("/login", loginRateLimiter, async (req, res) => {
   req.session.userId = user.id;
   req.session.role = user.role;
   req.session.user = await getSessionUserPayload(user);
+  console.log("[Login] Success", { userId: user.id, role: user.role, email: user.email });
 
   setFlash(req, "success", `Welcome, ${user.fullName || user.email}.`);
   return res.redirect(redirectByRole(user.role));
@@ -2604,7 +2691,7 @@ app.get("/admin/nurses", requireRole("admin"), async (req, res) => {
     ? visibilityUpdateRaw
     : "";
   const [nursesFromDb, agentsFromDb] = await Promise.all([getNurses({ includeDeletedUsers: true }), getAgents()]);
-  const approvedAgents = agentsFromDb.filter((item) => item.status === "Approved");
+  const approvedAgents = agentsFromDb.filter((item) => isApprovedAgentStatus(item.status));
   const nurseCounts = {
     totalActive: nursesFromDb.filter((item) => !item.userIsDeleted).length,
     pending: nursesFromDb.filter((item) => !item.userIsDeleted && item.status === "Pending").length,
@@ -2921,66 +3008,251 @@ app.post("/admin/nurses/:id/toggle-public", requireRole("admin"), async (req, re
   }
 });
 
-app.get("/admin/agents", requireRole("admin"), (req, res) => {
-  const statusFilter = String(req.query.status || "All");
-  const store = readNormalizedStore();
-  const agents = store.agents
-    .filter((item) => !isStoreUserDeleted(store, item.userId))
-    .filter((item) => (statusFilter === "All" ? true : item.status === statusFilter))
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  return res.render("admin/agents", {
-    title: "Manage Agents",
-    statusFilter,
-    agents
-  });
+app.get("/admin/agents", requireRole("admin"), async (req, res) => {
+  const requestedStatus = String(req.query.status || "pending").trim().toLowerCase();
+  const statusFilter = requestedStatus === "all"
+    ? "all"
+    : (AGENT_STATUSES.includes(requestedStatus) ? requestedStatus : "pending");
+
+  try {
+    const result = await pool.query(
+      `SELECT
+          a.id,
+          a.user_id,
+          a.full_name,
+          a.email,
+          a.phone_number,
+          a.company_name,
+          a.working_region,
+          a.status,
+          a.created_by_agent_email,
+          a.created_at
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE COALESCE(u.is_deleted, false) = false
+         AND ($1 = 'all' OR LOWER(a.status) = $1)
+       ORDER BY a.id DESC`,
+      [statusFilter]
+    );
+
+    const agents = result.rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      fullName: row.full_name || "",
+      email: row.email || "",
+      phoneNumber: row.phone_number || "",
+      companyName: row.company_name || "",
+      workingRegion: row.working_region || "",
+      region: row.working_region || "",
+      status: normalizeAgentStatusInput(row.status) || "pending",
+      createdByAgentEmail: row.created_by_agent_email || "",
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : ""
+    }));
+
+    return res.render("admin/agents", {
+      title: "Manage Agents",
+      statusFilter,
+      agents
+    });
+  } catch (error) {
+    console.error("Admin agents list error:", error);
+    setFlash(req, "error", "Unable to load agents right now.");
+    return res.render("admin/agents", {
+      title: "Manage Agents",
+      statusFilter,
+      agents: []
+    });
+  }
 });
 
-app.post("/admin/agents/:id/update", requireRole("admin"), (req, res) => {
+app.post("/admin/agents/:id/update", requireRole("admin"), async (req, res) => {
   const agentId = Number.parseInt(req.params.id, 10);
-  const status = String(req.body.status || "").trim();
-  const statusFilter = String(req.body.statusFilter || "All");
+  const status = normalizeAgentStatusInput(req.body.status);
+  const statusFilterRaw = String(req.body.statusFilter || "all").trim().toLowerCase();
+  const statusFilter = statusFilterRaw === "all"
+    ? "all"
+    : (AGENT_STATUSES.includes(statusFilterRaw) ? statusFilterRaw : "pending");
+  const redirectTarget = `/admin/agents?status=${encodeURIComponent(statusFilter)}`;
 
+  if (Number.isNaN(agentId)) {
+    setFlash(req, "error", "Invalid agent.");
+    return res.redirect(redirectTarget);
+  }
   if (!AGENT_STATUSES.includes(status)) {
     setFlash(req, "error", "Invalid agent status.");
-    return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
+    return res.redirect(redirectTarget);
   }
 
-  const store = readNormalizedStore();
-  const agent = store.agents.find((item) => item.id === agentId);
-  if (!agent) {
-    setFlash(req, "error", "Agent record not found.");
-    return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
-  }
-  if (isStoreUserDeleted(store, agent.userId)) {
-    setFlash(req, "error", "Archived agent records cannot be updated.");
-    return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
-  }
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
 
-  agent.status = status;
-  const user = store.users.find((item) => item.id === agent.userId);
-  if (user) {
-    user.status = status;
-  }
+    const agentResult = await client.query(
+      `SELECT a.id, a.user_id
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.id = $1
+         AND COALESCE(u.is_deleted, false) = false
+       LIMIT 1
+       FOR UPDATE`,
+      [agentId]
+    );
+    const agent = agentResult.rows[0];
+    if (!agent) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Agent record not found.");
+      return res.redirect(redirectTarget);
+    }
 
-  if (status !== "Approved") {
-    store.patients.forEach((patient) => {
-      if (normalizeEmail(patient.agentEmail) === normalizeEmail(agent.email)) {
-        patient.agentEmail = "";
-        clearPatientFinancials(patient);
+    await client.query("UPDATE agents SET status = $1 WHERE id = $2", [status, agentId]);
+    await client.query("UPDATE users SET status = $1 WHERE id = $2", [status, agent.user_id]);
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Agent record updated.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin agent update rollback error:", rollbackError);
       }
-    });
-    store.nurses.forEach((nurse) => {
-      if (!nurseHasAgent(nurse, agent.email)) {
-        return;
-      }
-      const remainingAgents = getNurseAgentEmails(nurse).filter((email) => email !== normalizeEmail(agent.email));
-      setNurseAgentEmails(nurse, remainingAgents);
-    });
+    }
+    console.error("Admin agent update error:", error);
+    setFlash(req, "error", "Unable to update agent status right now.");
+    return res.redirect(redirectTarget);
+  } finally {
+    if (client) client.release();
+  }
+});
+
+app.post("/admin/agents/:id/approve", requireRole("admin"), async (req, res) => {
+  const agentId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(agentId)) {
+    setFlash(req, "error", "Invalid agent.");
+    return res.redirect("/admin/agents?status=pending");
   }
 
-  writeStore(store);
-  setFlash(req, "success", "Agent record updated.");
-  return res.redirect(`/admin/agents?status=${encodeURIComponent(statusFilter)}`);
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const agentResult = await client.query(
+      `SELECT a.id, a.user_id
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.id = $1
+         AND COALESCE(u.is_deleted, false) = false
+       LIMIT 1
+       FOR UPDATE`,
+      [agentId]
+    );
+    const agent = agentResult.rows[0];
+    if (!agent) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Agent record not found.");
+      return res.redirect("/admin/agents?status=pending");
+    }
+
+    await client.query("UPDATE agents SET status = 'approved' WHERE id = $1", [agentId]);
+    await client.query("UPDATE users SET status = 'approved' WHERE id = $1", [agent.user_id]);
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Agent approved successfully.");
+    return res.redirect("/admin/agents?status=pending");
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin agent approve rollback error:", rollbackError);
+      }
+    }
+    console.error("Admin agent approve error:", error);
+    setFlash(req, "error", "Unable to approve agent right now.");
+    return res.redirect("/admin/agents?status=pending");
+  } finally {
+    if (client) client.release();
+  }
+});
+
+app.post("/admin/agents/:id/delete", requireRole("admin"), async (req, res) => {
+  const agentId = Number.parseInt(req.params.id, 10);
+  const statusFilterRaw = String(req.body.statusFilter || "all").trim().toLowerCase();
+  const statusFilter = statusFilterRaw === "all"
+    ? "all"
+    : (AGENT_STATUSES.includes(statusFilterRaw) ? statusFilterRaw : "pending");
+  const redirectTarget = `/admin/agents?status=${encodeURIComponent(statusFilter)}`;
+
+  if (Number.isNaN(agentId)) {
+    setFlash(req, "error", "Invalid agent.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const agentResult = await client.query(
+      `SELECT a.id, a.user_id, a.email
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.id = $1
+         AND COALESCE(u.is_deleted, false) = false
+       LIMIT 1
+       FOR UPDATE`,
+      [agentId]
+    );
+    const agent = agentResult.rows[0];
+    if (!agent) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Agent record not found.");
+      return res.redirect(redirectTarget);
+    }
+
+    await client.query(
+      "UPDATE patients SET agent_email = '' WHERE LOWER(COALESCE(agent_email, '')) = LOWER($1)",
+      [agent.email]
+    );
+
+    await client.query(
+      "UPDATE nurses SET agent_email = '' WHERE LOWER(COALESCE(agent_email, '')) = LOWER($1)",
+      [agent.email]
+    );
+
+    await client.query(
+      `UPDATE nurses
+       SET agent_emails = (
+         SELECT COALESCE(array_agg(email_item), ARRAY[]::TEXT[])
+         FROM unnest(COALESCE(agent_emails, ARRAY[]::TEXT[])) AS email_item
+         WHERE LOWER(email_item) <> LOWER($1)
+       )
+       WHERE agent_emails IS NOT NULL`,
+      [agent.email]
+    );
+
+    await client.query("DELETE FROM users WHERE id = $1", [agent.user_id]);
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Agent deleted successfully.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin agent delete rollback error:", rollbackError);
+      }
+    }
+    console.error("Admin agent delete error:", error);
+    setFlash(req, "error", "Unable to delete agent right now.");
+    return res.redirect(redirectTarget);
+  } finally {
+    if (client) client.release();
+  }
 });
 
 app.get("/admin/patients", requireRole("admin"), async (req, res) => {
@@ -3058,7 +3330,7 @@ app.post("/admin/patients/:id/update", requireRole("admin"), (req, res) => {
   }
 
   if (agentEmail) {
-    const validAgent = store.agents.find((agent) => agent.email === agentEmail && agent.status === "Approved");
+    const validAgent = store.agents.find((agent) => agent.email === agentEmail && isApprovedAgentStatus(agent.status));
     if (!validAgent) {
       setFlash(req, "error", "Assigned agent must be approved.");
       return res.redirect(`/admin/patients?status=${encodeURIComponent(statusFilter)}`);
@@ -4844,7 +5116,7 @@ app.post("/agent/patients/:id/transfer", requireRole("agent"), requireApprovedAg
     setFlash(req, "error", "Please select a different approved agent for transfer.");
     return res.redirect("/agent");
   }
-  const targetAgent = store.agents.find((agent) => agent.email === targetAgentEmail && agent.status === "Approved");
+  const targetAgent = store.agents.find((agent) => agent.email === targetAgentEmail && isApprovedAgentStatus(agent.status));
   if (!targetAgent) {
     setFlash(req, "error", "Target agent must be approved.");
     return res.redirect("/agent");
@@ -4963,7 +5235,8 @@ app.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, async (req
     return {
       email: agentEmail,
       name: agent ? agent.fullName : "Unknown Agent",
-      region: agent ? agent.region : "-"
+      workingRegion: agent ? (agent.workingRegion || agent.region || "-") : "-",
+      region: agent ? (agent.workingRegion || agent.region || "-") : "-"
     };
   });
   const referredNurses = store.nurses
@@ -6222,8 +6495,6 @@ app.get("/admin/user/view/:role/:id", requireRole("admin"), async (req, res) => 
     return res.status(404).render("shared/not-found", { title: "Not Found" });
   }
 
-  const store = readNormalizedStore();
-  
   if (role === "nurse") {
     const nurse = await getNurseById(userId, { includeDeletedUsers: true });
     if (!nurse) {
@@ -6238,12 +6509,12 @@ app.get("/admin/user/view/:role/:id", requireRole("admin"), async (req, res) => 
   }
   
   if (role === "agent") {
-    const agent = store.agents.find((item) => item.id === userId);
+    const agent = await getAgentById(userId, { includeDeletedUsers: true });
     if (!agent) {
       return res.status(404).render("shared/not-found", { title: "Agent Not Found" });
     }
-    const user = store.users.find((item) => item.id === agent.userId);
-    const concerns = getConcernsByUserId(store, agent.userId);
+    const user = await getUserById(agent.userId);
+    const concerns = (await getConcerns()).filter((item) => item.userId === agent.userId);
     
     return res.render("admin/view-agent", {
       title: "View Agent",

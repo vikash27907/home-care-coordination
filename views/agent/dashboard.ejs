@@ -179,7 +179,7 @@
               <select name="targetAgentEmail" required>
                 <option value="">Transfer To</option>
                 <% transferTargets.forEach((agent) => { %>
-                <option value="<%= agent.email %>"><%= agent.fullName %> (<%= agent.region %>)</option>
+                <option value="<%= agent.email %>"><%= agent.fullName %> (<%= agent.workingRegion || agent.region %>)</option>
                 <% }) %>
               </select>
               <select name="transferMarginType">
@@ -261,7 +261,7 @@
           <th>ID</th>
           <th>Name</th>
           <th>Email</th>
-          <th>Region</th>
+          <th>Working Location / Region</th>
           <th>Status</th>
           <th>Created</th>
         </tr>
@@ -277,7 +277,7 @@
           <td>A-<%= agent.id %></td>
           <td><%= agent.fullName %></td>
           <td><%= agent.email %></td>
-          <td><%= agent.region %></td>
+          <td><%= agent.workingRegion || agent.region %></td>
           <td><span class="pill"><%= agent.status %></span></td>
           <td><%= agent.createdAt.slice(0, 10) %></td>
         </tr>

@@ -112,11 +112,86 @@ async function initializeDatabase() {
         email VARCHAR(255) UNIQUE NOT NULL,
         phone_number VARCHAR(15),
         company_name VARCHAR(255),
-        region VARCHAR(100),
-        status VARCHAR(20) DEFAULT 'Pending',
+        working_region VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'pending',
         created_by_agent_email VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'agents'
+            AND column_name = 'region'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'agents'
+            AND column_name = 'working_region'
+        ) THEN
+          ALTER TABLE agents RENAME COLUMN region TO working_region;
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      ALTER TABLE agents
+      ADD COLUMN IF NOT EXISTS working_region VARCHAR(100)
+    `);
+
+    await pool.query(`
+      ALTER TABLE agents
+      ALTER COLUMN status SET DEFAULT 'pending'
+    `);
+
+    await pool.query(`
+      UPDATE agents
+      SET status = LOWER(COALESCE(status, 'pending'))
+    `);
+
+    await pool.query(`
+      UPDATE agents
+      SET status = 'pending'
+      WHERE status NOT IN ('pending', 'approved', 'rejected', 'deleted')
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'status_check'
+            AND conrelid = 'agents'::regclass
+        ) THEN
+          ALTER TABLE agents DROP CONSTRAINT status_check;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'agents_status_check'
+            AND conrelid = 'agents'::regclass
+        ) THEN
+          ALTER TABLE agents DROP CONSTRAINT agents_status_check;
+        END IF;
+
+        ALTER TABLE agents
+        ADD CONSTRAINT agents_status_check
+        CHECK (status IN ('pending', 'approved', 'rejected', 'deleted'));
+      END $$;
+    `);
+
+    await pool.query(`
+      UPDATE users
+      SET status = LOWER(COALESCE(status, 'pending'))
+      WHERE role = 'agent'
     `);
 
     // Create patients table
