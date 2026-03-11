@@ -1,0 +1,17 @@
+<%- include("../partials/head", { title }) %>
+
+<section class="form-section narrow">
+  <h1>Email Verification</h1>
+  <p>Enter the OTP sent to <strong><%= email %></strong>.</p>
+
+  <form action="/agent/verify-otp" method="POST" class="form-grid">
+    <label class="full-width">
+      OTP
+      <input type="text" name="otp" placeholder="Enter OTP" inputmode="numeric" maxlength="6" required />
+    </label>
+
+    <button type="submit" class="btn primary full-width">Verify OTP</button>
+  </form>
+</section>
+
+<%- include("../partials/footer") %>

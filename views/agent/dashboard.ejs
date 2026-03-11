@@ -5,6 +5,14 @@
   <p>Regional view only: records assigned to <strong><%= currentUser.email %></strong>.</p>
 </section>
 
+<% if (agent && agent.status === "pending") { %>
+  <section class="content-section">
+    <div class="alert alert-warning">
+      Your profile is not verified yet. Admin approval is required.
+    </div>
+  </section>
+<% } %>
+
 <section class="metrics-grid">
   <article class="metric">
     <h3>Assigned Patients</h3>

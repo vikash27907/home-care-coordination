@@ -24,6 +24,7 @@ const {
 const {
   sendVerificationEmail,
   sendVerificationOtpEmail,
+  sendAgentVerificationOtpEmail,
   sendResetPasswordEmail,
   sendConcernNotification,
   sendRequestConfirmationEmail,
@@ -1357,11 +1358,11 @@ async function getSessionUserPayload(user) {
     return null;
   }
 
-  let profileImageUrl = "";
+  let profileImageUrl = "/images/default-avatar.png";
   if (user.role === "nurse") {
     try {
       const nurse = await getNurseByUserId(user.id);
-      profileImageUrl = normalizePublicImageUrl((nurse && (nurse.profileImageUrl || nurse.profileImagePath)) || "");
+      profileImageUrl = normalizePublicImageUrl((nurse && (nurse.profileImageUrl || nurse.profileImagePath)) || "/images/default-avatar.png");
     } catch (error) {
       console.error("Error loading nurse profile image for session:", error);
     }
@@ -1370,7 +1371,12 @@ async function getSessionUserPayload(user) {
   return {
     id: user.id,
     role: user.role,
-    profileImageUrl
+    fullName: user.fullName || "",
+    full_name: user.fullName || "",
+    phoneNumber: user.phoneNumber || "",
+    phone_number: user.phoneNumber || "",
+    profileImageUrl,
+    profile_image_url: profileImageUrl
   };
 }
 
@@ -1430,11 +1436,7 @@ function requireRole(role) {
   };
 }
 
-async function requireApprovedAgent(req, res, next) {
-  if (!req.currentUser || req.currentUser.role !== "agent") {
-    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
-  }
-
+async function getAgentRecordForUser(userId) {
   try {
     const result = await pool.query(
       `SELECT a.*, COALESCE(u.is_deleted, false) AS user_is_deleted
@@ -1442,13 +1444,13 @@ async function requireApprovedAgent(req, res, next) {
        JOIN users u ON u.id = a.user_id
        WHERE a.user_id = $1
        LIMIT 1`,
-      [req.currentUser.id]
+      [userId]
     );
     const row = result.rows[0];
-    if (!row || row.user_is_deleted || !isApprovedAgentStatus(row.status)) {
-      return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+    if (!row || row.user_is_deleted) {
+      return null;
     }
-    req.agentRecord = {
+    return {
       id: row.id,
       userId: row.user_id,
       fullName: row.full_name || "",
@@ -1461,11 +1463,38 @@ async function requireApprovedAgent(req, res, next) {
       createdByAgentEmail: row.created_by_agent_email || "",
       createdAt: row.created_at
     };
-    return next();
   } catch (error) {
-    console.error("requireApprovedAgent DB check failed:", error);
-    return res.status(500).render("shared/forbidden", { title: "Access Restricted" });
+    console.error("Agent record lookup failed:", error);
+    return null;
   }
+}
+
+async function loadAgentProfile(req, res, next) {
+  if (!req.currentUser || req.currentUser.role !== "agent") {
+    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+  }
+
+  const agentRecord = await getAgentRecordForUser(req.currentUser.id);
+  if (!agentRecord || agentRecord.status === "rejected" || agentRecord.status === "deleted") {
+    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+  }
+
+  req.agentRecord = agentRecord;
+  return next();
+}
+
+async function requireApprovedAgent(req, res, next) {
+  if (!req.currentUser || req.currentUser.role !== "agent") {
+    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+  }
+
+  const agentRecord = await getAgentRecordForUser(req.currentUser.id);
+  if (!agentRecord || !isApprovedAgentStatus(agentRecord.status)) {
+    return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+  }
+
+  req.agentRecord = agentRecord;
+  return next();
 }
 
 async function requireApprovedNurse(req, res, next) {
@@ -1937,6 +1966,84 @@ async function createAgentUnderAgent(req, res, failRedirect) {
     return res.redirect("/agent-registration");
   } catch (error) {
     console.error("[Agent Registration] Unexpected error:", error);
+    setFlash(req, "error", "Agent registration failed due to a server error. Please try again.");
+    return res.redirect(failRedirect);
+  }
+}
+
+async function stagePublicAgentRegistration(req, res, failRedirect) {
+  try {
+    const fullName = String(req.body.fullName || req.body.full_name || "").trim();
+    const emailInput = String(req.body.email || "").trim();
+    const password = String(req.body.password || "");
+    const phoneNumber = String(req.body.phoneNumber || req.body.phone_number || "").trim();
+    const workingRegion = String(req.body.workingRegion || req.body.working_region || req.body.region || "").trim();
+    const companyName = String(req.body.companyName || req.body.company_name || "").trim();
+
+    if (!fullName || !emailInput || !password || !phoneNumber || !workingRegion) {
+      setFlash(req, "error", "Please complete all agent details.");
+      return res.redirect(failRedirect);
+    }
+
+    if (password.length < 6) {
+      setFlash(req, "error", "Password must be at least 6 characters.");
+      return res.redirect(failRedirect);
+    }
+
+    const emailValidation = validateEmail(emailInput);
+    if (!emailValidation.valid) {
+      setFlash(req, "error", emailValidation.error);
+      return res.redirect(failRedirect);
+    }
+    const email = emailValidation.value;
+
+    const phoneValidation = validateIndiaPhone(phoneNumber);
+    if (!phoneValidation.valid) {
+      setFlash(req, "error", phoneValidation.error);
+      return res.redirect(failRedirect);
+    }
+
+    const existingUserByEmail = await getUserByEmail(email);
+    if (existingUserByEmail) {
+      setFlash(req, "error", "This email already has a registered account.");
+      return res.redirect(failRedirect);
+    }
+
+    const [users, nurses, agents] = await Promise.all([
+      getUsers(),
+      getNurses(),
+      getAgents()
+    ]);
+    const normalizedPhone = normalizePhone(phoneValidation.value);
+    const hasRegisteredPhone = users.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone)
+      || nurses.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone)
+      || agents.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone);
+
+    if (hasRegisteredPhone) {
+      setFlash(req, "error", "This phone number already has a registered account.");
+      return res.redirect(failRedirect);
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    req.session.agentRegistration = {
+      fullName,
+      email,
+      phoneNumber: phoneValidation.value,
+      workingRegion,
+      companyName,
+      passwordHash: bcrypt.hashSync(password, 10),
+      otp,
+      otpExpiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+    };
+
+    await sendAgentVerificationOtpEmail(email, otp);
+
+    return res.render("agent/verify-otp", {
+      title: "Verify Agent Registration",
+      email
+    });
+  } catch (error) {
+    console.error("[Agent Registration OTP] Unexpected error:", error);
     setFlash(req, "error", "Agent registration failed due to a server error. Please try again.");
     return res.redirect(failRedirect);
   }
@@ -2435,10 +2542,10 @@ app.post("/verify-otp", async (req, res) => {
   return res.redirect("/nurse/profile");
 });
 
-app.get("/agent-registration", (req, res) => {
+app.get(["/agent-registration", "/agent/register"], (req, res) => {
   if (req.currentUser) {
     if (req.currentUser.role === "agent") {
-      return res.redirect("/agent/agents/new");
+      return res.redirect("/agent/dashboard");
     }
     return res.redirect(redirectByRole(req.currentUser.role));
   }
@@ -2447,14 +2554,14 @@ app.get("/agent-registration", (req, res) => {
   });
 });
 
-app.post("/agent-registration", async (req, res) => {
+app.post(["/agent-registration", "/agent/register"], async (req, res) => {
   if (req.currentUser) {
     if (req.currentUser.role === "agent") {
-      return res.redirect("/agent/agents/new");
+      return res.redirect("/agent/dashboard");
     }
     return res.redirect(redirectByRole(req.currentUser.role));
   }
-  return createAgentUnderAgent(req, res, "/agent-registration");
+  return stagePublicAgentRegistration(req, res, "/agent/register");
 });
 
 app.get("/login", (req, res) => {
@@ -2462,6 +2569,205 @@ app.get("/login", (req, res) => {
     return res.redirect(redirectByRole(req.currentUser.role));
   }
   return res.render("auth/login", { title: "Login" });
+});
+
+// OLD LOGIN OTP SYSTEM (disabled)
+/*
+app.post("/agent/login", async (req, res) => {
+  const phoneInput = String(req.body.phone_number || req.body.phoneNumber || "").trim();
+  const phoneValidation = validateIndiaPhone(phoneInput);
+
+  if (!phoneValidation.valid) {
+    return res.send("Agent not found or not approved");
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT a.id, a.user_id, a.full_name, a.phone_number
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.phone_number = $1
+         AND a.status = 'approved'
+         AND u.role = 'agent'
+         AND COALESCE(u.is_deleted, false) = false
+       LIMIT 1`,
+      [phoneValidation.value]
+    );
+
+    if (result.rows.length === 0) {
+      return res.send("Agent not found or not approved");
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+    await pool.query(
+      `UPDATE users
+       SET otp_code = $1,
+           otp_expiry = NOW() + INTERVAL '5 minutes'
+       WHERE id = $2`,
+      [otp, result.rows[0].user_id]
+    );
+
+    console.log("Agent OTP:", otp);
+
+    return res.send("OTP sent. Submit phone_number and otp to /agent/verify-otp.");
+  } catch (error) {
+    console.error("Agent login OTP generation failed:", error);
+    return res.send("Error generating OTP");
+  }
+});
+*/
+
+// OLD LOGIN OTP VERIFICATION (disabled)
+/*
+app.post("/agent/verify-otp", async (req, res) => {
+  const phoneInput = String(req.body.phone_number || req.body.phoneNumber || "").trim();
+  const otp = String(req.body.otp || "").trim();
+  const phoneValidation = validateIndiaPhone(phoneInput);
+
+  if (!phoneValidation.valid || !otp) {
+    return res.send("Invalid or expired OTP");
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT a.id AS agent_id,
+              a.user_id,
+              a.full_name,
+              a.phone_number
+       FROM agents a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.phone_number = $1
+         AND a.status = 'approved'
+         AND u.role = 'agent'
+         AND COALESCE(u.is_deleted, false) = false
+         AND u.otp_code = $2
+         AND u.otp_expiry > NOW()
+       LIMIT 1`,
+      [phoneValidation.value, otp]
+    );
+
+    if (result.rows.length === 0) {
+      return res.send("Invalid or expired OTP");
+    }
+
+    const agent = result.rows[0];
+
+    req.session.userId = agent.user_id;
+    req.session.role = "agent";
+    req.session.user = {
+      id: agent.user_id,
+      agentId: agent.agent_id,
+      role: "agent",
+      fullName: agent.full_name || "",
+      full_name: agent.full_name || "",
+      profileImageUrl: "",
+      profile_image_url: "",
+      phoneNumber: agent.phone_number || "",
+      phone_number: agent.phone_number || ""
+    };
+
+    await pool.query(
+      `UPDATE users
+       SET otp_code = NULL,
+           otp_expiry = NULL
+       WHERE id = $1`,
+      [agent.user_id]
+    );
+
+    return res.redirect("/agent/dashboard");
+  } catch (error) {
+    console.error("Agent OTP verification failed:", error);
+    return res.send("Error verifying OTP");
+  }
+});
+*/
+
+app.post("/agent/verify-otp", async (req, res) => {
+  const otp = String(req.body.otp || "").trim();
+  const data = req.session.agentRegistration;
+
+  if (!data) {
+    return res.redirect("/agent/register");
+  }
+
+  const isExpired = !data.otpExpiresAt || new Date() > new Date(data.otpExpiresAt);
+  if (!otp || otp !== String(data.otp) || isExpired) {
+    return res.send("Invalid OTP");
+  }
+
+  try {
+    const existingUserByEmail = await getUserByEmail(data.email);
+    if (existingUserByEmail) {
+      delete req.session.agentRegistration;
+      return res.send("Registration error");
+    }
+
+    const [users, nurses, agents] = await Promise.all([
+      getUsers(),
+      getNurses(),
+      getAgents()
+    ]);
+    const normalizedPhone = normalizePhone(data.phoneNumber);
+    const hasRegisteredPhone = users.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone)
+      || nurses.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone)
+      || agents.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone);
+
+    if (hasRegisteredPhone) {
+      delete req.session.agentRegistration;
+      return res.send("Registration error");
+    }
+
+    const createdUser = await createUser({
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      passwordHash: data.passwordHash,
+      role: "agent",
+      status: "pending",
+      emailVerified: true,
+      createdAt: now()
+    });
+
+    if (!createdUser) {
+      return res.send("Registration error");
+    }
+
+    const createdAgent = await createAgent({
+      userId: createdUser.id,
+      fullName: data.fullName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      workingRegion: data.workingRegion,
+      companyName: data.companyName,
+      status: "pending",
+      createdAt: now()
+    });
+
+    if (!createdAgent) {
+      await deleteUser(createdUser.id);
+      return res.send("Registration error");
+    }
+
+    req.session.userId = createdUser.id;
+    req.session.role = "agent";
+    req.session.user = {
+      id: createdUser.id,
+      role: "agent",
+      fullName: data.fullName,
+      full_name: data.fullName,
+      profileImageUrl: "/images/default-avatar.png",
+      profile_image_url: "/images/default-avatar.png",
+      phoneNumber: data.phoneNumber,
+      phone_number: data.phoneNumber
+    };
+
+    delete req.session.agentRegistration;
+
+    return res.redirect("/agent/dashboard");
+  } catch (error) {
+    console.error("Agent registration verification failed:", error);
+    return res.send("Registration error");
+  }
 });
 
 app.post("/login", loginRateLimiter, async (req, res) => {
@@ -4897,7 +5203,7 @@ app.post("/admin/care-requests/:id/earnings/payout-status", requireRole("admin")
   }
 });
 
-app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
+app.get("/agent", requireRole("agent"), loadAgentProfile, (req, res) => {
   const agentEmail = normalizeEmail(req.currentUser.email);
   const store = readNormalizedStore();
 
@@ -4923,6 +5229,7 @@ app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
 
   return res.render("agent/dashboard", {
     title: "Agent Dashboard",
+    agent: req.agentRecord,
     patients,
     nurses,
     approvedNurses,
@@ -4934,7 +5241,7 @@ app.get("/agent", requireRole("agent"), requireApprovedAgent, (req, res) => {
 });
 
 // Agent Dashboard route - redirects to /agent
-app.get("/agent/dashboard", requireRole("agent"), requireApprovedAgent, (req, res) => {
+app.get("/agent/dashboard", requireRole("agent"), (req, res) => {
   return res.redirect("/agent");
 });
 
