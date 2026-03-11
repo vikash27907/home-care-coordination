@@ -22,6 +22,8 @@ const referralCode = String((nurse && (nurse.referralCode || nurse.referral_code
 const profileStatus = String((nurse && (nurse.profileStatus || nurse.profile_status)) || "");
 const emailVerified = Boolean(nurse && (nurse.emailVerified || nurse.email_verified));
 const profileImage = (nurse && (nurse.profileImageUrl || nurse.profile_image_url || nurse.profileImagePath || nurse.profile_image_path)) || "";
+const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "");
+const profileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "");
 const availability = Array.isArray(nurse && nurse.availability) ? nurse.availability : [];
 const skills = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
 const qualifications = Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [];
@@ -91,6 +93,7 @@ const qualificationsText = qualifications
   .map((item) => String(item || "").trim())
   .filter(Boolean)
   .join(", ");
+const cardImage = profileImage || "/images/default-avatar.png";
 
 const aadhaarRaw = String(
   (nurse && (nurse.aadhaarNumber || nurse.aadharNumber || nurse.aadhaar_number || nurse.aadhar_number)) || ""
@@ -152,7 +155,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           >
             <span class="np-avatar-wrap">
               <% if (profileImage) { %>
-                <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar">
+                <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
               <% } else { %>
                 <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
               <% } %>
@@ -210,7 +213,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       <% } else { %>
         <div class="np-avatar-wrap">
           <% if (profileImage) { %>
-            <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar">
+            <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
           <% } else { %>
             <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
           <% } %>
@@ -243,9 +246,82 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     <% if (canEdit) { %>
       <div class="np-header-actions">
         <button type="button" class="btn primary" id="npToggleEditBtn">Edit Profile</button>
+        <button type="button" class="btn" id="npViewIdCardBtn">View Card</button>
       </div>
     <% } %>
   </article>
+
+  <div class="id-card-modal" id="npIdCardModal" aria-hidden="true">
+    <div class="id-card-container">
+      <button type="button" class="close-card" id="npCloseIdCardBtn" aria-label="Close ID card">&times;</button>
+
+      <div id="nurse-id-card" class="phc-id-card">
+        <div class="card-top">
+          <div class="photo-section">
+            <img class="nurse-photo" src="<%= cardImage %>" alt="<%= fullName %>" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
+
+            <div class="qr-overlay">
+              <img src="/api/nurse/<%= nurseId %>/qr" alt="QR code for <%= fullName %>">
+              <span>Scan Profile</span>
+            </div>
+          </div>
+
+          <div class="details-section">
+            <div class="row">
+              <span>Name:</span>
+              <b><%= fullName %></b>
+            </div>
+
+            <div class="row">
+              <span>ID:</span>
+              <b><%= uniqueId || "-" %></b>
+            </div>
+
+            <div class="row">
+              <span>Experience:</span>
+              <b><%= experienceYears %> Years</b>
+            </div>
+
+            <div class="row">
+              <span>City:</span>
+              <b><%= city || "-" %></b>
+            </div>
+
+            <div class="row">
+              <span>Gender:</span>
+              <b><%= gender || "-" %></b>
+            </div>
+
+            <div class="verified">
+              Verified By: Prisha HomeCare
+            </div>
+          </div>
+        </div>
+
+        <div class="brand-strip">
+          <div class="brand-left">
+            <img class="logo" src="/images/prisha-logo.png" alt="Prisha HomeCare logo" onerror="this.style.display='none'">
+            <span>Verified Care Staff From</span>
+          </div>
+
+          <div class="brand-center">
+            <h2>PRISHA HOMECARE</h2>
+            <p>Book Nurses &amp; Caregivers Online</p>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          Contact: 9138913355 | Email: prishahomecare@gmail.com
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button type="button" class="btn primary" id="download-card">Download Card</button>
+        <button type="button" class="btn" id="download-qr">Download QR</button>
+        <button type="button" class="btn" id="share-profile">Share Profile</button>
+      </div>
+    </div>
+  </div>
 
   <% if (canEdit) { %>
   <form
@@ -589,11 +665,13 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
             <button
               type="submit"
               class="btn danger"
-              formaction="/admin/user/<%= userId %>/delete"
+              formaction="/admin/nurses/<%= nurseId %>/delete"
               formmethod="POST"
-              onclick="return confirm('Archive this user account? This will disable login but keep historical data.');"
+              name="deleteRedirectTo"
+              value="/admin/nurses"
+              onclick="return confirm('Delete this nurse permanently? This removes the account and related records.');"
             >
-              Archive Account
+              Delete Nurse
             </button>
           </div>
         <% } %>
@@ -727,6 +805,13 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+}
+
+.np-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .np-header-left {
@@ -1427,6 +1512,173 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   padding: 0.4rem 0;
 }
 
+.id-card-modal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.58);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.id-card-modal.is-open {
+  display: flex;
+}
+
+.id-card-container {
+  position: relative;
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.close-card {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #0f4f83;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+
+#nurse-id-card {
+  width: 520px;
+  background: white;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+}
+
+.id-card-container {
+  max-width: calc(100vw - 24px);
+  overflow: auto;
+}
+
+.phc-id-card .card-top {
+  display: flex;
+  padding: 22px;
+  gap: 20px;
+}
+
+.phc-id-card .photo-section {
+  position: relative;
+}
+
+.phc-id-card .nurse-photo {
+  width: 150px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.phc-id-card .qr-overlay {
+  position: absolute;
+  bottom: -10px;
+  left: 10px;
+  background: white;
+  padding: 6px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.phc-id-card .qr-overlay img {
+  width: 70px;
+  height: 70px;
+}
+
+.phc-id-card .qr-overlay span {
+  display: block;
+  font-size: 11px;
+}
+
+.phc-id-card .details-section {
+  flex: 1;
+}
+
+.phc-id-card .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid #eee;
+  gap: 12px;
+}
+
+.phc-id-card .row span {
+  font-weight: 600;
+  color: #1f4e79;
+}
+
+.phc-id-card .verified {
+  margin-top: 10px;
+  font-weight: 600;
+}
+
+.phc-id-card .brand-strip {
+  display: flex;
+  align-items: center;
+  background: #eaf2f8;
+  padding: 14px 20px;
+  gap: 20px;
+}
+
+.phc-id-card .brand-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.phc-id-card .logo {
+  width: 40px;
+}
+
+.phc-id-card .brand-center {
+  flex: 1;
+  text-align: center;
+}
+
+.phc-id-card .brand-center h2 {
+  color: #2a6fa5;
+  margin: 2px 0;
+}
+
+.phc-id-card .brand-center p {
+  font-size: 13px;
+  margin: 0;
+}
+
+.phc-id-card .card-footer {
+  background: #2b6da3;
+  color: white;
+  text-align: center;
+  padding: 10px;
+  font-size: 14px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.card-actions .btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .nurse-profile-shell.is-editing .np-edit-actions {
   display: flex;
 }
@@ -1468,9 +1720,14 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   .np-pass-form {
     grid-template-columns: 1fr;
   }
+
+  #nurse-id-card {
+    width: 520px;
+  }
 }
 </style>
 
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
 <script>
 (() => {
   const shell = document.getElementById("nurseProfileShell");
@@ -1491,6 +1748,12 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   });
 
   const editButton = document.getElementById("npToggleEditBtn");
+  const viewIdCardButton = document.getElementById("npViewIdCardBtn");
+  const idCardModal = document.getElementById("npIdCardModal");
+  const closeIdCardButton = document.getElementById("npCloseIdCardBtn");
+  const downloadCardButton = document.getElementById("download-card");
+  const downloadQrButton = document.getElementById("download-qr");
+  const shareProfileButton = document.getElementById("share-profile");
   const cancelButton = document.getElementById("npCancelEditBtn");
   const profileForm = document.getElementById("profileForm");
   const selectedSkillsContainer = document.getElementById("selectedSkillsContainer");
@@ -1509,6 +1772,9 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   const avatarMenu = document.getElementById("npAvatarMenu");
   const avatarPhotoInput = document.getElementById("npProfilePhotoInput");
   const avatarPhotoForm = document.getElementById("npProfilePhotoForm");
+  const qrDownloadUrl = "/api/nurse/<%= nurseId %>/qr";
+  const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
+  const qrFileName = <%- JSON.stringify(`prisha-${(fullName || "nurse").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nurse"}-qr.png`) %>;
 
   let selectedSkills = new Set();
   let selectedAvailability = new Set();
@@ -1747,6 +2013,12 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     avatarMenu.setAttribute("aria-hidden", isOpen ? "false" : "true");
   };
 
+  const setIdCardModalState = (isOpen) => {
+    if (!idCardModal) return;
+    idCardModal.classList.toggle("is-open", Boolean(isOpen));
+    idCardModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  };
+
   if (editButton) {
     editButton.addEventListener("click", () => {
       shell.classList.toggle("is-editing");
@@ -1760,6 +2032,74 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       syncAadharImageRequirement();
     });
   }
+  if (viewIdCardButton) {
+    viewIdCardButton.addEventListener("click", () => {
+      setIdCardModalState(true);
+    });
+  }
+  if (closeIdCardButton) {
+    closeIdCardButton.addEventListener("click", () => {
+      setIdCardModalState(false);
+    });
+  }
+  if (idCardModal) {
+    idCardModal.addEventListener("click", (event) => {
+      if (event.target === idCardModal) {
+        setIdCardModalState(false);
+      }
+    });
+  }
+  if (downloadCardButton) {
+    downloadCardButton.addEventListener("click", () => {
+      const card = document.getElementById("nurse-id-card");
+      if (!card || typeof htmlToImage === "undefined") {
+        window.alert("Unable to download the ID card right now.");
+        return;
+      }
+
+      htmlToImage.toPng(card, { pixelRatio: 2 })
+        .then((dataUrl) => {
+          const link = document.createElement("a");
+          link.download = "prisha-nurse-id.png";
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.alert("ID Card downloaded successfully");
+        })
+        .catch(() => {
+          window.alert("Unable to download the ID card right now.");
+        });
+    });
+  }
+  if (downloadQrButton) {
+    downloadQrButton.disabled = !publicProfileUrl;
+    downloadQrButton.addEventListener("click", () => {
+      if (!publicProfileUrl) return;
+      const link = document.createElement("a");
+      link.href = qrDownloadUrl;
+      link.download = qrFileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    });
+  }
+  if (shareProfileButton) {
+    shareProfileButton.disabled = !publicProfileUrl;
+    shareProfileButton.addEventListener("click", () => {
+      if (!publicProfileUrl) return;
+      const profileUrl = `${window.location.origin}${publicProfileUrl}`;
+      const message = encodeURIComponent(
+        "Hello,\n\nI am a verified nurse with Prisha HomeCare.\n\nView my profile:\n" + profileUrl
+      );
+      window.open(`https://wa.me/?text=${message}`, "_blank", "noopener,noreferrer");
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setIdCardModalState(false);
+    }
+  });
   if (cancelButton) {
     cancelButton.addEventListener("click", () => {
       window.location.reload();

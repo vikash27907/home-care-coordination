@@ -27,7 +27,7 @@
   <% nurses.forEach((nurse) => { %>
   <article class="card nurse-card">
     <% if (nurse.profileImageUrl) { %>
-    <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="nurse-image" />
+    <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="nurse-image" onerror="this.onerror=null;this.src='/images/default-avatar.png';" />
     <% } else { %>
     <div class="nurse-image nurse-image-fallback" aria-hidden="true"><%= nurse.fullName.charAt(0) %></div>
     <% } %>
@@ -39,7 +39,7 @@
     <p><strong>Experience:</strong> <%= nurse.experienceYears === null ? 'Not shared' : `${nurse.experienceYears} years` %></p>
 
     <div class="cta-row nurse-actions">
-      <a href="/nurses/<%= nurse.id %>" class="btn">View Profile</a>
+      <a href="<%= nurse.publicUrl %>" class="btn">View Profile</a>
       <% if (nurse.isAvailable) { %>
       <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request This Nurse</a>
       <% } %>

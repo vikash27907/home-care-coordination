@@ -1,4 +1,6 @@
 const { pool } = require('./db');
+const { generateNurseId, generateAgentId } = require('./utils/idGenerator');
+const generateSlug = require('./utils/slug');
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
@@ -15,6 +17,16 @@ let storeCache = {
 let isInitialized = false;
 const DEFAULT_NURSE_GENDER = 'Not Specified';
 const AGENT_ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'deleted']);
+
+function resolveNursePublicVisibility(row) {
+  if (typeof row.public_profile_enabled === 'boolean') {
+    return row.public_profile_enabled;
+  }
+  if (typeof row.admin_visible === 'boolean') {
+    return row.admin_visible;
+  }
+  return false;
+}
 
 function normalizeAgentStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -173,15 +185,15 @@ async function persistStoreToDb(store) {
       await client.query(`
         INSERT INTO nurses (
           id, user_id, full_name, city, gender, status, profile_image_path,
-          aadhaar_number, experience_years, experience_months, current_status,
+          aadhar_number, experience_years, experience_months, current_status,
           work_locations, current_address, skills, qualifications, resume_url,
-          created_at
+          unique_id, profile_slug, public_profile_enabled, created_at
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11,
           $12, $13, $14, $15, $16,
-          $17
+          $17, $18, $19, $20
         )
       `, [
         nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
@@ -203,6 +215,9 @@ async function persistStoreToDb(store) {
         JSON.stringify(Array.isArray(nurse.qualifications) ? nurse.qualifications : []),
 
         nurse.resumeUrl || '',
+        nurse.uniqueId || '',
+        nurse.profileSlug || '',
+        nurse.publicProfileEnabled !== false,
         nurse.createdAt
       ]);
     }
@@ -210,11 +225,12 @@ async function persistStoreToDb(store) {
     // Insert agents
     for (const agent of store.agents || []) {
       await client.query(`
-        INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, unique_id, profile_slug, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       `, [
         agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '', 
-        agent.workingRegion || agent.region || '', normalizeAgentStatus(agent.status), agent.createdByAgentEmail || '', agent.createdAt
+        agent.workingRegion || agent.region || '', normalizeAgentStatus(agent.status), agent.createdByAgentEmail || '',
+        agent.uniqueId || '', agent.profileSlug || '', agent.createdAt
       ]);
     }
 
@@ -345,7 +361,10 @@ function transformNurseFromDB(row) {
     profileImageUrl: row.profile_image_url || '',
     profileImagePath: row.profile_image_path || '',
     publicBio: row.public_bio || '',
-    isPublic: row.admin_visible === true,
+    uniqueId: row.unique_id || '',
+    profileSlug: row.profile_slug || '',
+    publicProfileEnabled: row.public_profile_enabled !== false,
+    isPublic: resolveNursePublicVisibility(row),
     userIsDeleted: row.user_is_deleted === true,
     userDeletedAt: row.user_deleted_at ? new Date(row.user_deleted_at).toISOString() : "",
     publicShowCity: row.public_show_city !== false,
@@ -372,6 +391,8 @@ function transformAgentFromDB(row) {
     companyName: row.company_name || '',
     workingRegion: row.working_region || row.region || '',
     region: row.working_region || row.region || '',
+    uniqueId: row.unique_id || '',
+    profileSlug: row.profile_slug || '',
     userIsDeleted: row.user_is_deleted === true,
     status: normalizeAgentStatus(row.status),
     createdByAgentEmail: row.created_by_agent_email || '',
@@ -679,18 +700,63 @@ async function getNurseByUserId(userId, options = {}) {
   }
 }
 
+async function getNurseByProfileSlug(profileSlug, options = {}) {
+  try {
+    const includeDeletedUsers = options && options.includeDeletedUsers === true;
+    const result = await pool.query(`
+      SELECT
+        n.*,
+        u.email,
+        u.phone_number,
+        u.email_verified,
+        u.is_deleted AS user_is_deleted,
+        u.deleted_at AS user_deleted_at
+      FROM nurses n
+      JOIN users u ON u.id = n.user_id
+      WHERE n.profile_slug = $1
+        ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+      LIMIT 1
+    `, [profileSlug]);
+    return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
+  } catch (error) {
+    console.error('Error getting nurse by profile slug:', error);
+    return null;
+  }
+}
+
 async function createNurse(nurse) {
   try {
-    const result = await pool.query(`
-      INSERT INTO nurses (user_id, full_name, city, gender, status, profile_image_path, current_status, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [
-      nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-      nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
-      nurse.currentStatus || 'Available for Work',
-      nurse.createdAt || new Date().toISOString()
-    ]);
+    const uniqueId = nurse.uniqueId || await generateNurseId(pool);
+    const profileSlug = nurse.profileSlug || generateSlug(nurse.fullName, uniqueId);
+    const publicProfileEnabled = nurse.publicProfileEnabled !== false;
+    const hasExplicitId = Number.isInteger(nurse.id);
+    const result = hasExplicitId
+      ? await pool.query(`
+          INSERT INTO nurses (
+            id, user_id, full_name, city, gender, status, profile_image_path,
+            current_status, unique_id, profile_slug, public_profile_enabled, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING *
+        `, [
+          nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
+          nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+          nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
+          nurse.createdAt || new Date().toISOString()
+        ])
+      : await pool.query(`
+          INSERT INTO nurses (
+            user_id, full_name, city, gender, status, profile_image_path,
+            current_status, unique_id, profile_slug, public_profile_enabled, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING *
+        `, [
+          nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
+          nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+          nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
+          nurse.createdAt || new Date().toISOString()
+        ]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
   } catch (error) {
     console.error('Error creating nurse:', error);
@@ -723,7 +789,10 @@ async function updateNurse(id, updates) {
         workCity: 'work_city',
         currentAddress: 'current_address',
         skills: 'skills',
-        isPublic: 'admin_visible',
+        uniqueId: 'unique_id',
+        profileSlug: 'profile_slug',
+        publicProfileEnabled: 'public_profile_enabled',
+        isPublic: 'public_profile_enabled',
         referralCode: 'referral_code',
         profileStatus: 'profile_status',
         qualifications: 'qualifications',
@@ -817,23 +886,27 @@ async function getAgentByEmail(email, options = {}) {
 async function createAgent(agent) {
   try {
     const status = normalizeAgentStatus(agent.status);
+    const uniqueId = agent.uniqueId || await generateAgentId(pool);
+    const profileSlug = agent.profileSlug || generateSlug(agent.fullName, uniqueId);
     const hasExplicitId = Number.isInteger(agent.id);
     const result = hasExplicitId
       ? await pool.query(`
-          INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, unique_id, profile_slug, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING *
         `, [
           agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
-          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '', agent.createdAt || new Date().toISOString()
+          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '',
+          uniqueId, profileSlug, agent.createdAt || new Date().toISOString()
         ])
       : await pool.query(`
-          INSERT INTO agents (user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          INSERT INTO agents (user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, unique_id, profile_slug, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING *
         `, [
           agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
-          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '', agent.createdAt || new Date().toISOString()
+          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '',
+          uniqueId, profileSlug, agent.createdAt || new Date().toISOString()
         ]);
     return result.rows[0] ? transformAgentFromDB(result.rows[0]) : null;
   } catch (error) {
@@ -857,7 +930,8 @@ async function updateAgent(id, updates) {
     for (const [key, value] of Object.entries(updates)) {
       const dbKey = {
         fullName: 'full_name', phoneNumber: 'phone_number', companyName: 'company_name',
-        workingRegion: 'working_region', region: 'working_region', status: 'status', createdByAgentEmail: 'created_by_agent_email'
+        workingRegion: 'working_region', region: 'working_region', status: 'status', createdByAgentEmail: 'created_by_agent_email',
+        uniqueId: 'unique_id', profileSlug: 'profile_slug'
       }[key];
       if (dbKey) {
         fields.push(`${dbKey} = $${paramCount}`);
@@ -1159,6 +1233,7 @@ module.exports = {
   getNurseById,
   getNurseByUserId,
   getNurseByEmail,
+  getNurseByProfileSlug,
   createNurse,
   updateNurse,
   deleteNurse,

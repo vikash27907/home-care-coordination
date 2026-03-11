@@ -1,0 +1,156 @@
+<%- include("partials/head", { title, metaTitle, metaDescription }) %>
+
+<section class="public-nurse-hero">
+  <div class="public-nurse-card">
+    <div class="public-nurse-media">
+      <% if (nurse.profileImageUrl) { %>
+        <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="public-nurse-image" onerror="this.onerror=null;this.src='/images/default-avatar.png';" />
+      <% } else { %>
+        <div class="public-nurse-fallback" aria-hidden="true"><%= nurse.fullName.charAt(0).toUpperCase() %></div>
+      <% } %>
+    </div>
+
+    <div class="public-nurse-copy">
+      <p class="public-nurse-eyebrow">Verified Public Profile</p>
+      <h1><%= nurse.fullName %></h1>
+      <p class="public-nurse-verified">Verified by Prisha Home Care</p>
+
+      <dl class="public-nurse-grid">
+        <div>
+          <dt>ID</dt>
+          <dd><%= nurse.uniqueId || "-" %></dd>
+        </div>
+        <div>
+          <dt>Qualification</dt>
+          <dd><%= nurse.qualificationsText || "-" %></dd>
+        </div>
+        <div>
+          <dt>Experience</dt>
+          <dd><%= nurse.experienceText %></dd>
+        </div>
+        <div>
+          <dt>City</dt>
+          <dd><%= nurse.city || "-" %></dd>
+        </div>
+        <div>
+          <dt>Gender</dt>
+          <dd><%= nurse.gender || "-" %></dd>
+        </div>
+      </dl>
+
+      <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request Care</a>
+    </div>
+  </div>
+</section>
+
+<style>
+.public-nurse-hero {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0 3rem;
+}
+
+.public-nurse-card {
+  width: min(860px, 100%);
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 1.5rem;
+  background: linear-gradient(145deg, #ffffff, #f4fbf8);
+  border: 1px solid #d5ebe0;
+  border-radius: 28px;
+  padding: 1.5rem;
+  box-shadow: 0 24px 60px rgba(16, 61, 44, 0.08);
+}
+
+.public-nurse-media {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.public-nurse-image,
+.public-nurse-fallback {
+  width: 190px;
+  height: 190px;
+  border-radius: 24px;
+}
+
+.public-nurse-image {
+  object-fit: cover;
+  border: 4px solid #e2f4eb;
+}
+
+.public-nurse-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f9d7a, #157347);
+  color: #ffffff;
+  font-size: 4rem;
+  font-weight: 800;
+}
+
+.public-nurse-copy h1 {
+  margin: 0.2rem 0 0.5rem;
+}
+
+.public-nurse-eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #157347;
+}
+
+.public-nurse-verified {
+  margin: 0 0 1.25rem;
+  color: #157347;
+  font-weight: 700;
+}
+
+.public-nurse-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.public-nurse-grid dt {
+  margin-bottom: 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #55716a;
+}
+
+.public-nurse-grid dd {
+  margin: 0;
+  color: #11332a;
+  font-size: 1rem;
+}
+
+@media (max-width: 720px) {
+  .public-nurse-card {
+    grid-template-columns: 1fr;
+  }
+
+  .public-nurse-media {
+    justify-content: flex-start;
+  }
+
+  .public-nurse-image,
+  .public-nurse-fallback {
+    width: 140px;
+    height: 140px;
+    border-radius: 20px;
+  }
+
+  .public-nurse-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<%- include("partials/footer") %>

@@ -13,7 +13,7 @@ const {
   // User helpers
   getUserById, getUserByEmail, createUser, updateUser, deleteUser, getUsers,
   // Nurse helpers  
-  getNurseById, getNurseByUserId, getNurseByEmail, createNurse, updateNurse, deleteNurse, getNurses,
+  getNurseById, getNurseByUserId, getNurseByEmail, getNurseByProfileSlug, createNurse, updateNurse, deleteNurse, getNurses,
   // Agent helpers
   getAgentById, getAgentByEmail, createAgent, updateAgent, deleteAgent, getAgents,
   // Patient helpers
@@ -34,6 +34,7 @@ const {
 const { initializeDatabase } = require("./src/schema");
 const { pool } = require("./src/db");
 const { cloudinary } = require("./src/cloudinary");
+const generateQR = require("./src/utils/qr");
 const fs = require("fs");
 
 // ============================================================
@@ -67,6 +68,115 @@ const CERTIFICATES_DIR = path.join(UPLOAD_DIR, "certificates");
     fs.mkdirSync(dir, { recursive: true });
   }
 });
+
+function extractCloudinaryPublicId(assetUrl) {
+  if (typeof assetUrl !== "string" || !assetUrl.trim()) return null;
+
+  try {
+    const parsedUrl = new URL(assetUrl);
+    if (parsedUrl.hostname !== "res.cloudinary.com") return null;
+
+    const uploadMarker = "/upload/";
+    const uploadIndex = parsedUrl.pathname.indexOf(uploadMarker);
+    if (uploadIndex === -1) return null;
+
+    let publicId = parsedUrl.pathname.slice(uploadIndex + uploadMarker.length);
+    publicId = publicId.replace(/^v\d+\//, "");
+
+    const extensionIndex = publicId.lastIndexOf(".");
+    const slashIndex = publicId.lastIndexOf("/");
+    if (extensionIndex > slashIndex) {
+      publicId = publicId.slice(0, extensionIndex);
+    }
+
+    return publicId || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function deleteCloudinaryAssetByUrl(assetUrl) {
+  const publicId = extractCloudinaryPublicId(assetUrl);
+  if (!publicId) return;
+
+  for (const resourceType of ["image", "raw", "video"]) {
+    try {
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: resourceType,
+        invalidate: true
+      });
+    } catch (error) {
+      console.error(`Cloudinary delete failed for ${publicId} (${resourceType}):`, error);
+    }
+  }
+}
+
+async function deleteLocalAsset(localPathOrUrl) {
+  if (typeof localPathOrUrl !== "string" || !localPathOrUrl.trim()) return;
+  if (/^https?:\/\//i.test(localPathOrUrl)) return;
+
+  let resolvedPath = null;
+  if (path.isAbsolute(localPathOrUrl)) {
+    resolvedPath = localPathOrUrl;
+  } else if (localPathOrUrl.startsWith("/uploads/")) {
+    resolvedPath = path.join(process.cwd(), localPathOrUrl.replace(/^\/+/, ""));
+  } else if (localPathOrUrl.startsWith("uploads/")) {
+    resolvedPath = path.join(process.cwd(), localPathOrUrl);
+  }
+
+  if (!resolvedPath) return;
+
+  const absoluteResolvedPath = path.resolve(resolvedPath);
+  const workspaceRoot = path.resolve(process.cwd());
+  if (!absoluteResolvedPath.toLowerCase().startsWith(workspaceRoot.toLowerCase())) {
+    return;
+  }
+
+  try {
+    await fs.promises.unlink(absoluteResolvedPath);
+  } catch (error) {
+    if (error && error.code !== "ENOENT") {
+      console.error(`Local file delete failed for ${absoluteResolvedPath}:`, error);
+    }
+  }
+}
+
+function collectNurseAssetUrls(nurseRow) {
+  const qualificationAssets = Array.isArray(nurseRow && nurseRow.qualifications)
+    ? nurseRow.qualifications.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        return [
+          item.certificate_url,
+          item.certificateUrl,
+          item.document_url,
+          item.documentUrl,
+          item.file_url,
+          item.fileUrl
+        ];
+      })
+    : [];
+
+  return Array.from(new Set(
+    [
+      nurseRow && nurseRow.profile_image_url,
+      nurseRow && nurseRow.profile_image_path,
+      nurseRow && nurseRow.resume_url,
+      nurseRow && nurseRow.aadhar_image_url,
+      nurseRow && nurseRow.certificate_url,
+      ...qualificationAssets
+    ]
+      .filter((item) => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item && !item.startsWith("/images/"))
+  ));
+}
+
+async function deleteNurseAssets(assetUrls) {
+  for (const assetUrl of assetUrls) {
+    await deleteCloudinaryAssetByUrl(assetUrl);
+    await deleteLocalAsset(assetUrl);
+  }
+}
 
 // Storage configuration for resumes
 const resumeStorage = multer.diskStorage({
@@ -210,6 +320,14 @@ function uploadBufferToCloudinary(file, folder) {
 const app = express();
 const PORT = process.env.PORT || 10000;
 const isProduction = process.env.NODE_ENV === "production";
+
+function getAppBaseUrl(req) {
+  const configuredBaseUrl = String(process.env.APP_URL || "").trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/, "");
+  }
+  return `${req.protocol}://${req.get("host")}`;
+}
 
 // ============================================================
 // PRODUCTION-GRADE VALIDATION CONSTANTS & HELPERS
@@ -992,16 +1110,46 @@ function getPublicNurseSkills(nurse) {
 }
 
 function buildPublicNurse(nurse) {
+  const qualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
+  const qualificationNames = qualifications
+    .map((item) => (item && typeof item === "object" ? item.name : item))
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+
   return {
     id: nurse.id,
     fullName: nurse.fullName,
     city: nurse.publicShowCity ? nurse.city : "Not shared",
     experienceYears: nurse.publicShowExperience ? nurse.experienceYears : null,
+    qualifications: qualificationNames,
     skills: getPublicNurseSkills(nurse),
     availability: nurse.availability || [],
     profileImageUrl: nurse.profileImageUrl || "",
     publicBio: nurse.publicBio || "",
+    uniqueId: nurse.uniqueId || "",
+    profileSlug: nurse.profileSlug || "",
+    publicUrl: nurse.profileSlug ? `/nurse/${encodeURIComponent(nurse.profileSlug)}` : `/nurses/${nurse.id}`,
     isAvailable: nurse.isAvailable !== false
+  };
+}
+
+function buildPublicNurseProfileView(nurse) {
+  const qualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
+  const qualificationNames = qualifications
+    .map((item) => (item && typeof item === "object" ? item.name : item))
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const experienceYears = Number.parseInt(nurse.experienceYears, 10) || 0;
+
+  return {
+    id: nurse.id,
+    fullName: nurse.fullName,
+    gender: nurse.gender || "Not specified",
+    city: nurse.publicShowCity ? nurse.city : "Not shared",
+    qualificationsText: qualificationNames.join(", "),
+    experienceText: nurse.publicShowExperience ? `${experienceYears} Years` : "Not shared",
+    profileImageUrl: nurse.profileImageUrl || nurse.profileImagePath || "",
+    uniqueId: nurse.uniqueId || ""
   };
 }
 function normalizeStoreShape(store) {
@@ -2098,6 +2246,46 @@ app.get("/nurses/:id", async (req, res) => {
     title: `${nurse.fullName} | Public Nurse Profile`,
     nurse: buildPublicNurse(nurse)
   });
+});
+
+app.get("/nurse/:slug([a-z0-9-]+-phcn[0-9]+)", async (req, res) => {
+  const slug = String(req.params.slug || "").trim();
+  if (!slug) {
+    return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+  }
+
+  const nurse = await getNurseByProfileSlug(slug);
+  const isVisiblePublicly = nurse && nurse.status === "Approved" && nurse.isPublic === true;
+  if (!isVisiblePublicly) {
+    return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+  }
+
+  const publicNurse = buildPublicNurseProfileView(nurse);
+
+  return res.render("public-nurse-profile", {
+    title: publicNurse.fullName,
+    metaTitle: `${publicNurse.fullName} | Verified Nurse | Prisha Home Care`,
+    metaDescription: `View the verified public profile for ${publicNurse.fullName} at Prisha Home Care.`,
+    nurse: publicNurse
+  });
+});
+
+app.get("/api/nurse/:id/qr", async (req, res) => {
+  const nurseId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(nurseId)) {
+    return res.status(404).send("Not found");
+  }
+
+  const nurse = await getNurseById(nurseId);
+  if (!nurse || !nurse.profileSlug) {
+    return res.status(404).send("Not found");
+  }
+
+  const url = new URL(`/nurse/${nurse.profileSlug}`, `${getAppBaseUrl(req)}/`).toString();
+  const qr = await generateQR(url);
+  const qrBase64 = qr.replace(/^data:image\/png;base64,/, "");
+
+  return res.type("png").send(Buffer.from(qrBase64, "base64"));
 });
 
 app.get("/request-care", async (req, res) => {
@@ -3279,7 +3467,7 @@ app.post("/admin/nurses/:id/toggle-public", requireRole("admin"), async (req, re
 
   try {
     const nurseResult = await pool.query(
-      `SELECT n.id, n.admin_visible
+      `SELECT n.id, n.public_profile_enabled
        FROM nurses n
        JOIN users u ON u.id = n.user_id
        WHERE n.id = $1
@@ -3293,9 +3481,9 @@ app.post("/admin/nurses/:id/toggle-public", requireRole("admin"), async (req, re
       return res.redirect(redirectTarget);
     }
 
-    const nextIsPublic = nurseResult.rows[0].admin_visible !== true;
+    const nextIsPublic = nurseResult.rows[0].public_profile_enabled !== true;
     await pool.query(
-      "UPDATE nurses SET admin_visible = $1 WHERE id = $2",
+      "UPDATE nurses SET public_profile_enabled = $1 WHERE id = $2",
       [nextIsPublic, nurseId]
     );
 
@@ -3311,6 +3499,154 @@ app.post("/admin/nurses/:id/toggle-public", requireRole("admin"), async (req, re
     console.error("Admin nurse public visibility toggle error:", error);
     setFlash(req, "error", "Unable to update public visibility right now.");
     return res.redirect(redirectTarget);
+  }
+});
+
+app.post("/admin/nurses/:id/delete", requireRole("admin"), async (req, res) => {
+  const nurseId = Number.parseInt(req.params.id, 10);
+  const requestedStatusFilter = String(req.body.statusFilter || "All").trim();
+  const normalizedStatusFilter = requestedStatusFilter.toLowerCase();
+  const statusFilter = normalizedStatusFilter === "all"
+    ? "All"
+    : (normalizedStatusFilter === "deleted" ? "Deleted" : (normalizeNurseStatusInput(requestedStatusFilter) || "All"));
+  const redirectTo = String(req.body.deleteRedirectTo || req.body.redirectTo || "").trim();
+  const redirectTarget = redirectTo && redirectTo.startsWith("/admin/")
+    ? redirectTo
+    : `/admin/nurses?status=${encodeURIComponent(statusFilter)}`;
+
+  if (Number.isNaN(nurseId)) {
+    setFlash(req, "error", "Invalid nurse.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  let assetUrls = [];
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const nurseResult = await client.query(
+      `SELECT
+          n.id,
+          n.user_id,
+          n.profile_image_url,
+          n.profile_image_path,
+          n.resume_url,
+          n.aadhar_image_url,
+          n.certificate_url,
+          n.qualifications,
+          u.role
+       FROM nurses n
+       JOIN users u ON u.id = n.user_id
+       WHERE n.id = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [nurseId]
+    );
+    const nurse = nurseResult.rows[0];
+
+    if (!nurse) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Nurse record not found.");
+      return res.redirect(redirectTarget);
+    }
+
+    if (nurse.role !== "nurse") {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Selected account is not a nurse.");
+      return res.redirect(redirectTarget);
+    }
+
+    if (req.session.user && nurse.user_id === req.session.user.id) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "You cannot delete your own account.");
+      return res.redirect(redirectTarget);
+    }
+
+    assetUrls = collectNurseAssetUrls(nurse);
+
+    await client.query(
+      "UPDATE nurses SET referred_by_nurse_id = NULL WHERE referred_by_nurse_id = $1",
+      [nurseId]
+    );
+
+    await client.query(
+      `UPDATE patients
+       SET nurse_id = NULL,
+           referrer_nurse_id = NULL,
+           preferred_nurse_id = NULL,
+           preferred_nurse_name = NULL
+       WHERE nurse_id = $1
+          OR referrer_nurse_id = $1
+          OR preferred_nurse_id = $1`,
+      [nurseId]
+    );
+
+    await client.query(
+      `UPDATE care_requests
+       SET assigned_nurse_id = NULL,
+           nurse_notified = false,
+           assignment_comment = CASE
+             WHEN status IN ('assigned', 'payment_pending')
+             THEN 'Assigned nurse was deleted by admin.'
+             ELSE assignment_comment
+           END,
+           status = CASE
+             WHEN status IN ('assigned', 'payment_pending')
+             THEN 'open'
+             ELSE status
+           END,
+           payment_status = CASE
+             WHEN status = 'payment_pending'
+             THEN 'pending'
+             ELSE payment_status
+           END
+       WHERE assigned_nurse_id = $1`,
+      [nurseId]
+    );
+
+    await client.query("DELETE FROM care_request_ratings WHERE nurse_id = $1", [nurseId]);
+    await client.query("DELETE FROM care_request_earnings WHERE nurse_id = $1", [nurseId]);
+    await client.query("DELETE FROM care_applications WHERE nurse_id = $1", [nurseId]);
+    await client.query("DELETE FROM nurses WHERE id = $1", [nurseId]);
+    await client.query("DELETE FROM users WHERE id = $1", [nurse.user_id]);
+
+    await client.query("COMMIT");
+
+    const cache = readStore();
+    cache.users = (cache.users || []).filter((item) => item.id !== nurse.user_id);
+    cache.nurses = (cache.nurses || []).filter((item) => item.id !== nurseId);
+    (cache.nurses || []).forEach((item) => {
+      if (item.referredByNurseId === nurseId) {
+        item.referredByNurseId = null;
+      }
+    });
+    (cache.patients || []).forEach((patient) => {
+      if (patient.nurseId === nurseId) patient.nurseId = null;
+      if (patient.referrerNurseId === nurseId) patient.referrerNurseId = null;
+      if (patient.preferredNurseId === nurseId) {
+        patient.preferredNurseId = null;
+        patient.preferredNurseName = "";
+      }
+    });
+
+    await deleteNurseAssets(assetUrls);
+
+    setFlash(req, "success", "Nurse deleted permanently.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Admin nurse delete rollback error:", rollbackError);
+      }
+    }
+    console.error("Admin nurse delete error:", error);
+    setFlash(req, "error", "Unable to delete nurse right now.");
+    return res.redirect(redirectTarget);
+  } finally {
+    if (client) client.release();
   }
 });
 

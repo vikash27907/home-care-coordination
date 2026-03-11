@@ -2,7 +2,7 @@
 
 <section class="profile-card public-profile">
   <% if (nurse.profileImageUrl) { %>
-  <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="nurse-image profile-image" />
+  <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="nurse-image profile-image" onerror="this.onerror=null;this.src='/images/default-avatar.png';" />
   <% } else { %>
   <div class="nurse-image nurse-image-fallback profile-image" aria-hidden="true"><%= nurse.fullName.charAt(0) %></div>
   <% } %>

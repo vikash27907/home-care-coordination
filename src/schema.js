@@ -100,7 +100,41 @@ async function initializeDatabase() {
       ALTER TABLE nurses
       ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(20),
       ADD COLUMN IF NOT EXISTS aadhar_image_url TEXT,
-      ADD COLUMN IF NOT EXISTS current_status VARCHAR(50)
+      ADD COLUMN IF NOT EXISTS current_status VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS unique_id VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS profile_slug TEXT,
+      ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT true
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'nurses'
+            AND column_name = 'admin_visible'
+        ) THEN
+          EXECUTE '
+            UPDATE nurses
+            SET public_profile_enabled = admin_visible
+            WHERE public_profile_enabled IS DISTINCT FROM admin_visible
+          ';
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS nurses_unique_id_unique
+      ON nurses (unique_id)
+      WHERE unique_id IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS nurses_profile_slug_unique
+      ON nurses (profile_slug)
+      WHERE profile_slug IS NOT NULL
     `);
 
     // Create agents table
@@ -142,7 +176,21 @@ async function initializeDatabase() {
 
     await pool.query(`
       ALTER TABLE agents
-      ADD COLUMN IF NOT EXISTS working_region VARCHAR(100)
+      ADD COLUMN IF NOT EXISTS working_region VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS unique_id VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS profile_slug TEXT
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS agents_unique_id_unique
+      ON agents (unique_id)
+      WHERE unique_id IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS agents_profile_slug_unique
+      ON agents (profile_slug)
+      WHERE profile_slug IS NOT NULL
     `);
 
     await pool.query(`
@@ -717,6 +765,24 @@ async function initializeDatabase() {
       ON CONFLICT (key_name) DO NOTHING
     `);
 
+    await pool.query(`
+      WITH nurse_seed AS (
+        SELECT COALESCE(MAX(CAST(SUBSTRING(unique_id FROM 5) AS INTEGER)), 0) AS current_value
+        FROM nurses
+        WHERE unique_id ~ '^PHCN[0-9]+$'
+      ),
+      agent_seed AS (
+        SELECT COALESCE(MAX(CAST(SUBSTRING(unique_id FROM 5) AS INTEGER)), 0) AS current_value
+        FROM agents
+        WHERE unique_id ~ '^PHCA[0-9]+$'
+      )
+      INSERT INTO counters (key_name, current_value)
+      VALUES
+        ('nurse_public_id', (SELECT current_value FROM nurse_seed)),
+        ('agent_public_id', (SELECT current_value FROM agent_seed))
+      ON CONFLICT (key_name) DO UPDATE
+      SET current_value = GREATEST(counters.current_value, EXCLUDED.current_value)
+    `);
     console.log("✅ Database tables initialized");
   } catch (error) {
     console.error("❌ Error initializing database tables:", error);

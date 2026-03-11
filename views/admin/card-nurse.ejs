@@ -14,7 +14,7 @@ const visibilityNoticeText = visibilityUpdate === "public" ? "Visibility set to 
   <div class="card-top">
     <div class="profile-image-container">
       <% if (nurse.profileImageUrl || nurse.profileImagePath) { %>
-        <img src="<%= nurse.profileImageUrl || nurse.profileImagePath %>" alt="<%= nurse.fullName %>" class="profile-img">
+        <img src="<%= nurse.profileImageUrl || nurse.profileImagePath %>" alt="<%= nurse.fullName %>" class="profile-img" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
       <% } else { %>
         <div class="profile-img-placeholder">
           <%= nurse.fullName.charAt(0).toUpperCase() %>
@@ -77,6 +77,16 @@ const visibilityNoticeText = visibilityUpdate === "public" ? "Visibility set to 
         <input type="hidden" name="statusFilter" value="<%= statusFilter || 'All' %>">
         <button type="submit" class="visibility-btn <%= nurse.isPublic ? 'make-private' : 'make-public' %>">
           <%= nurse.isPublic ? 'Make Private' : 'Make Public' %>
+        </button>
+      </form>
+      <form method="POST" action="/admin/nurses/<%= nurse.id %>/delete" class="action-form">
+        <input type="hidden" name="statusFilter" value="<%= statusFilter || 'All' %>">
+        <button
+          type="submit"
+          class="visibility-btn make-private"
+          onclick="return confirm('Delete this nurse permanently? This removes the account and related records.');"
+        >
+          Delete Nurse
         </button>
       </form>
     </div>
