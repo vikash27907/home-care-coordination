@@ -11,9 +11,15 @@
     </div>
 
     <div class="public-nurse-copy">
-      <p class="public-nurse-eyebrow">Verified Public Profile</p>
+      <p class="public-nurse-eyebrow">Public Nurse Profile</p>
       <h1><%= nurse.fullName %></h1>
-      <p class="public-nurse-verified">Verified by Prisha Home Care</p>
+      <% if (isVerified) { %>
+        <span class="verified-badge">Verified Nurse</span>
+        <p class="public-nurse-verified">Verified by Prisha Home Care</p>
+      <% } else { %>
+        <span class="pending-badge">Verification Pending</span>
+        <p class="public-nurse-pending">This nurse profile is public, but verification is still pending.</p>
+      <% } %>
 
       <dl class="public-nurse-grid">
         <div>
@@ -107,6 +113,33 @@
   margin: 0 0 1.25rem;
   color: #157347;
   font-weight: 700;
+}
+
+.public-nurse-pending {
+  margin: 0 0 1.25rem;
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.verified-badge,
+.pending-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.32rem 0.75rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.verified-badge {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pending-badge {
+  background: #ffedd5;
+  color: #9a3412;
 }
 
 .public-nurse-grid {

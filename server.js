@@ -2255,18 +2255,19 @@ app.get("/nurse/:slug([a-z0-9-]+-phcn[0-9]+)", async (req, res) => {
   }
 
   const nurse = await getNurseByProfileSlug(slug);
-  const isVisiblePublicly = nurse && nurse.status === "Approved" && nurse.isPublic === true;
-  if (!isVisiblePublicly) {
+  if (!nurse) {
     return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
   }
 
   const publicNurse = buildPublicNurseProfileView(nurse);
+  const isVerified = nurse.status === "Approved";
 
   return res.render("public-nurse-profile", {
     title: publicNurse.fullName,
-    metaTitle: `${publicNurse.fullName} | Verified Nurse | Prisha Home Care`,
-    metaDescription: `View the verified public profile for ${publicNurse.fullName} at Prisha Home Care.`,
-    nurse: publicNurse
+    metaTitle: `${publicNurse.fullName} | ${isVerified ? "Verified" : "Verification Pending"} Nurse | Prisha Home Care`,
+    metaDescription: `View the public profile for ${publicNurse.fullName} at Prisha Home Care.`,
+    nurse: publicNurse,
+    isVerified
   });
 });
 

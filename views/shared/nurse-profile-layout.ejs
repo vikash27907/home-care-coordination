@@ -10,6 +10,7 @@ const userId = nurse && (nurse.userId || nurse.user_id) ? (nurse.userId || nurse
 const fullName = String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse");
 const status = String((nurse && (nurse.status || nurse.profileStatus || nurse.profile_status)) || "Pending");
 const statusKey = status.toLowerCase();
+const isVerified = status === "Approved";
 const isDeletedUser = Boolean(nurse && (nurse.userIsDeleted || nurse.user_is_deleted));
 const city = String((nurse && nurse.city) || "");
 const workCity = String((nurse && (nurse.workCity || nurse.work_city)) || "");
@@ -256,13 +257,16 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       <button type="button" class="close-card" id="npCloseIdCardBtn" aria-label="Close ID card">&times;</button>
 
       <div id="nurse-id-card" class="phc-id-card">
+        <% if (!isVerified) { %>
+          <div class="not-verified-watermark">NOT VERIFIED</div>
+        <% } %>
         <div class="card-top">
           <div class="photo-section">
             <img class="nurse-photo" src="<%= cardImage %>" alt="<%= fullName %>" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
 
             <div class="qr-overlay">
               <img src="/api/nurse/<%= nurseId %>/qr" alt="QR code for <%= fullName %>">
-              <span>Scan Profile</span>
+              <span>Scan to verify nurse profile</span>
             </div>
           </div>
 
@@ -1558,6 +1562,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   font-family: Arial, sans-serif;
+  position: relative;
 }
 
 .id-card-container {
@@ -1665,6 +1670,27 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   text-align: center;
   padding: 10px;
   font-size: 14px;
+}
+
+.not-verified-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-20deg);
+  font-size: 60px;
+  color: red;
+  opacity: 0.15;
+  font-weight: bold;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.phc-id-card .card-top,
+.phc-id-card .brand-strip,
+.phc-id-card .card-footer {
+  position: relative;
+  z-index: 2;
 }
 
 .card-actions {
