@@ -4,25 +4,20 @@
  */
 
 require('dotenv').config();
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-let transporter = null;
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
-if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-  transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASS
-    }
-  });
+if (process.env.RESEND_API_KEY) {
   console.log("✅ Resend initialized");
 } else {
   console.log("⚠ Resend API key not found. Emails disabled in local environment.");
 }
 
 // Email configuration
-const FROM_EMAIL = process.env.GMAIL_USER || "support@prishahomecare.com";
+const FROM_EMAIL = process.env.FROM_EMAIL || "support@prishahomecare.com";
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 const ADMIN_NOTIFICATION_EMAIL = "prishahomecare@gmail.com";
 
@@ -152,11 +147,11 @@ async function sendConcernNotification(adminEmail, concern) {
  */
 async function sendMail(mailOptions) {
   try {
-    if (!transporter) {
-      throw new Error("Gmail transporter is not configured.");
+    if (!resend) {
+      throw new Error("Resend API key is not configured.");
     }
 
-    const info = await transporter.sendMail({
+    const response = await resend.emails.send({
       from: mailOptions.from || FROM_EMAIL,
       to: mailOptions.to,
       subject: mailOptions.subject,
@@ -164,13 +159,14 @@ async function sendMail(mailOptions) {
       text: mailOptions.text
     });
     
-    console.log("Email sent via Gmail:", info && info.messageId ? info.messageId : "unknown-id");
+    const messageId = response && response.data ? response.data.id : null;
+    console.log("Email sent via Resend:", messageId || "unknown-id");
     return {
       success: true,
-      messageId: info && info.messageId ? info.messageId : null
+      messageId
     };
   } catch (error) {
-    console.error("Gmail email error:", error.message);
+    console.error("Resend email error:", error.message);
     return { success: false, error: error.message };
   }
 }
@@ -417,32 +413,32 @@ async function sendVerificationOtpEmail(toEmail, name, otp) {
   return sendMail(mailOptions);
 }
 
-async function sendAgentVerificationOtpEmail(toEmail, otp) {
-  console.log('Attempting to send email to:', toEmail);
+async function sendAgentVerificationOtpEmail(email, otp) {
+  console.log("Attempting to send email to:", email);
 
-  const mailOptions = {
-    from: `"Prisha Home Care" <${FROM_EMAIL}>`,
-    to: toEmail,
-    subject: "Prisha Home Care - Agent Verification OTP",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px;">
-          <h1 style="color: white; margin: 0;">Prisha Home Care</h1>
-        </div>
-        <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-          <p style="color: #666; font-size: 16px;">Your Agent Registration OTP is:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <div style="background: white; padding: 20px; border-radius: 10px; display: inline-block;">
-              <span style="font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #667eea;">${otp}</span>
-            </div>
-          </div>
-          <p style="color: #999; font-size: 14px;">This OTP will expire in 5 minutes.</p>
-        </div>
-      </div>
-    `
-  };
+  try {
+    if (!resend) {
+      throw new Error("Resend API key is not configured.");
+    }
 
-  return sendMail(mailOptions);
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: "Prisha Home Care - Agent Verification OTP",
+      html: `
+        <h2>Prisha Home Care</h2>
+        <p>Your agent registration OTP is:</p>
+        <h1>${otp}</h1>
+        <p>This OTP will expire in 5 minutes.</p>
+      `
+    });
+
+    console.log("OTP email sent successfully");
+    return { success: true };
+  } catch (error) {
+    console.error("Resend email error:", error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 module.exports = {
