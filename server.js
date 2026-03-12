@@ -3013,8 +3013,37 @@ app.get("/admin/profile", requireRole("admin"), (req, res) => {
   return res.redirect("/admin/dashboard");
 });
 
-app.get("/agent/profile", requireRole("agent"), (req, res) => {
-  return res.redirect("/agent/dashboard");
+app.get("/agent/profile", requireRole("agent"), loadAgentProfile, (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+  const store = readNormalizedStore();
+
+  const nurses = store.nurses
+    .filter((item) => !isStoreUserDeleted(store, item.userId) && nurseHasAgent(item, agentEmail))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+
+  const requests = store.patients
+    .filter((item) => normalizeEmail(item.agentEmail) === agentEmail)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+
+  const completedJobs = requests.filter((request) => {
+    const status = String(request.status || "").trim().toLowerCase();
+    return status === "closed" || status === "completed";
+  }).length;
+
+  const featuredNurses = nurses
+    .filter((nurse) => String(nurse.status || "").toLowerCase() === "approved")
+    .slice(0, 2);
+
+  return res.render("agent/profile", {
+    title: "Agent Profile",
+    agent: req.agentRecord,
+    stats: {
+      nursesManaged: nurses.length,
+      completedJobs,
+      rating: "4.8"
+    },
+    featuredNurses
+  });
 });
 
 app.get("/user/profile", requireAuth, (req, res) => {
@@ -5540,46 +5569,549 @@ app.post("/admin/care-requests/:id/earnings/payout-status", requireRole("admin")
   }
 });
 
-app.get("/agent", requireRole("agent"), loadAgentProfile, (req, res) => {
-  const agentEmail = normalizeEmail(req.currentUser.email);
+function normalizeDashboardRequestStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "open";
+  if (CARE_REQUEST_STATUSES.includes(normalized)) return normalized;
+  if (normalized === "new" || normalized === "requested") return "open";
+  if (normalized === "in progress" || normalized === "active job") return "active";
+  if (normalized === "closed" || normalized === "resolved") return "completed";
+  return "open";
+}
+
+function getAgentStoreSlice(agentEmail) {
   const store = readNormalizedStore();
-
   const patients = store.patients
-    .filter((item) => normalizeEmail(item.agentEmail) === agentEmail || (item.userId && item.userId === req.currentUser.id))
+    .filter((item) => normalizeEmail(item.agentEmail) === agentEmail)
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-
   const nurses = store.nurses
     .filter((item) => !isStoreUserDeleted(store, item.userId) && nurseHasAgent(item, agentEmail))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return { store, patients, nurses };
+}
 
-  const approvedNurses = nurses.filter((nurse) => nurse.status === "Approved" && nurse.isAvailable !== false);
-  const nurseIndex = nurses.reduce((acc, nurse) => {
-    acc[nurse.id] = nurse.fullName;
-    return acc;
-  }, {});
-  const referralNurseIndex = store.nurses.filter((nurse) => !isStoreUserDeleted(store, nurse.userId)).reduce((acc, nurse) => {
-    acc[nurse.id] = nurse.fullName;
-    return acc;
-  }, {});
-  const transferTargets = getApprovedAgents(store).filter((agent) => normalizeEmail(agent.email) !== agentEmail);
-  const createdAgents = store.agents.filter((agent) => normalizeEmail(agent.createdByAgentEmail) === agentEmail && !isStoreUserDeleted(store, agent.userId));
+function getAgentNurseOwnershipSql(alias, emailParamRef) {
+  return `(
+    LOWER(COALESCE(${alias}.agent_email, '')) = LOWER(${emailParamRef})
+    OR EXISTS (
+      SELECT 1
+      FROM unnest(COALESCE(${alias}.agent_emails, ARRAY[]::text[])) AS ae(agent_email)
+      WHERE LOWER(agent_email) = LOWER(${emailParamRef})
+    )
+  )`;
+}
 
+app.get("/agent", requireRole("agent"), (req, res) => {
+  return res.redirect("/agent/dashboard");
+});
+
+app.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, (req, res) => {
   return res.render("agent/dashboard", {
     title: "Agent Dashboard",
-    agent: req.agentRecord,
-    patients,
-    nurses,
-    approvedNurses,
-    nurseIndex,
-    referralNurseIndex,
-    transferTargets,
-    createdAgents
+    agent: req.agentRecord
   });
 });
 
-// Agent Dashboard route - redirects to /agent
-app.get("/agent/dashboard", requireRole("agent"), (req, res) => {
-  return res.redirect("/agent");
+app.get("/agent/dashboard/stats", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  try {
+    const [requestsResult, nursesResult, revenueResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            COUNT(*) FILTER (WHERE cr.status IN ('open', 'assigned', 'payment_pending'))::int AS pending_requests,
+            COUNT(*) FILTER (WHERE cr.status = 'active')::int AS active_jobs
+         FROM care_requests cr
+         JOIN patients p ON p.id = cr.patient_id
+         WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)`,
+        [agentEmail]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS available_nurses
+         FROM nurses n
+         JOIN users u ON u.id = n.user_id
+         WHERE COALESCE(u.is_deleted, FALSE) = FALSE
+           AND LOWER(COALESCE(n.status, 'pending')) = 'approved'
+           AND COALESCE(n.is_available, TRUE) = TRUE
+           AND ${getAgentNurseOwnershipSql("n", "$1")}`,
+        [agentEmail]
+      ),
+      pool.query(
+        `SELECT
+            COALESCE(SUM(e.platform_fee), 0)::numeric(12,2) AS revenue
+         FROM care_request_earnings e
+         JOIN care_requests cr ON cr.id = e.request_id
+         JOIN patients p ON p.id = cr.patient_id
+         WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)`,
+        [agentEmail]
+      )
+    ]);
+
+    const requestRow = requestsResult.rows[0] || {};
+    const nurseRow = nursesResult.rows[0] || {};
+    const revenueRow = revenueResult.rows[0] || {};
+
+    return res.json({
+      pendingRequests: Number.parseInt(requestRow.pending_requests, 10) || 0,
+      activeJobs: Number.parseInt(requestRow.active_jobs, 10) || 0,
+      availableNurses: Number.parseInt(nurseRow.available_nurses, 10) || 0,
+      revenue: Number.parseFloat(revenueRow.revenue) || 0
+    });
+  } catch (error) {
+    console.error("Agent dashboard stats query error:", error);
+    const { patients, nurses } = getAgentStoreSlice(agentEmail);
+    const pendingRequests = patients.filter((patient) => normalizeDashboardRequestStatus(patient.status) === "open").length;
+    const activeJobs = patients.filter((patient) => normalizeDashboardRequestStatus(patient.status) === "active").length;
+    const availableNurses = nurses.filter(
+      (nurse) => String(nurse.status || "").toLowerCase() === "approved" && nurse.isAvailable !== false
+    ).length;
+    const revenue = patients.reduce((sum, patient) => sum + (Number(patient.commissionAmount) || 0), 0);
+    return res.json({
+      pendingRequests,
+      activeJobs,
+      availableNurses,
+      revenue: Number(revenue.toFixed(2))
+    });
+  }
+});
+
+app.get("/agent/requests", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  try {
+    const result = await pool.query(
+      `SELECT
+          cr.id,
+          COALESCE(NULLIF(p.full_name, ''), CONCAT('Patient ', cr.id::text)) AS patient,
+          COALESCE(NULLIF(p.city, ''), '-') AS city,
+          COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General Care') AS care_type,
+          cr.status,
+          cr.payment_status,
+          cr.created_at
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+       ORDER BY cr.created_at DESC
+       LIMIT 100`,
+      [agentEmail]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Agent requests query error:", error);
+    const { patients } = getAgentStoreSlice(agentEmail);
+    const fallbackRows = patients.slice(0, 100).map((patient) => ({
+      id: patient.requestId || patient.id,
+      patient: patient.fullName || "Patient",
+      city: patient.city || "-",
+      care_type: patient.careRequirement || patient.notes || "General Care",
+      status: normalizeDashboardRequestStatus(patient.status),
+      payment_status: "pending",
+      created_at: patient.createdAt || now()
+    }));
+    return res.json(fallbackRows);
+  }
+});
+
+app.get("/agent/applications", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  try {
+    const result = await pool.query(
+      `SELECT
+          ca.id,
+          ca.request_id,
+          ca.nurse_id,
+          n.full_name AS nurse_name,
+          COALESCE(NULLIF(n.city, ''), '-') AS city,
+          COALESCE(NULLIF(cr.care_type, ''), 'General Care') AS care_type,
+          ca.status,
+          ca.applied_at
+       FROM care_applications ca
+       JOIN care_requests cr ON cr.id = ca.request_id
+       JOIN patients p ON p.id = cr.patient_id
+       JOIN nurses n ON n.id = ca.nurse_id
+       JOIN users u ON u.id = n.user_id
+       WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+         AND COALESCE(u.is_deleted, FALSE) = FALSE
+       ORDER BY ca.applied_at DESC
+       LIMIT 100`,
+      [agentEmail]
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Agent applications query error:", error);
+    return res.json([]);
+  }
+});
+
+app.get("/agent/nurses", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  try {
+    const result = await pool.query(
+      `SELECT
+          n.id,
+          n.full_name,
+          COALESCE(NULLIF(n.city, ''), '-') AS city,
+          COALESCE(n.experience_years, 0) AS experience_years,
+          COALESCE(LOWER(n.status), 'pending') AS status,
+          COALESCE(n.is_available, TRUE) AS is_available,
+          COALESCE(active_jobs.total_jobs, 0)::int AS active_jobs
+       FROM nurses n
+       JOIN users u ON u.id = n.user_id
+       LEFT JOIN (
+         SELECT
+           cr.assigned_nurse_id,
+           COUNT(*) AS total_jobs
+         FROM care_requests cr
+         JOIN patients p ON p.id = cr.patient_id
+         WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+           AND cr.status IN ('assigned', 'payment_pending', 'active')
+         GROUP BY cr.assigned_nurse_id
+       ) active_jobs ON active_jobs.assigned_nurse_id = n.id
+       WHERE COALESCE(u.is_deleted, FALSE) = FALSE
+         AND ${getAgentNurseOwnershipSql("n", "$1")}
+       ORDER BY n.created_at DESC
+       LIMIT 100`,
+      [agentEmail]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Agent nurses query error:", error);
+    const { nurses } = getAgentStoreSlice(agentEmail);
+    const fallbackRows = nurses.slice(0, 100).map((nurse) => ({
+      id: nurse.id,
+      full_name: nurse.fullName || "Nurse",
+      city: nurse.city || "-",
+      experience_years: Number.parseInt(nurse.experienceYears, 10) || 0,
+      status: String(nurse.status || "pending").toLowerCase(),
+      is_available: nurse.isAvailable !== false,
+      active_jobs: 0
+    }));
+    return res.json(fallbackRows);
+  }
+});
+
+app.get("/agent/financials", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  try {
+    const [summaryResult, rowsResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            COALESCE(SUM(e.gross_amount), 0)::numeric(12,2) AS gross_amount,
+            COALESCE(SUM(e.platform_fee), 0)::numeric(12,2) AS platform_fee,
+            COALESCE(SUM(e.net_amount), 0)::numeric(12,2) AS nurse_payout
+         FROM care_request_earnings e
+         JOIN care_requests cr ON cr.id = e.request_id
+         JOIN patients p ON p.id = cr.patient_id
+         WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)`,
+        [agentEmail]
+      ),
+      pool.query(
+        `SELECT
+            e.request_id,
+            COALESCE(NULLIF(p.full_name, ''), CONCAT('Patient ', e.request_id::text)) AS patient_name,
+            COALESCE(NULLIF(n.full_name, ''), '-') AS nurse_name,
+            COALESCE(e.gross_amount, 0)::numeric(12,2) AS gross_amount,
+            COALESCE(e.platform_fee, 0)::numeric(12,2) AS platform_fee,
+            COALESCE(e.net_amount, 0)::numeric(12,2) AS nurse_payout,
+            e.payout_status,
+            e.updated_at
+         FROM care_request_earnings e
+         JOIN care_requests cr ON cr.id = e.request_id
+         JOIN patients p ON p.id = cr.patient_id
+         LEFT JOIN nurses n ON n.id = e.nurse_id
+         WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+         ORDER BY e.updated_at DESC NULLS LAST, e.generated_at DESC
+         LIMIT 50`,
+        [agentEmail]
+      )
+    ]);
+
+    const summaryRow = summaryResult.rows[0] || {};
+    const grossAmount = Number.parseFloat(summaryRow.gross_amount) || 0;
+    const platformFee = Number.parseFloat(summaryRow.platform_fee) || 0;
+    const nursePayout = Number.parseFloat(summaryRow.nurse_payout) || 0;
+
+    return res.json({
+      summary: {
+        grossAmount,
+        platformFee,
+        agentMargin: platformFee,
+        nursePayout
+      },
+      rows: rowsResult.rows
+    });
+  } catch (error) {
+    console.error("Agent financials query error:", error);
+    const { patients } = getAgentStoreSlice(agentEmail);
+    const fallbackRows = patients
+      .filter((patient) => typeof patient.nurseAmount === "number" || typeof patient.budget === "number")
+      .slice(0, 50)
+      .map((patient) => {
+        const gross = typeof patient.nurseAmount === "number"
+          ? patient.nurseAmount
+          : (typeof patient.budget === "number" ? patient.budget : 0);
+        const platformFee = Number(patient.commissionAmount) || 0;
+        const nursePayout = typeof patient.nurseNetAmount === "number"
+          ? patient.nurseNetAmount
+          : Math.max(gross - platformFee, 0);
+        return {
+          request_id: patient.requestId || patient.id,
+          patient_name: patient.fullName || "Patient",
+          nurse_name: patient.preferredNurseName || "-",
+          gross_amount: Number(gross.toFixed(2)),
+          platform_fee: Number(platformFee.toFixed(2)),
+          nurse_payout: Number(nursePayout.toFixed(2)),
+          payout_status: "pending",
+          updated_at: patient.createdAt || now()
+        };
+      });
+    const grossAmount = fallbackRows.reduce((sum, row) => sum + (row.gross_amount || 0), 0);
+    const platformFee = fallbackRows.reduce((sum, row) => sum + (row.platform_fee || 0), 0);
+    const nursePayout = fallbackRows.reduce((sum, row) => sum + (row.nurse_payout || 0), 0);
+    return res.json({
+      summary: {
+        grossAmount: Number(grossAmount.toFixed(2)),
+        platformFee: Number(platformFee.toFixed(2)),
+        agentMargin: Number(platformFee.toFixed(2)),
+        nursePayout: Number(nursePayout.toFixed(2))
+      },
+      rows: fallbackRows
+    });
+  }
+});
+
+app.get("/agent/dashboard/monthly", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+  try {
+    const result = await pool.query(
+      `SELECT
+          date_trunc('month', cr.created_at) AS month_start,
+          COALESCE(SUM(e.platform_fee), 0)::numeric(12,2) AS revenue,
+          COUNT(*) FILTER (WHERE cr.status = 'completed')::int AS completed_jobs,
+          COUNT(DISTINCT cr.assigned_nurse_id) FILTER (
+            WHERE cr.status IN ('active', 'completed')
+              AND cr.assigned_nurse_id IS NOT NULL
+          )::int AS active_nurses
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       LEFT JOIN care_request_earnings e ON e.request_id = cr.id
+       WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+         AND cr.created_at >= date_trunc('month', NOW()) - INTERVAL '5 months'
+       GROUP BY date_trunc('month', cr.created_at)
+       ORDER BY month_start ASC`,
+      [agentEmail]
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Agent monthly metrics query error:", error);
+    return res.json([]);
+  }
+});
+
+app.post("/agent/requests/:id/actions", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const action = String(req.body.action || "").trim().toLowerCase();
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  if (Number.isNaN(requestId) || requestId <= 0) {
+    return res.status(400).json({ error: "Invalid request ID." });
+  }
+  if (!["assign", "start", "complete"].includes(action)) {
+    return res.status(400).json({ error: "Invalid action." });
+  }
+
+  let client = null;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const requestResult = await client.query(
+      `SELECT
+          cr.id,
+          cr.status,
+          cr.payment_status,
+          cr.assigned_nurse_id
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       WHERE cr.id = $1
+         AND LOWER(COALESCE(p.agent_email, '')) = LOWER($2)
+       LIMIT 1`,
+      [requestId, agentEmail]
+    );
+    const careRequest = requestResult.rows[0];
+    if (!careRequest) {
+      await client.query("ROLLBACK");
+      client.release();
+      client = null;
+      return res.status(404).json({ error: "Request not found in your assigned records." });
+    }
+
+    const currentStatus = normalizeCareRequestStatusInput(careRequest.status);
+    const currentPaymentStatus = normalizeCareRequestPaymentStatusInput(careRequest.payment_status);
+    const actor = buildCareRequestLifecycleActor(req, "agent");
+    let responseMessage = "";
+
+    if (action === "assign") {
+      const nurseId = Number.parseInt(req.body.nurseId, 10);
+      if (Number.isNaN(nurseId) || nurseId <= 0) {
+        throw new Error("Nurse ID is required for assign action.");
+      }
+
+      const nurseResult = await client.query(
+        `SELECT
+            n.id,
+            n.full_name,
+            n.status,
+            COALESCE(n.is_available, TRUE) AS is_available
+         FROM nurses n
+         JOIN users u ON u.id = n.user_id
+         WHERE n.id = $2
+           AND COALESCE(u.is_deleted, FALSE) = FALSE
+           AND ${getAgentNurseOwnershipSql("n", "$1")}
+         LIMIT 1`,
+        [agentEmail, nurseId]
+      );
+      const nurse = nurseResult.rows[0];
+      if (!nurse) {
+        throw new Error("Selected nurse is not assigned under your account.");
+      }
+      if (String(nurse.status || "").toLowerCase() !== "approved" || nurse.is_available === false) {
+        throw new Error("Selected nurse must be approved and available.");
+      }
+
+      const previousStatus = currentStatus || "open";
+      if (previousStatus !== "assigned") {
+        assertCareRequestTransition(previousStatus, "assigned");
+      }
+
+      await client.query(
+        `UPDATE care_requests
+         SET assigned_nurse_id = $2,
+             status = 'assigned',
+             payment_status = 'pending',
+             nurse_notified = TRUE,
+             assignment_comment = $3
+         WHERE id = $1`,
+        [requestId, nurseId, `Assigned from agent dashboard by ${agentEmail}`]
+      );
+      await insertCareRequestLifecycleLog(client, {
+        requestId,
+        eventType: "agent_nurse_assigned",
+        previousStatus,
+        nextStatus: "assigned",
+        previousPaymentStatus: currentPaymentStatus || "pending",
+        nextPaymentStatus: "pending",
+        assignedNurseId: nurseId,
+        comment: "Nurse assigned from agent dashboard.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          source: "agent_dashboard",
+          nurseId
+        }
+      });
+      responseMessage = "Nurse assigned successfully.";
+    }
+
+    if (action === "start") {
+      if (!["assigned", "payment_pending"].includes(currentStatus)) {
+        throw new Error("Only assigned requests can be started.");
+      }
+      if (!careRequest.assigned_nurse_id) {
+        throw new Error("Assign a nurse before starting the job.");
+      }
+      assertCareRequestTransition(currentStatus, "active");
+
+      await client.query(
+        `UPDATE care_requests
+         SET status = 'active',
+             payment_status = 'paid'
+         WHERE id = $1`,
+        [requestId]
+      );
+      await insertCareRequestLifecycleLog(client, {
+        requestId,
+        eventType: "agent_job_started",
+        previousStatus: currentStatus,
+        nextStatus: "active",
+        previousPaymentStatus: currentPaymentStatus || "pending",
+        nextPaymentStatus: "paid",
+        assignedNurseId: careRequest.assigned_nurse_id,
+        comment: "Job started from agent dashboard.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          source: "agent_dashboard"
+        }
+      });
+      responseMessage = "Job started.";
+    }
+
+    if (action === "complete") {
+      if (currentStatus !== "active") {
+        throw new Error("Only active jobs can be completed.");
+      }
+      assertCareRequestTransition(currentStatus, "completed");
+
+      await client.query(
+        `UPDATE care_requests
+         SET status = 'completed',
+             payment_status = 'paid'
+         WHERE id = $1`,
+        [requestId]
+      );
+      await insertCareRequestLifecycleLog(client, {
+        requestId,
+        eventType: "agent_job_completed",
+        previousStatus: "active",
+        nextStatus: "completed",
+        previousPaymentStatus: currentPaymentStatus || "paid",
+        nextPaymentStatus: "paid",
+        assignedNurseId: careRequest.assigned_nurse_id,
+        comment: "Job completed from agent dashboard.",
+        changedByUserId: actor.userId,
+        changedByRole: actor.role,
+        metadata: {
+          source: "agent_dashboard"
+        }
+      });
+      await upsertCareRequestEarnings(client, requestId, actor, "Earnings updated from agent dashboard completion.");
+      responseMessage = "Job marked as completed.";
+    }
+
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, message, related_request_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        req.currentUser.id,
+        "agent_dashboard_action",
+        "Dashboard Action Applied",
+        responseMessage || "Action completed from dashboard.",
+        requestId
+      ]
+    );
+
+    await client.query("COMMIT");
+    client.release();
+    client = null;
+    return res.json({ success: true, message: responseMessage });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Agent request action rollback error:", rollbackError);
+      }
+      client.release();
+    }
+    console.error("Agent request action error:", error);
+    return res.status(400).json({ error: error.message || "Unable to apply action right now." });
+  }
 });
 
 app.get("/agent/patients/new", requireRole("agent"), requireApprovedAgent, (req, res) => {

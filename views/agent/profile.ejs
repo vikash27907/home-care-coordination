@@ -1,0 +1,107 @@
+<%- include("../partials/head", { title }) %>
+<link rel="stylesheet" href="/css/agent-profile.css">
+
+<div class="agent-profile">
+  <div class="cover">
+    <img src="/images/patient-care.svg" alt="Agent cover" />
+  </div>
+
+  <div class="profile-header">
+    <div class="avatar">
+      <img src="<%= (session && session.user && session.user.profileImageUrl) ? session.user.profileImageUrl : '/images/default-avatar.png' %>" alt="Agent avatar" />
+    </div>
+
+    <div class="profile-info">
+      <h1><%= (agent && agent.fullName) || (currentUser && currentUser.fullName) || "Agent Name" %></h1>
+      <p>Healthcare Staffing Partner</p>
+
+      <div class="profile-meta">
+        <span>?? <%= (agent && (agent.workingRegion || agent.region)) || "Service Region" %></span>
+        <span>?? <%= (agent && agent.phoneNumber) || "Phone" %></span>
+      </div>
+
+      <div class="profile-actions">
+        <a class="btn-primary" href="tel:<%= (agent && agent.phoneNumber) || '' %>">Contact</a>
+        <button class="btn-secondary" type="button">Share</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <h3><%= stats && typeof stats.nursesManaged !== 'undefined' ? stats.nursesManaged : 12 %></h3>
+      <p>Nurses Managed</p>
+    </div>
+
+    <div class="stat">
+      <h3><%= stats && typeof stats.completedJobs !== 'undefined' ? stats.completedJobs : 85 %></h3>
+      <p>Completed Jobs</p>
+    </div>
+
+    <div class="stat">
+      <h3><%= stats && stats.rating ? stats.rating : '4.8' %></h3>
+      <p>Rating</p>
+    </div>
+  </div>
+
+  <div class="profile-section">
+    <h2>About</h2>
+    <p>
+      Experienced healthcare coordinator connecting trained nurses
+      with families needing home care services.
+    </p>
+  </div>
+
+  <div class="profile-section">
+    <h2>Nurse Network</h2>
+
+    <div class="nurse-grid">
+      <% if (featuredNurses && featuredNurses.length) { %>
+        <% featuredNurses.forEach((nurse) => { %>
+          <div class="nurse-card">
+            <img src="/images/nurse.svg" alt="Nurse" />
+            <h4><%= nurse.fullName || 'Nurse' %></h4>
+            <p><%= typeof nurse.experienceYears === 'number' ? nurse.experienceYears : 0 %> Years Experience</p>
+            <a class="nurse-view-btn" href="/agent/nurses/<%= nurse.id %>">View</a>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <div class="nurse-card">
+          <img src="/images/nurse.svg" alt="Nurse" />
+          <h4>ICU Nurse</h4>
+          <p>7 Years Experience</p>
+          <button type="button">View</button>
+        </div>
+
+        <div class="nurse-card">
+          <img src="/images/nurse.svg" alt="Nurse" />
+          <h4>Elder Care Nurse</h4>
+          <p>5 Years Experience</p>
+          <button type="button">View</button>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="profile-section">
+    <h2>Contact</h2>
+
+    <div class="contact-card">
+      <p><strong>Phone:</strong> <%= (agent && agent.phoneNumber) || '98XXXXXXX' %></p>
+      <p><strong>Email:</strong> <%= (agent && agent.email) || (currentUser && currentUser.email) || 'agent@email.com' %></p>
+      <p><strong>Region:</strong> <%= (agent && (agent.workingRegion || agent.region)) || 'Delhi NCR' %></p>
+
+      <a
+        class="btn-primary"
+        target="_blank"
+        rel="noopener noreferrer"
+        href="https://wa.me/919138913355?text=Hello%20I%20am%20viewing%20the%20agent%20profile"
+      >
+        WhatsApp
+      </a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/agent-profile.js"></script>
+<%- include("../partials/footer") %>
