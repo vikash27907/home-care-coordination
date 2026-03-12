@@ -413,6 +413,40 @@ async function sendVerificationOtpEmail(toEmail, name, otp) {
   return sendMail(mailOptions);
 }
 
+async function sendCareRequestEmail(email, requestCode, editToken) {
+  const editUrl = `${APP_URL}/edit-request/${editToken}`;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[DEV] Care request edit link for ${requestCode}: ${editUrl}`);
+    return {
+      success: true,
+      previewUrl: editUrl
+    };
+  }
+
+  return sendMail({
+    from: `"Prisha Home Care" <${FROM_EMAIL}>`,
+    to: email,
+    subject: "Your Care Request is Created",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px;">
+          <h1 style="color: white; margin: 0;">Prisha Home Care</h1>
+        </div>
+        <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">Your care request is confirmed.</h2>
+          <p style="color: #555; font-size: 16px;">Request ID: <strong>${requestCode}</strong></p>
+          <p style="color: #666; font-size: 15px;">If you need to update your request details, use the secure link below.</p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${editUrl}" style="background: #667eea; color: white; padding: 14px 26px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">Edit My Request</a>
+          </div>
+          <p style="color: #999; font-size: 13px;">Please keep this link private.</p>
+        </div>
+      </div>
+    `
+  });
+}
+
 async function sendAgentVerificationOtpEmail(email, otp) {
   console.log("Attempting to send email to:", email);
 
@@ -442,6 +476,7 @@ async function sendAgentVerificationOtpEmail(email, otp) {
 }
 
 module.exports = {
+  sendCareRequestEmail,
   sendVerificationEmail,
   sendVerificationOtpEmail,
   sendAgentVerificationOtpEmail,

@@ -4,116 +4,155 @@
   <div class="section-header">
     <div class="header-text">
       <h1>Patient Care Request</h1>
-      <p>Share your care needs and our coordination team will contact you with the next steps.</p>
+      <p>Submit a new request and browse the moderated public care board from one place.</p>
     </div>
-    <a href="/track-request" class="btn btn-track">Already Registered? Track Your Request</a>
+    <div class="header-actions">
+      <button type="button" class="btn btn-add-request" id="toggleRequestForm">
+        <%= showRequestForm ? 'Hide Request Form' : 'Add New Request' %>
+      </button>
+      <a href="/track-request" class="btn btn-track">Already Registered? Track Your Request</a>
+    </div>
   </div>
 
-  <% if (preferredNurse) { %>
-  <div class="card selected-nurse">
-    <h3>Preferred Nurse Selected</h3>
-    <p><strong><%= preferredNurse.fullName %></strong> (<%= preferredNurse.isAvailable ? 'Available' : 'Not Available' %>)</p>
-    <p>Skills: <%= preferredNurse.skills.join(', ') || '-' %></p>
-  </div>
-  <% } %>
+  <div class="request-form-shell <%= showRequestForm ? 'is-open' : '' %>" id="requestForm">
+    <% if (preferredNurse) { %>
+    <div class="card selected-nurse">
+      <h3>Preferred Nurse Selected</h3>
+      <p><strong><%= preferredNurse.fullName %></strong> (<%= preferredNurse.isAvailable ? 'Available' : 'Not Available' %>)</p>
+      <p>Skills: <%= preferredNurse.skills.join(', ') || '-' %></p>
+    </div>
+    <% } %>
 
-  <form method="POST" action="/request-care" class="form-grid" id="requestCareForm">
-    <input type="hidden" name="preferredNurseId" value="<%= preferredNurse ? preferredNurse.id : '' %>" />
-    
-    <label>
-      Full Name <span class="required-indicator" title="Required"></span>
-      <input name="fullName" type="text" required />
-    </label>
-    
-    <label>
-      Email <span class="required-indicator" title="Required"></span>
-      <input name="email" type="email" required />
-    </label>
-    
-    <label>
-      Phone Number <span class="required-indicator" title="Required"></span>
-      <input 
-        name="phoneNumber" 
-        type="tel" 
-        maxlength="10" 
-        pattern="[6-9][0-9]{9}"
-        placeholder="10-digit mobile number"
-        required 
-        title="Enter 10-digit Indian mobile number starting with 6, 7, 8, or 9"
-      />
-    </label>
-    
-    <label>
-      Patient City <span class="required-indicator" title="Required"></span>
-      <input name="city" type="text" placeholder="Enter patient city" required />
-    </label>
-    
-    <!-- Service Schedule -->
-    <label class="full-width">
-      Service Schedule <span class="required-indicator" title="Required"></span>
-      <select name="serviceSchedule" id="serviceSchedule" required>
-        <option value="">Select service schedule...</option>
-        <option value="8 Hour Shift">8 Hour Shift</option>
-        <option value="12 Hour Shift (Day)">12 Hour Shift (Day)</option>
-        <option value="12 Hour Shift (Night)">12 Hour Shift (Night)</option>
-        <option value="24 Hour Live-In">24 Hour Live-In</option>
-        <option value="One-Time / Few Visits">One-Time / Few Visits</option>
-      </select>
-      <small class="helper-text">Select the type of care service you need</small>
-    </label>
-    
-    <!-- Duration -->
-    <label class="full-width">
-      Duration <span class="required-indicator" title="Required"></span>
-      <div class="duration-wrapper">
-        <div class="duration-input-group">
-          <input
-            type="number"
-            id="durationValue"
-            name="durationValue"
-            min="1"
-            required
-          />
-          <span id="durationLabel">Months</span>
-        </div>
-        <select id="durationUnit" name="durationUnit" required>
-          <option value="months" selected>Months</option>
-          <option value="weeks">Weeks</option>
-          <option value="days">Days</option>
+    <form method="POST" action="/request-care" class="form-grid" id="requestCareForm">
+      <input type="hidden" name="preferredNurseId" value="<%= preferredNurse ? preferredNurse.id : '' %>" />
+
+      <label>
+        Full Name <span class="required-indicator" title="Required"></span>
+        <input name="fullName" type="text" required />
+      </label>
+
+      <label>
+        Email <span class="required-indicator" title="Required"></span>
+        <input name="email" type="email" required />
+      </label>
+
+      <label>
+        Phone Number <span class="required-indicator" title="Required"></span>
+        <input
+          name="phoneNumber"
+          type="tel"
+          maxlength="10"
+          pattern="[6-9][0-9]{9}"
+          placeholder="10-digit mobile number"
+          required
+          title="Enter 10-digit Indian mobile number starting with 6, 7, 8, or 9"
+        />
+      </label>
+
+      <label>
+        Patient City <span class="required-indicator" title="Required"></span>
+        <input name="city" type="text" placeholder="Enter patient city" required />
+      </label>
+
+      <label class="full-width">
+        Service Schedule <span class="required-indicator" title="Required"></span>
+        <select name="serviceSchedule" id="serviceSchedule" required>
+          <option value="">Select service schedule...</option>
+          <option value="8 Hour Shift">8 Hour Shift</option>
+          <option value="12 Hour Shift (Day)">12 Hour Shift (Day)</option>
+          <option value="12 Hour Shift (Night)">12 Hour Shift (Night)</option>
+          <option value="24 Hour Live-In">24 Hour Live-In</option>
+          <option value="One-Time / Few Visits">One-Time / Few Visits</option>
         </select>
+        <small class="helper-text">Select the type of care service you need</small>
+      </label>
+
+      <label class="full-width">
+        Duration <span class="required-indicator" title="Required"></span>
+        <div class="duration-wrapper">
+          <div class="duration-input-group">
+            <input
+              type="number"
+              id="durationValue"
+              name="durationValue"
+              min="1"
+              required
+            />
+            <span id="durationLabel">Months</span>
+          </div>
+          <select id="durationUnit" name="durationUnit" required>
+            <option value="months" selected>Months</option>
+            <option value="weeks">Weeks</option>
+            <option value="days">Days</option>
+          </select>
+        </div>
+      </label>
+
+      <div class="form-group">
+        <label for="budget" id="budgetLabel">Budget (INR)</label>
+        <input
+          type="number"
+          id="budget"
+          name="budget"
+          class="form-control"
+          required
+          placeholder="Enter your budget"
+        />
       </div>
-    </label>
-    
-    <!-- Budget -->
-    <div class="form-group">
-      <label for="budget" id="budgetLabel">Budget (INR)</label>
-      <input
-        type="number"
-        id="budget"
-        name="budget"
-        class="form-control"
-        required
-        placeholder="Enter your budget"
-      />
+
+      <label class="full-width">
+        Patient Condition (Additional Notes)
+        <textarea name="notes" rows="3" placeholder="Mention patient's health condition, special care requirements, etc."></textarea>
+      </label>
+
+      <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
+        <span class="btn-text">Submit Request</span>
+        <span class="spinner" style="display: none;"></span>
+      </button>
+    </form>
+  </div>
+
+  <section class="public-board-section">
+    <div class="public-board-section__header">
+      <div>
+        <h2>Public Care Requests</h2>
+        <p>Approved requests show full details. Pending requests stay locked until admin verification.</p>
+      </div>
     </div>
-    
-    <!-- Notes -->
-    <label class="full-width">
-      Patient Condition (Additional Notes)
-      <textarea name="notes" rows="3" placeholder="Mention patient's health condition, special care requirements, etc."></textarea>
-    </label>
-    
-    <button type="submit" class="btn primary full-width btn-submit" id="submitBtn">
-      <span class="btn-text">Submit Request</span>
-      <span class="spinner" style="display: none;"></span>
-    </button>
-  </form>
+
+    <% if (requests && requests.length > 0) { %>
+      <div class="public-board-grid">
+        <% requests.forEach((request) => { %>
+          <article class="public-board-card">
+            <div class="public-board-card__head">
+              <strong><%= request.request_code %></strong>
+              <span class="public-board-pill <%= request.visibility_status %>"><%= request.visibility_status %></span>
+            </div>
+
+            <% if (request.visibility_status === "approved") { %>
+              <h3><%= request.service_summary || "General care support required" %></h3>
+              <p><strong>Location:</strong> <%= request.location || "-" %></p>
+            <% } else { %>
+              <div class="public-board-lock">
+                <p>Details hidden pending admin verification.</p>
+                <small>Please wait for admin verification or contact support.</small>
+              </div>
+            <% } %>
+          </article>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p>No public requests yet.</p>
+    <% } %>
+  </section>
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const durationUnitSelect = document.getElementById("durationUnit");
       const durationLabel = document.getElementById("durationLabel");
       const budgetLabel = document.getElementById("budgetLabel");
+      const requestFormShell = document.getElementById("requestForm");
+      const toggleRequestFormButton = document.getElementById("toggleRequestForm");
 
       function updateDurationLabel() {
         const selectedText = durationUnitSelect.options[durationUnitSelect.selectedIndex].text;
@@ -136,6 +175,23 @@
 
       durationUnitSelect.addEventListener("change", updateDurationLabel);
       durationUnitSelect.addEventListener("change", updateBudgetLabel);
+
+      if (toggleRequestFormButton && requestFormShell) {
+        toggleRequestFormButton.addEventListener("click", function () {
+          const isOpen = requestFormShell.classList.toggle("is-open");
+          toggleRequestFormButton.textContent = isOpen ? "Hide Request Form" : "Add New Request";
+        });
+      }
+
+      if (window.location.hash === "#requestForm" && requestFormShell) {
+        requestFormShell.classList.add("is-open");
+        if (toggleRequestFormButton) {
+          toggleRequestFormButton.textContent = "Hide Request Form";
+        }
+        requestAnimationFrame(function () {
+          requestFormShell.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
 
       // Run once on page load
       updateDurationLabel();
@@ -176,6 +232,22 @@
   min-width: 250px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-add-request {
+  background: #0f766e;
+  color: white;
+}
+
+.btn-add-request:hover {
+  background: #115e59;
+  color: white;
+}
+
 .btn-track {
   background: #667eea;
   color: white;
@@ -213,6 +285,76 @@
   margin-top: 4px;
   color: #666;
   font-size: 0.875rem;
+}
+
+.request-form-shell {
+  display: none;
+}
+
+.request-form-shell.is-open {
+  display: block;
+}
+
+.public-board-section {
+  margin-top: 2rem;
+}
+
+.public-board-section__header {
+  margin-bottom: 1rem;
+}
+
+.public-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.public-board-card {
+  background: #fff;
+  border: 1px solid #d7e4f2;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(17, 65, 115, 0.08);
+}
+
+.public-board-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.9rem;
+}
+
+.public-board-pill {
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.public-board-pill.approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.public-board-pill.pending {
+  background: #fff4dc;
+  color: #9a6700;
+}
+
+.public-board-lock {
+  background: #fff4f4;
+  border: 1px solid #f5c2c7;
+  color: #8b1e2d;
+  border-radius: 12px;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.public-board-lock p {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
 }
 </style>
 

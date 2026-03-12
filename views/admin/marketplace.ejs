@@ -71,8 +71,8 @@ const statusPillClass = (status) => {
               <tr>
                 <td>
                   <strong>#<%= request.id %></strong>
-                  <% if (request.patient_request_id) { %>
-                    <div><small><%= request.patient_request_id %></small></div>
+                  <% if (request.public_request_code) { %>
+                    <div><small><%= request.public_request_code %></small></div>
                   <% } %>
                 </td>
                 <td><%= request.patient_name || '-' %></td>

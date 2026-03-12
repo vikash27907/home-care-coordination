@@ -176,6 +176,7 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
       pool.query(
         `SELECT
             cr.id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
             COALESCE(NULLIF(p.city, ''), '-') AS location,
             NULL::text AS required_qualification,
@@ -203,6 +204,7 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
       pool.query(
         `SELECT
             cr.id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
             COALESCE(NULLIF(p.city, ''), '-') AS location,
             NULL::text AS required_qualification,
@@ -233,6 +235,7 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
       pool.query(
         `SELECT
             cr.id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
             COALESCE(NULLIF(p.city, ''), '-') AS location,
             COALESCE(
@@ -265,6 +268,7 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
         `SELECT
             ca.id AS application_id,
             ca.request_id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             ca.applied_at,
             cr.status AS request_status,
             cr.payment_status,

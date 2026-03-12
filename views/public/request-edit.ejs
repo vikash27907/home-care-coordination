@@ -10,14 +10,32 @@
     </div>
   <% } %>
 
-  <% if (locals.verified) { %>
-    <div class="alert success">
-      Identity verified! You can now edit your request.
-    </div>
-  <% } %>
+  <form method="POST" action="/update-request" class="form-grid">
+    <input type="hidden" name="token" value="<%= request.editToken %>" />
 
-  <form method="POST" action="/edit-request/<%= request.requestId %>/update" class="form-grid">
-    <!-- Service Schedule -->
+    <label>
+      Full Name <span class="required-indicator" title="Required"></span>
+      <input name="fullName" type="text" value="<%= request.fullName || '' %>" required />
+    </label>
+
+    <label>
+      Phone Number <span class="required-indicator" title="Required"></span>
+      <input
+        name="phoneNumber"
+        type="tel"
+        maxlength="10"
+        pattern="[6-9][0-9]{9}"
+        value="<%= request.phoneNumber || '' %>"
+        placeholder="10-digit mobile number"
+        required
+      />
+    </label>
+
+    <label class="full-width">
+      Patient City <span class="required-indicator" title="Required"></span>
+      <input name="city" type="text" value="<%= request.city || '' %>" required />
+    </label>
+
     <label class="full-width">
       Service Schedule <span class="required-indicator" title="Required"></span>
       <select name="serviceSchedule" id="serviceSchedule" required>
@@ -29,52 +47,43 @@
         <% }); %>
       </select>
     </label>
-    
-    <!-- Duration -->
+
     <label class="full-width">
-      Service Duration
-      <input 
-        name="duration" 
-        type="text" 
-        value="<%= request.duration || '' %>"
-        placeholder="e.g., 30 Days"
+      Duration <span class="required-indicator" title="Required"></span>
+      <div class="duration-inputs">
+        <input
+          name="durationValue"
+          type="number"
+          min="1"
+          value="<%= request.durationValue || '' %>"
+          required
+        />
+        <select name="durationUnit" required>
+          <option value="months" <%= request.durationUnit === 'months' ? 'selected' : '' %>>Months</option>
+          <option value="weeks" <%= request.durationUnit === 'weeks' ? 'selected' : '' %>>Weeks</option>
+          <option value="days" <%= request.durationUnit === 'days' ? 'selected' : '' %>>Days</option>
+        </select>
+      </div>
+    </label>
+
+    <label class="full-width">
+      Budget (INR) <span class="required-indicator" title="Required"></span>
+      <input
+        name="budget"
+        type="number"
+        value="<%= request.budget || '' %>"
+        min="1"
+        required
       />
     </label>
-    
-    <!-- Budget Range -->
-    <div class="full-width">
-      <label>
-        Budget Range (₹)
-      </label>
-      <div class="budget-inputs">
-        <input 
-          name="budgetMin" 
-          type="number" 
-          value="<%= request.budgetMin || '' %>"
-          placeholder="Minimum"
-          min="5000"
-          max="200000"
-        />
-        <input 
-          name="budgetMax" 
-          type="number" 
-          value="<%= request.budgetMax || '' %>"
-          placeholder="Maximum"
-          min="5000"
-          max="200000"
-        />
-      </div>
-    </div>
-    
-    <!-- Notes -->
+
     <label class="full-width">
-      Additional Notes
+      Patient Condition / Notes
       <textarea name="notes" rows="4" placeholder="Any specific requirements..."><%= request.notes || '' %></textarea>
     </label>
-    
-    <!-- Non-editable fields (display only) -->
+
     <div class="full-width readonly-fields">
-      <h3>Request Information (Cannot be edited)</h3>
+      <h3>Request Information</h3>
       <div class="field-row">
         <span class="label">Request ID:</span>
         <span class="value"><%= request.requestId %></span>
@@ -88,7 +97,7 @@
         <span class="value"><%= request.createdAt ? new Date(request.createdAt).toLocaleString() : 'N/A' %></span>
       </div>
     </div>
-    
+
     <button type="submit" class="btn primary full-width">
       Update Request
     </button>
@@ -112,20 +121,19 @@
   color: #c33;
 }
 
-.alert.success {
-  background: #efe;
-  border: 1px solid #cfc;
-  color: #3c3;
-}
-
-.budget-inputs {
+.duration-inputs {
   display: flex;
   gap: 10px;
   margin-top: 8px;
+  align-items: center;
 }
 
-.budget-inputs input {
+.duration-inputs input {
   flex: 1;
+}
+
+.duration-inputs select {
+  min-width: 160px;
 }
 
 .readonly-fields {

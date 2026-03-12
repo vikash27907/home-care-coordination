@@ -49,6 +49,7 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
             <span class="nurse-marketplace-chip">open</span>
           </div>
 
+          <p><strong>Request ID:</strong> <%= request.public_request_code || `CR-${request.id}` %></p>
           <p><strong>Location:</strong> <%= request.location %></p>
           <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
           <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
@@ -86,6 +87,7 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
             <h3><%= request.patient_condition %></h3>
             <span class="nurse-marketplace-chip nurse-marketplace-chip--status"><%= request.status %></span>
           </div>
+          <p><strong>Request ID:</strong> <%= request.public_request_code || `CR-${request.id}` %></p>
           <p><strong>Location:</strong> <%= request.location %></p>
           <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
           <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
@@ -111,6 +113,7 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
             <h3><%= request.patient_condition %></h3>
             <span class="nurse-marketplace-chip nurse-marketplace-chip--done">completed</span>
           </div>
+          <p><strong>Request ID:</strong> <%= request.public_request_code || `CR-${request.id}` %></p>
           <p><strong>Location:</strong> <%= request.location %></p>
           <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
           <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
@@ -136,7 +139,7 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
       <% pendingItems.forEach((item) => { %>
         <article class="nurse-marketplace-card">
           <div class="nurse-marketplace-card__top">
-            <h3>Request #<%= item.request_id %></h3>
+            <h3><%= item.public_request_code || `CR-${item.request_id}` %></h3>
             <span class="nurse-marketplace-chip nurse-marketplace-chip--pending">pending</span>
           </div>
           <p><strong>Condition:</strong> <%= item.patient_condition %></p>

@@ -1,0 +1,84 @@
+<%- include("../partials/head", { title }) %>
+
+<%- include("sidebar") %>
+
+<div class="admin-main">
+  <section class="dashboard-header">
+    <h1>Pending Request Moderation</h1>
+    <p>Approve requests to reveal details on the public board, reject them to hide them, or delete them permanently.</p>
+  </section>
+
+  <section class="content-section">
+    <% if (!requests || !requests.length) { %>
+      <div class="empty-state">
+        <p>No pending requests to moderate.</p>
+      </div>
+    <% } else { %>
+      <div class="moderation-grid">
+        <% requests.forEach((request) => { %>
+          <article class="moderation-card">
+            <div class="moderation-card__top">
+              <strong><%= request.request_code %></strong>
+              <small><%= request.created_at ? new Date(request.created_at).toISOString().slice(0, 10) : '-' %></small>
+            </div>
+
+            <p><strong>Service:</strong> <%= request.service_summary %></p>
+            <p><strong>Location:</strong> <%= request.location %></p>
+
+            <div class="moderation-actions">
+              <form method="POST" action="/admin/pending-requests/<%= request.id %>/approve">
+                <button type="submit" class="btn small btn-primary">Approve</button>
+              </form>
+
+              <form method="POST" action="/admin/pending-requests/<%= request.id %>/reject">
+                <button type="submit" class="btn small">Reject</button>
+              </form>
+
+              <form method="POST" action="/admin/pending-requests/<%= request.id %>/delete" onsubmit="return confirm('Delete this care request permanently?');">
+                <button type="submit" class="btn small danger">Delete</button>
+              </form>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.moderation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.moderation-card {
+  background: #fff;
+  border: 1px solid #d6e3f1;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 8px 22px rgba(17, 65, 115, 0.08);
+}
+
+.moderation-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.moderation-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.btn.danger {
+  background: #de3f4f;
+  color: #fff;
+}
+</style>
+
+<%- include("../partials/footer") %>

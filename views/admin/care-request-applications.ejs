@@ -23,14 +23,14 @@ const canReject = ["open", "assigned", "payment_pending"].includes(requestItem.s
 
   <section class="content-section request-summary-shell">
     <div class="request-summary-grid">
-      <div><strong>Request ID:</strong> <%= requestItem.id %></div>
+      <div><strong>Request ID:</strong> <%= requestItem.public_request_code || `CR-${requestItem.id}` %></div>
       <div><strong>Status:</strong> <span class="pill"><%= requestItem.status %></span></div>
       <div><strong>Payment:</strong> <%= requestItem.payment_status || 'pending' %></div>
       <div><strong>Marketplace:</strong> <%= requestItem.marketplace_ready ? 'Ready' : 'Not Ready' %></div>
       <div><strong>Assigned Nurse:</strong> <%= requestItem.assigned_nurse_id ? `N-${requestItem.assigned_nurse_id}` : '-' %></div>
       <div><strong>Assigned Nurse Name:</strong> <%= requestItem.assigned_nurse_name || '-' %></div>
       <div><strong>Patient:</strong> <%= requestItem.patient_name || '-' %></div>
-      <div><strong>Patient Ref:</strong> <%= requestItem.patient_request_id || '-' %></div>
+      <div><strong>Public Code:</strong> <%= requestItem.public_request_code || '-' %></div>
       <div><strong>Condition:</strong> <%= requestItem.patient_condition %></div>
       <div><strong>Location:</strong> <%= requestItem.location %></div>
       <div><strong>Timing:</strong> <%= requestItem.shift_timing || '-' %></div>

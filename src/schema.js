@@ -285,6 +285,9 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS care_requests (
         id SERIAL PRIMARY KEY,
         patient_id INTEGER REFERENCES patients(id) ON DELETE SET NULL,
+        request_code VARCHAR(50),
+        edit_token VARCHAR(6),
+        visibility_status TEXT DEFAULT 'pending',
         care_type TEXT,
         duration_value INTEGER,
         duration_unit VARCHAR(20),
@@ -385,6 +388,9 @@ async function initializeDatabase() {
     // Ensure care request assignment column exists on already-deployed databases
     await pool.query(`
       ALTER TABLE care_requests
+      ADD COLUMN IF NOT EXISTS request_code VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS edit_token VARCHAR(6),
+      ADD COLUMN IF NOT EXISTS visibility_status TEXT DEFAULT 'pending',
       ADD COLUMN IF NOT EXISTS care_type TEXT,
       ADD COLUMN IF NOT EXISTS duration_value INTEGER,
       ADD COLUMN IF NOT EXISTS duration_unit VARCHAR(20),
@@ -426,6 +432,12 @@ async function initializeDatabase() {
     `);
     await pool.query(`
       UPDATE care_requests
+      SET visibility_status = 'pending'
+      WHERE visibility_status IS NULL
+         OR visibility_status NOT IN ('pending', 'approved', 'rejected')
+    `);
+    await pool.query(`
+      UPDATE care_requests
       SET payment_status = 'pending'
       WHERE payment_status IS NULL
          OR payment_status NOT IN ('pending', 'paid', 'refunded')
@@ -447,6 +459,14 @@ async function initializeDatabase() {
       SET nurse_notified = FALSE
       WHERE status = 'open'
         AND nurse_notified = TRUE
+    `);
+    await pool.query(`
+      UPDATE care_requests cr
+      SET request_code = p.request_id
+      FROM patients p
+      WHERE cr.patient_id = p.id
+        AND cr.request_code IS NULL
+        AND NULLIF(p.request_id, '') IS NOT NULL
     `);
 
     await pool.query(`
@@ -483,6 +503,19 @@ async function initializeDatabase() {
       END $$;
     `);
     await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'care_requests_visibility_status_check'
+            AND conrelid = 'care_requests'::regclass
+        ) THEN
+          ALTER TABLE care_requests DROP CONSTRAINT care_requests_visibility_status_check;
+        END IF;
+      END $$;
+    `);
+    await pool.query(`
       ALTER TABLE care_requests
       ADD CONSTRAINT care_requests_status_check
       CHECK (status IN ('open','assigned','payment_pending','active','completed','cancelled'))
@@ -491,6 +524,11 @@ async function initializeDatabase() {
       ALTER TABLE care_requests
       ADD CONSTRAINT care_requests_payment_status_check
       CHECK (payment_status IN ('pending','paid','refunded'))
+    `);
+    await pool.query(`
+      ALTER TABLE care_requests
+      ADD CONSTRAINT care_requests_visibility_status_check
+      CHECK (visibility_status IN ('pending','approved','rejected'))
     `);
 
     // Lifecycle guardrail trigger for direct SQL updates.
@@ -588,6 +626,53 @@ async function initializeDatabase() {
       FROM ranked r
       WHERE ca.id = r.id
         AND r.rn > 1
+    `);
+    await pool.query(`
+      WITH duplicate_applications AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY request_id, nurse_id
+            ORDER BY applied_at DESC, id DESC
+          ) AS rn
+        FROM care_applications
+      )
+      DELETE FROM care_applications ca
+      USING duplicate_applications da
+      WHERE ca.id = da.id
+        AND da.rn > 1
+    `);
+    await pool.query(`
+      DO $$
+      DECLARE
+        request_attnum SMALLINT;
+        nurse_attnum SMALLINT;
+      BEGIN
+        SELECT attnum INTO request_attnum
+        FROM pg_attribute
+        WHERE attrelid = 'care_applications'::regclass
+          AND attname = 'request_id'
+          AND NOT attisdropped;
+
+        SELECT attnum INTO nurse_attnum
+        FROM pg_attribute
+        WHERE attrelid = 'care_applications'::regclass
+          AND attname = 'nurse_id'
+          AND NOT attisdropped;
+
+        IF request_attnum IS NOT NULL
+          AND nurse_attnum IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conrelid = 'care_applications'::regclass
+              AND contype = 'u'
+              AND conkey = ARRAY[request_attnum, nurse_attnum]
+          ) THEN
+          ALTER TABLE care_applications
+          ADD CONSTRAINT unique_nurse_request UNIQUE (request_id, nurse_id);
+        END IF;
+      END $$;
     `);
     await pool.query(`
       INSERT INTO care_request_earnings (
@@ -688,6 +773,16 @@ async function initializeDatabase() {
       WHERE status = 'accepted'
     `);
     await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_care_requests_request_code_unique
+      ON care_requests (request_code)
+      WHERE request_code IS NOT NULL
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_care_requests_edit_token_unique
+      ON care_requests (edit_token)
+      WHERE edit_token IS NOT NULL
+    `);
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_care_requests_marketplace_status
       ON care_requests (marketplace_ready, status, created_at DESC)
     `);
@@ -698,6 +793,10 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_care_requests_payment_status
       ON care_requests (payment_status, status, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_care_requests_visibility_status
+      ON care_requests (visibility_status, status, created_at DESC)
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_care_request_lifecycle_logs_request

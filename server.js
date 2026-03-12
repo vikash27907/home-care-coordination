@@ -22,12 +22,12 @@ const {
   getConcernById, createConcern, updateConcern, deleteConcern, getConcerns
 } = require("./src/store");
 const {
+  sendCareRequestEmail,
   sendVerificationEmail,
   sendVerificationOtpEmail,
   sendAgentVerificationOtpEmail,
   sendResetPasswordEmail,
   sendConcernNotification,
-  sendRequestConfirmationEmail,
   sendAdminCareRequestNotification,
   sendAdminNurseSignupNotification
 } = require("./src/email");
@@ -959,6 +959,162 @@ function generateRequestId(store) {
   } while (!isUnique);
   
   return requestId;
+}
+
+async function generateUniquePublicRequestCode() {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const year = new Date().getFullYear();
+    const randomNum = crypto.randomInt(100000, 1000000);
+    const requestCode = `REQ-${year}-${randomNum}`;
+    const collisionResult = await pool.query(
+      `SELECT EXISTS (
+          SELECT 1 FROM patients WHERE LOWER(request_id) = LOWER($1)
+          UNION ALL
+          SELECT 1 FROM care_requests WHERE LOWER(request_code) = LOWER($1)
+        ) AS exists`,
+      [requestCode]
+    );
+    if (!collisionResult.rows[0] || collisionResult.rows[0].exists !== true) {
+      return requestCode;
+    }
+  }
+
+  throw new Error("Unable to generate a unique request code.");
+}
+
+async function generateUniqueCareRequestEditToken() {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const editToken = crypto.randomInt(100000, 1000000).toString();
+    const collisionResult = await pool.query(
+      "SELECT 1 FROM care_requests WHERE edit_token = $1 LIMIT 1",
+      [editToken]
+    );
+    if (!collisionResult.rows.length) {
+      return editToken;
+    }
+  }
+
+  throw new Error("Unable to generate a unique edit token.");
+}
+
+function formatCareRequestDuration(durationValue, durationUnit, fallbackDuration) {
+  const fallback = String(fallbackDuration || "").trim();
+  if (fallback) {
+    return fallback;
+  }
+
+  const numericValue = Number.parseInt(durationValue, 10);
+  const unit = String(durationUnit || "").trim();
+  if (!Number.isNaN(numericValue) && numericValue > 0 && unit) {
+    return `${numericValue} ${unit}`;
+  }
+
+  return "";
+}
+
+function mapPublicCareRequestRow(row) {
+  if (!row) return null;
+
+  const budgetValue = row.budget !== null && typeof row.budget !== "undefined"
+    ? Number(row.budget)
+    : null;
+  const duration = formatCareRequestDuration(row.duration_value, row.duration_unit, row.duration);
+
+  return {
+    careRequestId: row.care_request_id,
+    patientId: row.patient_id,
+    requestId: row.request_code,
+    requestCode: row.request_code,
+    editToken: row.edit_token || "",
+    fullName: row.full_name || "",
+    email: row.email || "",
+    phoneNumber: row.phone_number || "",
+    city: row.city || "",
+    serviceSchedule: row.service_schedule || "",
+    duration,
+    durationValue: !Number.isNaN(Number.parseInt(row.duration_value, 10))
+      ? Number.parseInt(row.duration_value, 10)
+      : "",
+    durationUnit: String(row.duration_unit || "months").trim() || "months",
+    budget: Number.isFinite(budgetValue) ? budgetValue : null,
+    notes: row.notes || "",
+    status: row.care_request_status || row.patient_status || "open",
+    paymentStatus: row.payment_status || "pending",
+    createdAt: row.care_request_created_at || row.patient_created_at || null
+  };
+}
+
+async function getPublicCareRequestRecordByRequestCode(requestCode) {
+  const lookupValue = String(requestCode || "").trim();
+  if (!lookupValue) return null;
+
+  const result = await pool.query(
+    `SELECT
+        cr.id AS care_request_id,
+        p.id AS patient_id,
+        COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+        cr.edit_token,
+        p.full_name,
+        p.email,
+        p.phone_number,
+        p.city,
+        p.service_schedule,
+        p.duration,
+        COALESCE(p.duration_value, cr.duration_value) AS duration_value,
+        COALESCE(NULLIF(p.duration_unit, ''), cr.duration_unit) AS duration_unit,
+        COALESCE(NULLIF(p.notes, ''), cr.care_type, '') AS notes,
+        COALESCE(NULLIF(p.budget, 0), NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), 0) AS budget,
+        cr.status AS care_request_status,
+        cr.payment_status,
+        p.status AS patient_status,
+        cr.created_at AS care_request_created_at,
+        p.created_at AS patient_created_at
+     FROM care_requests cr
+     LEFT JOIN patients p ON p.id = cr.patient_id
+     WHERE LOWER(COALESCE(cr.request_code, '')) = LOWER($1)
+        OR LOWER(COALESCE(p.request_id, '')) = LOWER($1)
+     ORDER BY cr.created_at DESC
+     LIMIT 1`,
+    [lookupValue]
+  );
+
+  return mapPublicCareRequestRow(result.rows[0]);
+}
+
+async function getPublicCareRequestRecordByEditToken(editToken) {
+  const lookupValue = String(editToken || "").trim();
+  if (!lookupValue) return null;
+
+  const result = await pool.query(
+    `SELECT
+        cr.id AS care_request_id,
+        p.id AS patient_id,
+        COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+        cr.edit_token,
+        p.full_name,
+        p.email,
+        p.phone_number,
+        p.city,
+        p.service_schedule,
+        p.duration,
+        COALESCE(p.duration_value, cr.duration_value) AS duration_value,
+        COALESCE(NULLIF(p.duration_unit, ''), cr.duration_unit) AS duration_unit,
+        COALESCE(NULLIF(p.notes, ''), cr.care_type, '') AS notes,
+        COALESCE(NULLIF(p.budget, 0), NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), 0) AS budget,
+        cr.status AS care_request_status,
+        cr.payment_status,
+        p.status AS patient_status,
+        cr.created_at AS care_request_created_at,
+        p.created_at AS patient_created_at
+     FROM care_requests cr
+     LEFT JOIN patients p ON p.id = cr.patient_id
+     WHERE cr.edit_token = $1
+     ORDER BY cr.created_at DESC
+     LIMIT 1`,
+    [lookupValue]
+  );
+
+  return mapPublicCareRequestRow(result.rows[0]);
 }
 
 // Check if reset token is expired (15 minutes)
@@ -2299,7 +2455,46 @@ app.get("/request-care", async (req, res) => {
       preferredNurse = buildPublicNurse(nurse);
     }
   }
-  res.render("public/request-care", { title: "Request Care", preferredNurse });
+
+  try {
+    const requestsResult = await pool.query(
+      `SELECT
+          COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+          COALESCE(cr.visibility_status, 'pending') AS visibility_status,
+          CASE
+            WHEN COALESCE(cr.visibility_status, 'pending') = 'approved'
+            THEN COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required')
+            ELSE NULL
+          END AS service_summary,
+          CASE
+            WHEN COALESCE(cr.visibility_status, 'pending') = 'approved'
+            THEN COALESCE(NULLIF(p.city, ''), '-')
+            ELSE NULL
+          END AS location,
+          cr.created_at
+       FROM care_requests cr
+       LEFT JOIN patients p ON p.id = cr.patient_id
+       WHERE cr.status = 'open'
+         AND COALESCE(cr.visibility_status, 'pending') IN ('pending', 'approved')
+       ORDER BY cr.created_at DESC
+       LIMIT 50`
+    );
+
+    return res.render("public/request-care", {
+      title: "Request Care",
+      preferredNurse,
+      requests: requestsResult.rows,
+      showRequestForm: Boolean(preferredNurse || (res.locals.flash && res.locals.flash.type === "error"))
+    });
+  } catch (error) {
+    console.error("Request care page load error:", error);
+    return res.render("public/request-care", {
+      title: "Request Care",
+      preferredNurse,
+      requests: [],
+      showRequestForm: true
+    });
+  }
 });
 
 
@@ -2384,7 +2579,8 @@ app.post("/request-care", async (req, res) => {
   }
 
   const patientId = nextId(store, "patient");
-  const referenceId = generateRequestId(store);
+  const referenceId = await generateUniquePublicRequestCode();
+  const editToken = await generateUniqueCareRequestEditToken();
   const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((s) => s.value === serviceSchedule)?.label || serviceSchedule;
   const preferredDate = String(req.body.preferredDate || "").trim();
   const patientCondition = String(req.body.patientCondition || req.body.notes || "").trim();
@@ -2432,6 +2628,8 @@ app.post("/request-care", async (req, res) => {
       `INSERT INTO care_requests
         (
           patient_id,
+          request_code,
+          edit_token,
           care_type,
           duration_value,
           duration_unit,
@@ -2442,10 +2640,12 @@ app.post("/request-care", async (req, res) => {
           payment_status,
           nurse_notified
         )
-       VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'open', 'pending', FALSE)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, 'open', 'pending', FALSE)
        RETURNING id, status, payment_status, assigned_nurse_id`,
       [
         createdPatient.id,
+        referenceId,
+        editToken,
         patientCondition || serviceScheduleLabel || "General care support required",
         durationValue,
         durationUnit,
@@ -2491,20 +2691,12 @@ app.post("/request-care", async (req, res) => {
 
   // Send confirmation email asynchronously (do not block request submission).
   const userEmail = email;
-  const userName = fullName;
 
   try {
-    const emailResult = await sendRequestConfirmationEmail(
+    const emailResult = await sendCareRequestEmail(
       userEmail,
-      userName,
       referenceId,
-      {
-        serviceType: serviceScheduleLabel,
-        city,
-        preferredDate,
-        phone: phoneNumber,
-        patientCondition
-      }
+      editToken
     );
 
     if (emailResult && emailResult.success === false) {
@@ -2534,7 +2726,7 @@ app.post("/request-care", async (req, res) => {
     console.error(`Admin notification failed for reference ${referenceId}:`, error);
   }
 
-  return res.redirect(`/request-success?requestId=${referenceId}`);
+  return res.redirect(`/request-success?requestId=${encodeURIComponent(referenceId)}`);
 });
 
 app.get("/request-success", (req, res) => {
@@ -2561,17 +2753,14 @@ app.get("/track-request", async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      "SELECT * FROM patients WHERE LOWER(request_id) = LOWER($1)",
-      [requestId.trim()]
-    );
+    const requestRecord = await getPublicCareRequestRecordByRequestCode(requestId.trim());
 
-    if (result.rows.length === 0) {
+    if (!requestRecord) {
       renderData.error = "Request not found.";
     } else {
-      renderData.request = result.rows[0];
+      delete requestRecord.editToken;
+      renderData.request = requestRecord;
     }
-
   } catch (error) {
     console.error("Track request error:", error);
     renderData.error = "Something went wrong. Please try again.";
@@ -2579,61 +2768,129 @@ app.get("/track-request", async (req, res) => {
 
   return res.render("public/track-request", renderData);
 });
+app.post("/update-request", async (req, res) => {
+  const token = String(req.body.token || "").trim();
+  const fullName = String(req.body.fullName || "").trim();
+  const phoneNumber = String(req.body.phoneNumber || "").trim();
+  const city = String(req.body.city || "").trim();
+  const serviceSchedule = String(req.body.serviceSchedule || "").trim();
+  const durationUnit = String(req.body.durationUnit || "").trim();
+  const durationValue = Number.parseInt(req.body.durationValue, 10);
+  const budget = Number.parseFloat(req.body.budget);
+  const notes = String(req.body.notes || "").trim();
 
-app.post("/update-request", (req, res) => {
-  const { requestId, duration, serviceSchedule, notes } = req.body;
-
-  if (!requestId) {
-    setFlash(req, "error", "Invalid request ID.");
+  if (!token) {
+    setFlash(req, "error", "Invalid edit link.");
     return res.redirect("/track-request");
   }
-
-  const store = readNormalizedStore();
-  const requestIndex = store.patients.findIndex(p => p.requestId === requestId);
-
-  if (requestIndex === -1) {
-    setFlash(req, "error", "Request not found.");
-    return res.redirect("/track-request");
+  if (!fullName || !phoneNumber || !city || !serviceSchedule) {
+    setFlash(req, "error", "Please complete all required fields.");
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
   }
 
-  const request = store.patients[requestIndex];
-  
-  // Permission check: allow if user is owner or admin
-  let hasPermission = false;
-  
-  if (req.currentUser) {
-    // Admin can edit all
-    if (req.currentUser.role === "admin") {
-      hasPermission = true;
+  const phoneValidation = validateIndiaPhone(phoneNumber);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
+  }
+
+  const scheduleValidation = validateServiceSchedule(serviceSchedule);
+  if (!scheduleValidation.valid) {
+    setFlash(req, "error", scheduleValidation.error);
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
+  }
+
+  if (!durationUnit || !["days", "weeks", "months"].includes(durationUnit)) {
+    setFlash(req, "error", "Please select a valid duration unit.");
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
+  }
+
+  if (Number.isNaN(durationValue) || durationValue < 1) {
+    setFlash(req, "error", "Please enter a valid duration value.");
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
+  }
+
+  if (Number.isNaN(budget) || budget <= 0) {
+    setFlash(req, "error", "Please enter a valid budget.");
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
+  }
+
+  let client;
+  try {
+    const requestRecord = await getPublicCareRequestRecordByEditToken(token);
+    if (!requestRecord || !requestRecord.careRequestId || !requestRecord.patientId) {
+      setFlash(req, "error", "Invalid edit link.");
+      return res.redirect("/track-request");
     }
-    // Agent can edit if assigned
-    else if (req.currentUser.role === "agent") {
-      if (request.agentEmail && request.agentEmail.toLowerCase() === req.currentUser.email.toLowerCase()) {
-        hasPermission = true;
+
+    const duration = `${durationValue} ${durationUnit}`;
+    const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((item) => item.value === serviceSchedule)?.label || serviceSchedule;
+    const careType = notes || serviceScheduleLabel || "General care support required";
+
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE patients
+       SET full_name = $1,
+           phone_number = $2,
+           city = $3,
+           service_schedule = $4,
+           duration = $5,
+           duration_unit = $6,
+           duration_value = $7,
+           budget = $8,
+           notes = $9
+       WHERE id = $10`,
+      [
+        fullName,
+        phoneValidation.value,
+        city,
+        serviceSchedule,
+        duration,
+        durationUnit,
+        durationValue,
+        budget,
+        notes,
+        requestRecord.patientId
+      ]
+    );
+
+    await client.query(
+      `UPDATE care_requests
+       SET care_type = $1,
+           duration_value = $2,
+           duration_unit = $3,
+           budget_min = $4,
+           budget_max = $5
+       WHERE id = $6`,
+      [
+        careType,
+        durationValue,
+        durationUnit,
+        budget,
+        budget,
+        requestRecord.careRequestId
+      ]
+    );
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Request updated successfully.");
+    return res.redirect(`/track-request?requestId=${encodeURIComponent(requestRecord.requestId)}`);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Request edit rollback error:", rollbackError);
       }
     }
-    // Regular user can edit their own requests only
-    else if (request.userId === req.currentUser.id) {
-      hasPermission = true;
-    }
-  } else {
-    // Public users can edit with correct request ID
-    hasPermission = true;
+    console.error("Public request update error:", error);
+    setFlash(req, "error", "Unable to update this request right now.");
+    return res.redirect(`/edit-request/${encodeURIComponent(token)}`);
+  } finally {
+    if (client) client.release();
   }
-  
-  if (!hasPermission) {
-    setFlash(req, "error", "You don't have permission to edit this request.");
-    return res.redirect("/track-request");
-  }
-
-  store.patients[requestIndex].duration = duration;
-  store.patients[requestIndex].serviceSchedule = serviceSchedule;
-  store.patients[requestIndex].notes = notes;
-
-  writeStore(store);
-
-  setFlash(req, "success", "Request updated successfully.");
-  res.redirect(`/track-request?requestId=${requestId}`);
 });
 
 app.get("/nurse-signup", (req, res) => {
@@ -3983,6 +4240,105 @@ app.get("/admin/care-request/:id/applicants", requireRole("admin"), (req, res) =
   return res.redirect(`/admin/care-requests/${requestId}/applications`);
 });
 
+app.get("/admin/pending-requests", requireRole("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+          cr.id,
+          COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+          COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS service_summary,
+          COALESCE(NULLIF(p.city, ''), '-') AS location,
+          cr.created_at
+       FROM care_requests cr
+       LEFT JOIN patients p ON p.id = cr.patient_id
+       WHERE cr.status = 'open'
+         AND COALESCE(cr.visibility_status, 'pending') = 'pending'
+       ORDER BY cr.created_at DESC`
+    );
+
+    return res.render("admin/pending-requests", {
+      title: "Pending Request Moderation",
+      requests: result.rows
+    });
+  } catch (error) {
+    console.error("Admin pending requests error:", error);
+    setFlash(req, "error", "Unable to load pending requests right now.");
+    return res.redirect("/admin");
+  }
+});
+
+app.post("/admin/pending-requests/:id/approve", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect("/admin/pending-requests");
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE care_requests SET visibility_status = 'approved' WHERE id = $1",
+      [requestId]
+    );
+    if (!result.rowCount) {
+      setFlash(req, "error", "Care request not found.");
+    } else {
+      setFlash(req, "success", "Request approved for public display.");
+    }
+    return res.redirect("/admin/pending-requests");
+  } catch (error) {
+    console.error("Approve pending request error:", error);
+    setFlash(req, "error", "Unable to approve request right now.");
+    return res.redirect("/admin/pending-requests");
+  }
+});
+
+app.post("/admin/pending-requests/:id/reject", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect("/admin/pending-requests");
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE care_requests SET visibility_status = 'rejected' WHERE id = $1",
+      [requestId]
+    );
+    if (!result.rowCount) {
+      setFlash(req, "error", "Care request not found.");
+    } else {
+      setFlash(req, "success", "Request rejected and hidden from the public board.");
+    }
+    return res.redirect("/admin/pending-requests");
+  } catch (error) {
+    console.error("Reject pending request error:", error);
+    setFlash(req, "error", "Unable to reject request right now.");
+    return res.redirect("/admin/pending-requests");
+  }
+});
+
+app.post("/admin/pending-requests/:id/delete", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect("/admin/pending-requests");
+  }
+
+  try {
+    const deleteResult = await deleteCareRequestWithPatientCleanup(requestId);
+    if (!deleteResult.deleted) {
+      setFlash(req, "error", "Care request not found.");
+    } else {
+      setFlash(req, "success", "Care request deleted.");
+    }
+    return res.redirect("/admin/pending-requests");
+  } catch (error) {
+    console.error("Delete pending request error:", error);
+    setFlash(req, "error", "Unable to delete request right now.");
+    return res.redirect("/admin/pending-requests");
+  }
+});
+
 app.post("/admin/patients/:id/update", requireRole("admin"), (req, res) => {
   const patientId = Number.parseInt(req.params.id, 10);
   const status = String(req.body.status || "").trim();
@@ -4123,6 +4479,56 @@ async function insertCareRequestLifecycleLog(client, payload) {
   );
 }
 
+async function deleteCareRequestWithPatientCleanup(requestId) {
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const requestResult = await client.query(
+      `SELECT id, patient_id
+       FROM care_requests
+       WHERE id = $1
+       FOR UPDATE`,
+      [requestId]
+    );
+    if (!requestResult.rows.length) {
+      await client.query("ROLLBACK");
+      return { deleted: false };
+    }
+
+    const patientId = Number.isInteger(requestResult.rows[0].patient_id)
+      ? requestResult.rows[0].patient_id
+      : null;
+
+    await client.query("DELETE FROM care_requests WHERE id = $1", [requestId]);
+
+    if (patientId !== null) {
+      const patientUsageResult = await client.query(
+        "SELECT 1 FROM care_requests WHERE patient_id = $1 LIMIT 1",
+        [patientId]
+      );
+      if (!patientUsageResult.rows.length) {
+        await client.query("DELETE FROM patients WHERE id = $1", [patientId]);
+      }
+    }
+
+    await client.query("COMMIT");
+    return { deleted: true };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Care request delete rollback error:", rollbackError);
+      }
+    }
+    throw error;
+  } finally {
+    if (client) client.release();
+  }
+}
+
 async function upsertCareRequestEarnings(client, requestId, actor, note) {
   const detailsResult = await client.query(
     `SELECT
@@ -4235,7 +4641,7 @@ app.get("/admin/care-requests", requireRole("admin"), async (req, res) => {
         `SELECT
             cr.id,
             cr.patient_id,
-            p.request_id AS patient_request_id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             p.full_name AS patient_name,
             p.phone_number AS patient_phone_number,
             COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
@@ -4357,7 +4763,7 @@ app.get("/admin/marketplace", requireRole("admin"), async (req, res) => {
         `SELECT
             cr.id,
             cr.patient_id,
-            p.request_id AS patient_request_id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             p.full_name AS patient_name,
             COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
             COALESCE(NULLIF(p.city, ''), '-') AS location,
@@ -4496,7 +4902,7 @@ app.get(
         `SELECT
             cr.id,
             cr.patient_id,
-            p.request_id AS patient_request_id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
             p.full_name AS patient_name,
             COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
             COALESCE(NULLIF(p.city, ''), '-') AS location,
@@ -4923,10 +5329,12 @@ app.post("/admin/care-requests/create", requireRole("admin"), async (req, res) =
   }
 
   try {
+    const requestCode = await generateUniquePublicRequestCode();
     const createdRequestResult = await pool.query(
       `INSERT INTO care_requests
         (
           patient_id,
+          request_code,
           care_type,
           duration_value,
           duration_unit,
@@ -4937,10 +5345,11 @@ app.post("/admin/care-requests/create", requireRole("admin"), async (req, res) =
           payment_status,
           nurse_notified
         )
-       VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'open', 'pending', FALSE)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, 'open', 'pending', FALSE)
        RETURNING id, status, payment_status, assigned_nurse_id`,
       [
         null,
+        requestCode,
         patientCondition || requiredQualification || location || "General care support required",
         Number.isNaN(durationValue) ? null : durationValue,
         durationUnit || null,
@@ -4989,7 +5398,11 @@ app.post("/admin/care-requests/:id/delete", requireRole("admin"), async (req, re
   }
 
   try {
-    await pool.query("DELETE FROM care_requests WHERE id = $1", [requestId]);
+    const deleteResult = await deleteCareRequestWithPatientCleanup(requestId);
+    if (!deleteResult.deleted) {
+      setFlash(req, "error", "Care request not found.");
+      return res.redirect(redirectTarget);
+    }
     setFlash(req, "success", "Care request deleted.");
     return res.redirect(redirectTarget);
   } catch (error) {
@@ -7533,129 +7946,46 @@ async function sendOTP(email, requestId, fullName) {
 }
 
 // Step 1: Request OTP for editing a request
-app.get("/edit-request/:requestId", (req, res) => {
-  const { requestId } = req.params;
-  
-  const store = readNormalizedStore();
-  const request = store.patients.find(p => p.requestId === requestId);
-  
-  if (!request) {
-    setFlash(req, "error", "Request not found.");
+app.get("/edit-request/:token", async (req, res) => {
+  const token = String(req.params.token || "").trim();
+
+  try {
+    const requestRecord = await getPublicCareRequestRecordByEditToken(token);
+    if (!requestRecord) {
+      setFlash(req, "error", "Invalid edit link.");
+      return res.redirect("/track-request");
+    }
+
+    return res.render("public/request-edit", {
+      title: "Edit Request",
+      request: requestRecord,
+      serviceScheduleOptions: SERVICE_SCHEDULE_OPTIONS
+    });
+  } catch (error) {
+    console.error("Public edit request page error:", error);
+    setFlash(req, "error", "Unable to load your request right now.");
     return res.redirect("/track-request");
   }
-  
-  // Show OTP request form
-  res.render("public/request-otp", {
-    title: "Verify Your Identity",
-    requestId,
-    request
-  });
 });
 
-// Step 2: Send OTP to user's email
 app.post("/edit-request/:requestId/send-otp", loginRateLimiter, async (req, res) => {
-  const { requestId } = req.params;
-  
-  const store = readNormalizedStore();
-  const request = store.patients.find(p => p.requestId === requestId);
-  
-  if (!request) {
-    setFlash(req, "error", "Request not found.");
-    return res.redirect("/track-request");
-  }
-  
-  // Send OTP to the registered email
-  const result = await sendOTP(request.email, requestId, request.fullName);
-  
-  if (result.success) {
-    setFlash(req, "success", `OTP sent to ${request.email}. Please check your inbox.`);
-    res.redirect(`/edit-request/${requestId}/verify`);
-  } else {
-    setFlash(req, "error", `Failed to send OTP: ${result.error}`);
-    res.redirect(`/edit-request/${requestId}`);
-  }
+  return res.redirect("/track-request");
 });
 
-// Step 3: Verify OTP and show edit form
 app.get("/edit-request/:requestId/verify", (req, res) => {
-  const { requestId } = req.params;
-  
-  const store = readNormalizedStore();
-  const request = store.patients.find(p => p.requestId === requestId);
-  
-  if (!request) {
-    setFlash(req, "error", "Request not found.");
-    return res.redirect("/track-request");
-  }
-  
-  res.render("public/request-edit", {
-    title: "Edit Request",
-    request,
-    serviceScheduleOptions: SERVICE_SCHEDULE_OPTIONS
-  });
+  return res.redirect("/track-request");
 });
 
-// Step 4: Verify OTP and process edit
 app.post("/edit-request/:requestId/verify", (req, res) => {
-  const { requestId } = req.params;
-  const { otp } = req.body;
-  
-  const otpValidation = validateOTP(requestId, otp);
-  
-  if (!otpValidation.valid) {
-    setFlash(req, "error", otpValidation.error);
-    return res.redirect(`/edit-request/${requestId}`);
-  }
-  
-  // OTP is valid - redirect to edit form with verification flag
-  res.redirect(`/edit-request/${requestId}/form`);
+  return res.redirect("/track-request");
 });
 
-// Step 5: Show the actual edit form (after OTP verification)
 app.get("/edit-request/:requestId/form", (req, res) => {
-  const { requestId } = req.params;
-  
-  const store = readNormalizedStore();
-  const request = store.patients.find(p => p.requestId === requestId);
-  
-  if (!request) {
-    setFlash(req, "error", "Request not found.");
-    return res.redirect("/track-request");
-  }
-  
-  res.render("public/request-edit", {
-    title: "Edit Request",
-    request,
-    serviceScheduleOptions: SERVICE_SCHEDULE_OPTIONS,
-    verified: true
-  });
+  return res.redirect("/track-request");
 });
 
-// Step 6: Process the edit request
 app.post("/edit-request/:requestId/update", (req, res) => {
-  const { requestId } = req.params;
-  const { serviceSchedule, duration, notes } = req.body;
-  
-  const store = readNormalizedStore();
-  const requestIndex = store.patients.findIndex(p => p.requestId === requestId);
-  
-  if (requestIndex === -1) {
-    setFlash(req, "error", "Request not found.");
-    return res.redirect("/track-request");
-  }
-  
-  const request = store.patients[requestIndex];
-  
-  // Update only allowed fields
-  request.serviceSchedule = serviceSchedule;
-  request.duration = duration;
-  request.notes = notes;
-  request.updatedAt = now();
-  
-  writeStore(store);
-  
-  setFlash(req, "success", "Your request has been updated successfully.");
-  res.redirect(`/track-request?requestId=${requestId}`);
+  return res.redirect("/track-request");
 });
 
 // ============================================================

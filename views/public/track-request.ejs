@@ -62,7 +62,7 @@
             </tr>
             <tr>
               <td class="label">Duration:</td>
-              <td><%= request.durationType || '-' %></td>
+              <td><%= request.duration || '-' %></td>
             </tr>
             <tr>
               <td class="label">Budget:</td>
@@ -123,6 +123,30 @@
 
 .status-requested {
   background: #3498db;
+}
+
+.status-open {
+  background: #3498db;
+}
+
+.status-assigned {
+  background: #2c7be5;
+}
+
+.status-payment_pending {
+  background: #f39c12;
+}
+
+.status-active {
+  background: #16a34a;
+}
+
+.status-completed {
+  background: #15803d;
+}
+
+.status-cancelled {
+  background: #dc2626;
 }
 
 .status-waiting-for-acceptance {
