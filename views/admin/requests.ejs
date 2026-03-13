@@ -79,12 +79,41 @@
                 >
                   View Applicants
                 </a>
+
+                <form method="POST" action="/admin/request-send-back" style="display:inline;">
+                  <input type="hidden" name="request_id" value="<%= request.id %>">
+                  <button type="submit" class="request-center-btn request-center-btn--sendback">
+                    Send Back
+                  </button>
+                </form>
               <% } else { %>
                 <span class="request-center-pill">
                   <%= request.status ? request.status.toUpperCase() : 'UNKNOWN' %>
                 </span>
               <% } %>
             </div>
+          </div>
+
+          <div class="request-center-card__footer">
+            <% if (request.phone_number) { %>
+              <a
+                href="tel:<%= request.phone_number %>"
+                class="request-center-btn request-center-btn--call"
+              >
+                Call Patient
+              </a>
+            <% } %>
+
+            <form method="POST" action="/admin/delete-request" style="display:inline;">
+              <input type="hidden" name="request_id" value="<%= request.id %>">
+              <button
+                type="submit"
+                onclick="return confirm('WARNING: Are you sure you want to permanently delete this request?');"
+                class="request-center-btn request-center-btn--delete"
+              >
+                Delete
+              </button>
+            </form>
           </div>
         </article>
       <% }) %>
@@ -153,6 +182,15 @@
   gap: 8px;
 }
 
+.request-center-card__footer {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .request-center-btn {
   display: inline-flex;
   align-items: center;
@@ -176,6 +214,19 @@
 
 .request-center-btn--link {
   background: #1f6fb2;
+}
+
+.request-center-btn--sendback {
+  background: #ffc107;
+  color: #222;
+}
+
+.request-center-btn--call {
+  background: #28a745;
+}
+
+.request-center-btn--delete {
+  background: #dc3545;
 }
 
 .request-center-pill {

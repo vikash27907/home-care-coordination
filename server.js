@@ -4274,51 +4274,55 @@ app.get("/admin/request/:id/applicants", requireRole("admin"), (req, res) => {
 app.get("/admin/requests", requireRole("admin"), async (req, res) => {
   const tab = req.query.tab || "pending";
   let dbQuery = "";
+  const requestSelect = `
+    SELECT
+      cr.*,
+      COALESCE(NULLIF(p.full_name, ''), 'Unknown Patient') AS patient_name,
+      COALESCE(NULLIF(p.phone_number, ''), '') AS phone_number,
+      COALESCE(NULLIF(p.city, ''), '-') AS address
+    FROM care_requests cr
+    LEFT JOIN patients p ON p.id = cr.patient_id
+  `;
 
   try {
     switch (tab) {
       case "pending":
         dbQuery = `
-          SELECT *
-          FROM care_requests
-          WHERE visibility_status = 'pending'
-          ORDER BY created_at DESC
+          ${requestSelect}
+          WHERE cr.visibility_status = 'pending'
+          ORDER BY cr.created_at DESC
         `;
         break;
 
       case "active":
         dbQuery = `
-          SELECT *
-          FROM care_requests
-          WHERE visibility_status = 'approved'
-            AND status = 'open'
-          ORDER BY created_at DESC
+          ${requestSelect}
+          WHERE cr.visibility_status = 'approved'
+            AND cr.status = 'open'
+          ORDER BY cr.created_at DESC
         `;
         break;
 
       case "assigned":
         dbQuery = `
-          SELECT *
-          FROM care_requests
-          WHERE status = 'assigned'
-          ORDER BY created_at DESC
+          ${requestSelect}
+          WHERE cr.status = 'assigned'
+          ORDER BY cr.created_at DESC
         `;
         break;
 
       case "completed":
         dbQuery = `
-          SELECT *
-          FROM care_requests
-          WHERE status = 'completed'
-          ORDER BY created_at DESC
+          ${requestSelect}
+          WHERE cr.status = 'completed'
+          ORDER BY cr.created_at DESC
         `;
         break;
 
       default:
         dbQuery = `
-          SELECT *
-          FROM care_requests
-          ORDER BY created_at DESC
+          ${requestSelect}
+          ORDER BY cr.created_at DESC
           LIMIT 100
         `;
     }
@@ -4393,6 +4397,52 @@ app.post("/admin/reject-request", requireRole("admin"), async (req, res) => {
     console.error("Reject request center item error:", error);
     setFlash(req, "error", "Unable to reject request right now.");
     return res.redirect("/admin/requests?tab=pending");
+  }
+});
+
+app.post("/admin/delete-request", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.body.request_id, 10);
+  if (Number.isNaN(requestId)) {
+    return res.status(400).send("Invalid request");
+  }
+
+  try {
+    await pool.query(
+      "DELETE FROM care_applications WHERE request_id = $1",
+      [requestId]
+    );
+
+    await pool.query(
+      "DELETE FROM care_requests WHERE id = $1",
+      [requestId]
+    );
+
+    return res.redirect("/admin/requests");
+  } catch (err) {
+    console.error("Delete Error:", err);
+    return res.status(500).send("Error deleting request");
+  }
+});
+
+app.post("/admin/request-send-back", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.body.request_id, 10);
+  if (Number.isNaN(requestId)) {
+    return res.status(400).send("Invalid request");
+  }
+
+  try {
+    await pool.query(
+      `UPDATE care_requests
+       SET visibility_status = 'pending',
+           status = 'open'
+       WHERE id = $1`,
+      [requestId]
+    );
+
+    return res.redirect("/admin/requests?tab=pending");
+  } catch (err) {
+    console.error("Send Back Error:", err);
+    return res.status(500).send("Error updating request");
   }
 });
 
