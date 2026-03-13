@@ -1,0 +1,201 @@
+<%- include("../partials/head", { title }) %>
+
+<%- include("sidebar") %>
+
+<div class="admin-main">
+  <section class="dashboard-header">
+    <h1>Admin Request Center</h1>
+    <p>Review pending requests, track active marketplace demand, and monitor assigned and completed cases.</p>
+  </section>
+
+  <section class="content-section request-center-shell">
+    <div class="request-center-tabs">
+      <a
+        href="/admin/requests?tab=pending"
+        class="btn <%= activeTab === 'pending' ? 'btn-primary' : 'btn-secondary' %>"
+      >
+        Pending Verification
+      </a>
+
+      <a
+        href="/admin/requests?tab=active"
+        class="btn <%= activeTab === 'active' ? 'btn-primary' : 'btn-secondary' %>"
+      >
+        Active (Marketplace)
+      </a>
+
+      <a
+        href="/admin/requests?tab=assigned"
+        class="btn <%= activeTab === 'assigned' ? 'btn-primary' : 'btn-secondary' %>"
+      >
+        Assigned
+      </a>
+
+      <a
+        href="/admin/requests?tab=completed"
+        class="btn <%= activeTab === 'completed' ? 'btn-primary' : 'btn-secondary' %>"
+      >
+        Completed
+      </a>
+    </div>
+
+    <% if (!requests || requests.length === 0) { %>
+      <p>No requests found in this category.</p>
+    <% } else { %>
+      <% requests.forEach((request) => { %>
+        <article class="request-center-card">
+          <div class="request-center-card__row">
+            <div>
+              <h3 class="request-center-card__code">
+                <%= request.request_code || `CR-${request.id}` %>
+              </h3>
+
+              <p><strong>Patient:</strong> <%= request.patient_name || '-' %></p>
+              <p><strong>Service:</strong> <%= request.service_required || request.care_type || '-' %></p>
+              <p class="request-center-card__meta">
+                <strong>Location:</strong> <%= request.address || '-' %>
+              </p>
+            </div>
+
+            <div class="request-center-card__actions">
+              <% if (activeTab === "pending") { %>
+                <form method="POST" action="/admin/approve-request" style="display:inline;">
+                  <input type="hidden" name="id" value="<%= request.id %>">
+                  <button type="submit" class="request-center-btn request-center-btn--approve">
+                    Approve
+                  </button>
+                </form>
+
+                <form method="POST" action="/admin/reject-request" style="display:inline;">
+                  <input type="hidden" name="id" value="<%= request.id %>">
+                  <button type="submit" class="request-center-btn request-center-btn--reject">
+                    Reject
+                  </button>
+                </form>
+              <% } else if (activeTab === "active") { %>
+                <a
+                  href="/admin/request/<%= request.id %>/applicants"
+                  class="request-center-btn request-center-btn--link"
+                >
+                  View Applicants
+                </a>
+              <% } else { %>
+                <span class="request-center-pill">
+                  <%= request.status ? request.status.toUpperCase() : 'UNKNOWN' %>
+                </span>
+              <% } %>
+            </div>
+          </div>
+        </article>
+      <% }) %>
+    <% } %>
+  </section>
+</div>
+
+<style>
+.request-center-shell {
+  max-width: 1000px;
+}
+
+.request-center-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #d6e3f1;
+  flex-wrap: wrap;
+}
+
+.request-center-tabs .btn {
+  text-decoration: none;
+}
+
+.request-center-tabs .btn-primary {
+  background: #1f6fb2;
+  border-color: #1f6fb2;
+  color: #fff;
+}
+
+.request-center-tabs .btn-secondary {
+  background: #eef3f8;
+  border-color: #d6e3f1;
+  color: #35516a;
+}
+
+.request-center-card {
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.request-center-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.request-center-card__code {
+  margin: 0 0 5px 0;
+}
+
+.request-center-card__meta {
+  color: #666;
+}
+
+.request-center-card__actions {
+  text-align: right;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.request-center-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  text-decoration: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.request-center-btn--approve {
+  background: #28a745;
+}
+
+.request-center-btn--reject {
+  background: #dc3545;
+}
+
+.request-center-btn--link {
+  background: #1f6fb2;
+}
+
+.request-center-pill {
+  background: #e9ecef;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-weight: bold;
+  color: #555;
+}
+
+@media (max-width: 768px) {
+  .request-center-card__row {
+    flex-direction: column;
+  }
+
+  .request-center-card__actions {
+    text-align: left;
+    justify-content: flex-start;
+  }
+}
+</style>
+
+<%- include("../partials/footer") %>

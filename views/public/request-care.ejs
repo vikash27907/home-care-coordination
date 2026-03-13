@@ -116,7 +116,7 @@
     <div class="public-board-section__header">
       <div>
         <h2>Public Care Requests</h2>
-        <p>Approved requests show full details. Pending requests stay locked until admin verification.</p>
+        <p>Verified open requests are visible here for the public, nurses, agents, and admins from one shared marketplace.</p>
       </div>
     </div>
 
@@ -126,18 +126,36 @@
           <article class="public-board-card">
             <div class="public-board-card__head">
               <strong><%= request.request_code %></strong>
-              <span class="public-board-pill <%= request.visibility_status %>"><%= request.visibility_status %></span>
+              <span class="public-board-pill approved">open</span>
             </div>
 
-            <% if (request.visibility_status === "approved") { %>
-              <h3><%= request.service_summary || "General care support required" %></h3>
-              <p><strong>Location:</strong> <%= request.location || "-" %></p>
-            <% } else { %>
-              <div class="public-board-lock">
-                <p>Details hidden pending admin verification.</p>
-                <small>Please wait for admin verification or contact support.</small>
-              </div>
+            <h3><%= request.service_summary || "General care support required" %></h3>
+            <p><strong>ID:</strong> <%= request.request_code %></p>
+            <p><strong>Location:</strong> <%= request.location || "-" %></p>
+            <% if (request.total_interested > 0) { %>
+              <p><strong>Interested Nurses:</strong> <%= request.total_interested %></p>
             <% } %>
+
+            <div class="public-board-card__actions">
+              <% if (!user) { %>
+                <a href="/login" class="board-action-btn board-action-btn--secondary">Login to Apply</a>
+              <% } else if (user.role === "nurse") { %>
+                <% if ((appliedRequestIds || []).includes(request.id)) { %>
+                  <button type="button" class="board-action-btn board-action-btn--muted" disabled>You Applied</button>
+                <% } else { %>
+                  <form method="POST" action="/nurse/apply-request">
+                    <input type="hidden" name="request_id" value="<%= request.id %>">
+                    <button type="submit" class="board-action-btn board-action-btn--success">I'm Interested</button>
+                  </form>
+                <% } %>
+              <% } else if (user.role === "agent") { %>
+                <a href="/agent/dashboard#requests" class="board-action-btn board-action-btn--warning">Manage in Agent Dashboard</a>
+              <% } else if (user.role === "admin") { %>
+                <a href="/admin/requests" class="board-action-btn board-action-btn--info">Manage</a>
+              <% } else { %>
+                <a href="/login" class="board-action-btn board-action-btn--secondary">Login to Apply</a>
+              <% } %>
+            </div>
           </article>
         <% }) %>
       </div>
@@ -325,6 +343,10 @@
   margin-bottom: 0.9rem;
 }
 
+.public-board-card__actions {
+  margin-top: 1rem;
+}
+
 .public-board-pill {
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
@@ -355,6 +377,46 @@
 .public-board-lock p {
   margin: 0 0 0.35rem;
   font-weight: 700;
+}
+
+.board-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: "Inter", sans-serif;
+}
+
+.board-action-btn--secondary {
+  background: #eef3f8;
+  color: #24425d;
+  border-color: #d1deeb;
+}
+
+.board-action-btn--success {
+  background: #1f8f52;
+  color: #fff;
+}
+
+.board-action-btn--warning {
+  background: #f59e0b;
+  color: #1f2937;
+}
+
+.board-action-btn--info {
+  background: #1f6fb2;
+  color: #fff;
+}
+
+.board-action-btn--muted {
+  background: #e5e7eb;
+  color: #4b5563;
 }
 </style>
 

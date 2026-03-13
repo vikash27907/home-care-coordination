@@ -172,35 +172,7 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
       [req.nurseId]
     );
 
-    const [marketplaceResult, assignedResult, completedResult, pendingApplicationsResult, appliedResult] = await Promise.all([
-      pool.query(
-        `SELECT
-            cr.id,
-            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS public_request_code,
-            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS patient_condition,
-            COALESCE(NULLIF(p.city, ''), '-') AS location,
-            NULL::text AS required_qualification,
-            NULL::date AS shift_start,
-            NULL::date AS shift_end,
-            COALESCE(
-              NULLIF(p.service_schedule, ''),
-              CASE
-                WHEN cr.duration_value IS NOT NULL AND NULLIF(cr.duration_unit, '') IS NOT NULL
-                THEN CONCAT(cr.duration_value, ' ', cr.duration_unit)
-                ELSE NULL
-              END,
-              '-'
-            ) AS shift_timing,
-            NULLIF(COALESCE(NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), p.budget, 0), 0) AS price_per_day,
-            cr.status,
-            cr.payment_status,
-            cr.created_at
-         FROM care_requests cr
-         LEFT JOIN patients p ON p.id = cr.patient_id
-         WHERE cr.status = 'open'
-           AND cr.marketplace_ready = TRUE
-         ORDER BY cr.created_at DESC`
-      ),
+    const [assignedResult, completedResult, pendingApplicationsResult] = await Promise.all([
       pool.query(
         `SELECT
             cr.id,
@@ -291,23 +263,15 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
            AND ca.status = 'pending'
          ORDER BY ca.applied_at DESC`,
         [req.nurseId]
-      ),
-      pool.query(
-        "SELECT request_id FROM care_applications WHERE nurse_id = $1",
-        [req.nurseId]
       )
     ]);
 
-    const appliedIds = appliedResult.rows.map((item) => item.request_id);
-
     return res.render("nurse/care-requests", {
-      title: "Care Request Dashboard",
+      title: "My Jobs",
       user: req.session.user,
-      requests: marketplaceResult.rows,
       assignedRequests: assignedResult.rows,
       completedRequests: completedResult.rows,
-      pendingApplications: pendingApplicationsResult.rows,
-      appliedIds
+      pendingApplications: pendingApplicationsResult.rows
     });
   } catch (error) {
     console.error("Nurse care requests list error:", error);
@@ -316,11 +280,10 @@ router.get("/care-requests", requireVerifiedNurse, async (req, res) => {
   }
 });
 
-router.post("/care-requests/:id/apply", requireVerifiedNurse, async (req, res) => {
-  const requestId = Number.parseInt(req.params.id, 10);
+async function applyToCareRequest(req, res, requestId, redirectTarget) {
   if (Number.isNaN(requestId)) {
     setFlash(req, "error", "Invalid care request.");
-    return res.redirect("/nurse/care-requests");
+    return res.redirect(redirectTarget);
   }
 
   try {
@@ -332,19 +295,29 @@ router.post("/care-requests/:id/apply", requireVerifiedNurse, async (req, res) =
          FROM care_requests
          WHERE id = $1
            AND status = 'open'
-           AND marketplace_ready = TRUE
+           AND COALESCE(visibility_status, 'pending') = 'approved'
        )
        ON CONFLICT (request_id, nurse_id) DO NOTHING`,
       [requestId, req.nurseId]
     );
 
     setFlash(req, "success", "Application submitted.");
-    return res.redirect("/nurse/care-requests");
+    return res.redirect(redirectTarget);
   } catch (error) {
     console.error("Nurse care request apply error:", error);
     setFlash(req, "error", "Unable to apply right now.");
-    return res.redirect("/nurse/care-requests");
+    return res.redirect(redirectTarget);
   }
+}
+
+router.post("/care-requests/:id/apply", requireVerifiedNurse, async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  return applyToCareRequest(req, res, requestId, "/nurse/care-requests");
+});
+
+router.post("/apply-request", requireVerifiedNurse, async (req, res) => {
+  const requestId = Number.parseInt(req.body.request_id, 10);
+  return applyToCareRequest(req, res, requestId, "/request-care");
 });
 
 router.post(

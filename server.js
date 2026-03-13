@@ -2447,6 +2447,7 @@ app.get("/api/nurse/:id/qr", async (req, res) => {
 
 app.get("/request-care", async (req, res) => {
   const preferredNurseId = Number.parseInt(req.query.nurseId, 10);
+  const user = req.session?.user || null;
   let preferredNurse = null;
   if (!Number.isNaN(preferredNurseId)) {
     const nurse = await getNurseById(preferredNurseId);
@@ -2457,33 +2458,53 @@ app.get("/request-care", async (req, res) => {
   }
 
   try {
-    const requestsResult = await pool.query(
-      `SELECT
-          COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
-          COALESCE(cr.visibility_status, 'pending') AS visibility_status,
-          CASE
-            WHEN COALESCE(cr.visibility_status, 'pending') = 'approved'
-            THEN COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required')
-            ELSE NULL
-          END AS service_summary,
-          CASE
-            WHEN COALESCE(cr.visibility_status, 'pending') = 'approved'
-            THEN COALESCE(NULLIF(p.city, ''), '-')
-            ELSE NULL
-          END AS location,
-          cr.created_at
-       FROM care_requests cr
-       LEFT JOIN patients p ON p.id = cr.patient_id
-       WHERE cr.status = 'open'
-         AND COALESCE(cr.visibility_status, 'pending') IN ('pending', 'approved')
-       ORDER BY cr.created_at DESC
-       LIMIT 50`
-    );
+    let nurseId = null;
+    if (user && user.role === "nurse") {
+      const nurseResult = await pool.query(
+        "SELECT id FROM nurses WHERE user_id = $1 LIMIT 1",
+        [user.id]
+      );
+      nurseId = nurseResult.rows[0] ? nurseResult.rows[0].id : null;
+    }
+
+    const [requestsResult, appliedResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            cr.id,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support required') AS service_summary,
+            COALESCE(NULLIF(p.city, ''), '-') AS location,
+            COALESCE(app.total_interested, 0) AS total_interested,
+            cr.created_at
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         LEFT JOIN (
+           SELECT request_id, COUNT(*)::int AS total_interested
+           FROM care_applications
+           WHERE status IN ('pending', 'accepted')
+           GROUP BY request_id
+         ) app ON app.request_id = cr.id
+         WHERE cr.status = 'open'
+           AND COALESCE(cr.visibility_status, 'pending') = 'approved'
+         ORDER BY cr.created_at DESC
+         LIMIT 50`
+      ),
+      nurseId
+        ? pool.query(
+            `SELECT request_id
+             FROM care_applications
+             WHERE nurse_id = $1`,
+            [nurseId]
+          )
+        : Promise.resolve({ rows: [] })
+    ]);
 
     return res.render("public/request-care", {
       title: "Request Care",
       preferredNurse,
       requests: requestsResult.rows,
+      user,
+      appliedRequestIds: appliedResult.rows.map((row) => row.request_id),
       showRequestForm: Boolean(preferredNurse || (res.locals.flash && res.locals.flash.type === "error"))
     });
   } catch (error) {
@@ -2492,6 +2513,8 @@ app.get("/request-care", async (req, res) => {
       title: "Request Care",
       preferredNurse,
       requests: [],
+      user,
+      appliedRequestIds: [],
       showRequestForm: true
     });
   }
@@ -4240,7 +4263,144 @@ app.get("/admin/care-request/:id/applicants", requireRole("admin"), (req, res) =
   return res.redirect(`/admin/care-requests/${requestId}/applications`);
 });
 
+app.get("/admin/request/:id/applicants", requireRole("admin"), (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(requestId)) {
+    return res.redirect("/admin/patients");
+  }
+  return res.redirect(`/admin/requests/${requestId}/applications?tab=active`);
+});
+
+app.get("/admin/requests", requireRole("admin"), async (req, res) => {
+  const tab = req.query.tab || "pending";
+  let dbQuery = "";
+
+  try {
+    switch (tab) {
+      case "pending":
+        dbQuery = `
+          SELECT *
+          FROM care_requests
+          WHERE visibility_status = 'pending'
+          ORDER BY created_at DESC
+        `;
+        break;
+
+      case "active":
+        dbQuery = `
+          SELECT *
+          FROM care_requests
+          WHERE visibility_status = 'approved'
+            AND status = 'open'
+          ORDER BY created_at DESC
+        `;
+        break;
+
+      case "assigned":
+        dbQuery = `
+          SELECT *
+          FROM care_requests
+          WHERE status = 'assigned'
+          ORDER BY created_at DESC
+        `;
+        break;
+
+      case "completed":
+        dbQuery = `
+          SELECT *
+          FROM care_requests
+          WHERE status = 'completed'
+          ORDER BY created_at DESC
+        `;
+        break;
+
+      default:
+        dbQuery = `
+          SELECT *
+          FROM care_requests
+          ORDER BY created_at DESC
+          LIMIT 100
+        `;
+    }
+
+    const result = await pool.query(dbQuery);
+
+    return res.render("admin/requests", {
+      title: "Admin Request Center",
+      requests: result.rows,
+      activeTab: tab
+    });
+  } catch (err) {
+    console.error("Dashboard Error:", err);
+    return res.status(500).send("Error loading the Request Center");
+  }
+});
+
+app.post("/admin/approve-request", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.body.id, 10);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect("/admin/requests?tab=pending");
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE care_requests
+       SET visibility_status = 'approved',
+           marketplace_ready = TRUE
+       WHERE id = $1`,
+      [requestId]
+    );
+
+    if (!result.rowCount) {
+      setFlash(req, "error", "Care request not found.");
+    } else {
+      setFlash(req, "success", "Request approved for marketplace.");
+    }
+
+    return res.redirect("/admin/requests?tab=pending");
+  } catch (error) {
+    console.error("Approve request center item error:", error);
+    setFlash(req, "error", "Unable to approve request right now.");
+    return res.redirect("/admin/requests?tab=pending");
+  }
+});
+
+app.post("/admin/reject-request", requireRole("admin"), async (req, res) => {
+  const requestId = Number.parseInt(req.body.id, 10);
+  if (Number.isNaN(requestId)) {
+    setFlash(req, "error", "Invalid care request.");
+    return res.redirect("/admin/requests?tab=pending");
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE care_requests
+       SET visibility_status = 'rejected',
+           marketplace_ready = FALSE
+       WHERE id = $1`,
+      [requestId]
+    );
+
+    if (!result.rowCount) {
+      setFlash(req, "error", "Care request not found.");
+    } else {
+      setFlash(req, "success", "Request rejected.");
+    }
+
+    return res.redirect("/admin/requests?tab=pending");
+  } catch (error) {
+    console.error("Reject request center item error:", error);
+    setFlash(req, "error", "Unable to reject request right now.");
+    return res.redirect("/admin/requests?tab=pending");
+  }
+});
+
 app.get("/admin/pending-requests", requireRole("admin"), async (req, res) => {
+  return res.redirect("/admin/requests?tab=pending");
+});
+
+app.get("/admin/pending-requests/legacy", requireRole("admin"), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
@@ -4271,24 +4431,27 @@ app.post("/admin/pending-requests/:id/approve", requireRole("admin"), async (req
   const requestId = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(requestId)) {
     setFlash(req, "error", "Invalid care request.");
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   }
 
   try {
     const result = await pool.query(
-      "UPDATE care_requests SET visibility_status = 'approved' WHERE id = $1",
+      `UPDATE care_requests
+       SET visibility_status = 'approved',
+           marketplace_ready = TRUE
+       WHERE id = $1`,
       [requestId]
     );
     if (!result.rowCount) {
       setFlash(req, "error", "Care request not found.");
     } else {
-      setFlash(req, "success", "Request approved for public display.");
+      setFlash(req, "success", "Request approved for marketplace.");
     }
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   } catch (error) {
     console.error("Approve pending request error:", error);
     setFlash(req, "error", "Unable to approve request right now.");
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   }
 });
 
@@ -4296,24 +4459,27 @@ app.post("/admin/pending-requests/:id/reject", requireRole("admin"), async (req,
   const requestId = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(requestId)) {
     setFlash(req, "error", "Invalid care request.");
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   }
 
   try {
     const result = await pool.query(
-      "UPDATE care_requests SET visibility_status = 'rejected' WHERE id = $1",
+      `UPDATE care_requests
+       SET visibility_status = 'rejected',
+           marketplace_ready = FALSE
+       WHERE id = $1`,
       [requestId]
     );
     if (!result.rowCount) {
       setFlash(req, "error", "Care request not found.");
     } else {
-      setFlash(req, "success", "Request rejected and hidden from the public board.");
+      setFlash(req, "success", "Request rejected.");
     }
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   } catch (error) {
     console.error("Reject pending request error:", error);
     setFlash(req, "error", "Unable to reject request right now.");
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   }
 });
 
@@ -4321,7 +4487,7 @@ app.post("/admin/pending-requests/:id/delete", requireRole("admin"), async (req,
   const requestId = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(requestId)) {
     setFlash(req, "error", "Invalid care request.");
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   }
 
   try {
@@ -4331,11 +4497,11 @@ app.post("/admin/pending-requests/:id/delete", requireRole("admin"), async (req,
     } else {
       setFlash(req, "success", "Care request deleted.");
     }
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   } catch (error) {
     console.error("Delete pending request error:", error);
     setFlash(req, "error", "Unable to delete request right now.");
-    return res.redirect("/admin/pending-requests");
+    return res.redirect("/admin/requests?tab=pending");
   }
 });
 
@@ -4385,16 +4551,22 @@ app.post("/admin/patients/:id/update", requireRole("admin"), (req, res) => {
 
 function getCareRequestListRedirectTarget(rawTarget) {
   const target = String(rawTarget || "").trim();
+  if (target.startsWith("/admin/requests")) return target;
   if (target.startsWith("/admin/marketplace")) return target;
   return target.startsWith("/admin/care-requests") ? target : "/admin/care-requests";
 }
 
 function getCareRequestApplicationsBasePath(req) {
+  if (req.path.startsWith("/admin/requests")) return "/admin/requests";
   return req.path.startsWith("/admin/marketplace") ? "/admin/marketplace" : "/admin/care-requests";
 }
 
 function getCareRequestApplicationsRedirectUrl(req, requestId) {
   const basePath = `${getCareRequestApplicationsBasePath(req)}/${requestId}/applications`;
+  if (req.path.startsWith("/admin/requests")) {
+    const tab = String(req.query.tab || "active").trim().toLowerCase();
+    return `${basePath}?tab=${encodeURIComponent(tab || "active")}`;
+  }
   if (req.path.startsWith("/admin/marketplace")) {
     const tab = normalizeMarketplaceTabInput(req.query.tab);
     return `${basePath}?tab=${encodeURIComponent(tab)}`;
@@ -4884,17 +5056,19 @@ app.post("/admin/care-requests/:id/marketplace-ready", requireRole("admin"), asy
 });
 
 app.get(
-  ["/admin/care-requests/:id/applications", "/admin/marketplace/:id/applications"],
+  ["/admin/care-requests/:id/applications", "/admin/marketplace/:id/applications", "/admin/requests/:id/applications"],
   requireRole("admin"),
   async (req, res) => {
     const requestId = Number.parseInt(req.params.id, 10);
     const applicationsBasePath = getCareRequestApplicationsBasePath(req);
-    const backHref = applicationsBasePath === "/admin/marketplace"
+    const fallbackBackHref = applicationsBasePath === "/admin/marketplace"
       ? `/admin/marketplace?tab=${encodeURIComponent(normalizeMarketplaceTabInput(req.query.tab))}`
+      : applicationsBasePath === "/admin/requests"
+        ? `/admin/requests?tab=${encodeURIComponent(String(req.query.tab || "active").trim().toLowerCase() || "active")}`
       : `/admin/care-requests?status=${encodeURIComponent(normalizeCareRequestStatusFilterInput(req.query.status))}&payment=${encodeURIComponent(normalizeCareRequestPaymentFilterInput(req.query.payment))}`;
     if (Number.isNaN(requestId)) {
       setFlash(req, "error", "Invalid care request.");
-      return res.redirect(backHref);
+      return res.redirect(fallbackBackHref);
     }
 
     try {
@@ -4951,7 +5125,16 @@ app.get(
 
       if (!requestResult.rows.length) {
         setFlash(req, "error", "Care request not found.");
-        return res.redirect(backHref);
+        return res.redirect(fallbackBackHref);
+      }
+
+      let backHref = fallbackBackHref;
+      if (applicationsBasePath === "/admin/requests") {
+        const requestStatus = normalizeCareRequestStatusInput(requestResult.rows[0].status);
+        const requestCenterTab = requestStatus === "assigned" || requestStatus === "completed"
+          ? requestStatus
+          : "active";
+        backHref = `/admin/requests?tab=${encodeURIComponent(requestCenterTab)}`;
       }
 
       const applicationsResult = await pool.query(
@@ -5013,7 +5196,7 @@ app.get(
     } catch (error) {
       console.error("Admin care request applications list error:", error);
       setFlash(req, "error", "Unable to load care applications right now.");
-      return res.redirect(backHref);
+      return res.redirect(fallbackBackHref);
     }
   }
 );
@@ -5021,7 +5204,8 @@ app.get(
 app.post(
   [
     "/admin/care-requests/:requestId/applications/:applicationId/accept",
-    "/admin/marketplace/:requestId/applications/:applicationId/accept"
+    "/admin/marketplace/:requestId/applications/:applicationId/accept",
+    "/admin/requests/:requestId/applications/:applicationId/accept"
   ],
   requireRole("admin"),
   async (req, res) => {
@@ -5046,8 +5230,7 @@ app.post(
             ca.nurse_id,
             cr.status AS request_status,
             cr.payment_status AS request_payment_status,
-            cr.assigned_nurse_id AS request_assigned_nurse_id,
-            cr.marketplace_ready
+            cr.assigned_nurse_id AS request_assigned_nurse_id
          FROM care_applications ca
          JOIN care_requests cr ON cr.id = ca.request_id
          WHERE ca.id = $1
@@ -5062,9 +5245,6 @@ app.post(
       const requestStatus = normalizeCareRequestStatusInput(applicationResult.rows[0].request_status);
       if (requestStatus !== "open") {
         throw new Error("Only open requests can accept nurse applications.");
-      }
-      if (applicationResult.rows[0].marketplace_ready !== true) {
-        throw new Error("Request must be marketplace-ready before accepting applications.");
       }
       const previousPaymentStatus = normalizeCareRequestPaymentStatusInput(
         applicationResult.rows[0].request_payment_status
@@ -5173,7 +5353,8 @@ app.post(
 app.post(
   [
     "/admin/care-requests/:requestId/applications/:applicationId/reject",
-    "/admin/marketplace/:requestId/applications/:applicationId/reject"
+    "/admin/marketplace/:requestId/applications/:applicationId/reject",
+    "/admin/requests/:requestId/applications/:applicationId/reject"
   ],
   requireRole("admin"),
   async (req, res) => {
@@ -6862,15 +7043,22 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
     const nurseId = nurseResult.rows[0].id;
     const statsResult = await pool.query(
       `SELECT
-          COUNT(*) FILTER (WHERE ca.status = 'pending') AS pending_apps,
-          COUNT(*) FILTER (WHERE ca.status = 'accepted') AS accepted_apps,
-          COUNT(*) FILTER (
-            WHERE cr.status = 'assigned'
-              AND cr.assigned_nurse_id = $1
-          ) AS active_assignments
-       FROM care_applications ca
-       JOIN care_requests cr ON ca.request_id = cr.id
-       WHERE ca.nurse_id = $1`,
+          (SELECT COUNT(*)
+           FROM care_applications
+           WHERE nurse_id = $1
+             AND status = 'pending') AS pending_apps,
+          (SELECT COUNT(*)
+           FROM care_requests
+           WHERE assigned_nurse_id = $1
+             AND status IN ('assigned', 'payment_pending', 'active')) AS assigned_jobs,
+          (SELECT COUNT(*)
+           FROM care_requests
+           WHERE assigned_nurse_id = $1
+             AND status = 'completed') AS completed_jobs,
+          (SELECT COUNT(*)
+           FROM care_requests
+           WHERE status = 'open'
+             AND COALESCE(visibility_status, 'pending') = 'approved') AS marketplace_open`,
       [nurseId]
     );
 
@@ -6886,7 +7074,7 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
 });
 
 app.get("/nurse/applications", requireRole("nurse"), requireApprovedNurse, (req, res) => {
-  return res.redirect("/nurse/care-requests");
+  return res.redirect("/nurse/care-requests#pending");
 });
 
 app.post("/nurse/password/change", requireRole("nurse"), requireApprovedNurse, async (req, res) => {

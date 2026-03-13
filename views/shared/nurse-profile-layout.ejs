@@ -137,8 +137,11 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       <a href="/nurse/profile" class="np-quick-link <%= safeCurrentPath.startsWith('/nurse/profile') ? 'active' : '' %>">
         Profile
       </a>
+      <a href="/request-care" class="np-quick-link <%= safeCurrentPath.startsWith('/request-care') ? 'active' : '' %>">
+        Find Jobs
+      </a>
       <a href="/nurse/care-requests" class="np-quick-link <%= safeCurrentPath.startsWith('/nurse/care-requests') ? 'active' : '' %>">
-        Care Requests
+        My Jobs
       </a>
     </nav>
   <% } %>

@@ -1,26 +1,20 @@
 <%- include("../partials/head", { title }) %>
 
 <%
-const marketplaceRequests = Array.isArray(requests) ? requests : [];
 const assignedItems = Array.isArray(assignedRequests) ? assignedRequests : [];
 const completedItems = Array.isArray(completedRequests) ? completedRequests : [];
 const pendingItems = Array.isArray(pendingApplications) ? pendingApplications : [];
-const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
 %>
 
 <section class="nurse-marketplace-hero">
   <div class="nurse-marketplace-hero__copy">
-    <p class="nurse-marketplace-hero__eyebrow">Verified Nurse Marketplace</p>
-    <h1>Care Request Dashboard</h1>
-    <p>Track open jobs, your assignments, completed work history, and pending applications.</p>
+    <p class="nurse-marketplace-hero__eyebrow">Nurse Workboard</p>
+    <h1>My Jobs</h1>
+    <p>Track pending applications, assigned work, and completed jobs. Browse new open jobs from the shared marketplace.</p>
   </div>
   <div class="nurse-marketplace-hero__stats">
     <div class="nurse-marketplace-hero__stat">
-      <span class="nurse-marketplace-hero__stat-label">Marketplace</span>
-      <strong class="nurse-marketplace-hero__stat-value"><%= marketplaceRequests.length %></strong>
-    </div>
-    <div class="nurse-marketplace-hero__stat">
-      <span class="nurse-marketplace-hero__stat-label">My Assigned</span>
+      <span class="nurse-marketplace-hero__stat-label">Assigned</span>
       <strong class="nurse-marketplace-hero__stat-value"><%= assignedItems.length %></strong>
     </div>
     <div class="nurse-marketplace-hero__stat">
@@ -32,48 +26,12 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
       <strong class="nurse-marketplace-hero__stat-value"><%= pendingItems.length %></strong>
     </div>
   </div>
+  <div class="nurse-marketplace-hero__actions">
+    <a href="/request-care" class="nurse-marketplace-hero__link">Browse Open Jobs</a>
+  </div>
 </section>
 
-<section class="content-section">
-  <h2>Marketplace (Open Jobs)</h2>
-  <% if (!marketplaceRequests.length) { %>
-    <div class="empty-state">
-      <p>No open care requests right now.</p>
-    </div>
-  <% } else { %>
-    <div class="nurse-marketplace-grid">
-      <% marketplaceRequests.forEach((request, index) => { %>
-        <article class="nurse-marketplace-card" style="--card-delay:<%= index %>;">
-          <div class="nurse-marketplace-card__top">
-            <h3><%= request.patient_condition %></h3>
-            <span class="nurse-marketplace-chip">open</span>
-          </div>
-
-          <p><strong>Request ID:</strong> <%= request.public_request_code || `CR-${request.id}` %></p>
-          <p><strong>Location:</strong> <%= request.location %></p>
-          <p><strong>Timing:</strong> <%= request.shift_timing || '-' %></p>
-          <p><strong>Payment:</strong> <%= request.payment_status || 'pending' %></p>
-          <p>
-            <strong>Price/Day:</strong>
-            <%= request.price_per_day !== null ? Number(request.price_per_day).toFixed(2) : '-' %>
-          </p>
-
-          <div class="nurse-marketplace-card__actions">
-            <% if (appliedRequestIds.includes(request.id)) { %>
-              <button class="nurse-marketplace-btn nurse-marketplace-btn--applied" disabled>Applied</button>
-            <% } else { %>
-              <form method="POST" action="/nurse/care-requests/<%= request.id %>/apply">
-                <button class="nurse-marketplace-btn nurse-marketplace-btn--apply" type="submit">I'm Interested</button>
-              </form>
-            <% } %>
-          </div>
-        </article>
-      <% }) %>
-    </div>
-  <% } %>
-</section>
-
-<section class="content-section">
+<section class="content-section" id="assigned">
   <h2>My Assigned Jobs</h2>
   <% if (!assignedItems.length) { %>
     <div class="empty-state">
@@ -99,7 +57,7 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
   <% } %>
 </section>
 
-<section class="content-section">
+<section class="content-section" id="completed">
   <h2>My Completed Jobs</h2>
   <% if (!completedItems.length) { %>
     <div class="empty-state">
@@ -128,7 +86,7 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
   <% } %>
 </section>
 
-<section class="content-section">
+<section class="content-section" id="pending">
   <h2>My Applications (Pending)</h2>
   <% if (!pendingItems.length) { %>
     <div class="empty-state">
@@ -158,6 +116,23 @@ const appliedRequestIds = Array.isArray(appliedIds) ? appliedIds : [];
   display: grid;
   grid-template-columns: repeat(2, minmax(110px, 1fr));
   gap: 0.5rem;
+}
+
+.nurse-marketplace-hero__actions {
+  margin-top: 1rem;
+}
+
+.nurse-marketplace-hero__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
 }
 
 .nurse-marketplace-chip--status {

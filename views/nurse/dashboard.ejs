@@ -6,19 +6,24 @@
 </section>
 
 <div class="dashboard-grid">
-  <a href="/nurse/applications?status=pending" class="dash-card blue">
+  <a href="/nurse/care-requests#pending" class="dash-card blue">
     <h3><%= stats.pending_apps %></h3>
     <p>Pending Applications</p>
   </a>
 
-  <a href="/nurse/applications?status=accepted" class="dash-card green">
-    <h3><%= stats.accepted_apps %></h3>
-    <p>Accepted Applications</p>
+  <a href="/nurse/care-requests#assigned" class="dash-card green">
+    <h3><%= stats.assigned_jobs %></h3>
+    <p>Assigned Jobs</p>
   </a>
 
-  <a href="/nurse/care-requests" class="dash-card purple">
-    <h3><%= stats.active_assignments %></h3>
-    <p>Active Assignments</p>
+  <a href="/nurse/care-requests#completed" class="dash-card purple">
+    <h3><%= stats.completed_jobs %></h3>
+    <p>Completed Jobs</p>
+  </a>
+
+  <a href="/request-care" class="dash-card teal">
+    <h3><%= stats.marketplace_open %></h3>
+    <p>Find Jobs</p>
   </a>
 </div>
 
@@ -53,6 +58,7 @@
 .blue { background: linear-gradient(90deg, #0052cc, #0077ff); }
 .green { background: linear-gradient(90deg, #198754, #20c997); }
 .purple { background: linear-gradient(90deg, #6f42c1, #9b5de5); }
+.teal { background: linear-gradient(90deg, #0f766e, #14b8a6); }
 </style>
 
 <%- include("../partials/footer") %>

@@ -43,6 +43,11 @@ let totalPending = safePendingNurses + safePendingAgents;
       <span class="nav-text">Patients</span>
     </a>
     
+    <a href="/admin/requests" class="nav-item <%= safeCurrentPath.startsWith('/admin/requests') ? 'active' : '' %>">
+      <span class="nav-icon">RC</span>
+      <span class="nav-text">Request Center</span>
+    </a>
+    
     <a href="/admin/care-requests" class="nav-item <%= safeCurrentPath.includes('care-requests') ? 'active' : '' %>">
       <span class="nav-icon">CR</span>
       <span class="nav-text">Care Requests</span>
