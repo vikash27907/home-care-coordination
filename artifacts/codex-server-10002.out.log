@@ -1,6 +1,0 @@
-[dotenv@17.3.1] injecting env (7) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
-[dotenv@17.3.1] injecting env (0) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
-⚠ Resend API key not found. Emails disabled in local environment.
-🚀 Prisha Home Care running at: http://localhost:10002
-PostgreSQL connected successfully
-Migration complete: qualifications column ensured.
