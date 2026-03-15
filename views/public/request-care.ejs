@@ -1,26 +1,34 @@
 <%- include("../partials/head", { title }) %>
 
-<section class="form-section">
-  <div class="section-header">
-    <div class="header-text">
-      <h1>Patient Care Request</h1>
-      <p>Submit a new request and browse the moderated public care board from one place.</p>
-    </div>
-    <div class="header-actions">
-      <button type="button" class="btn btn-add-request" id="toggleRequestForm">
-        <%= showRequestForm ? 'Hide Request Form' : 'Add New Request' %>
+<section class="form-section request-marketplace">
+  <div class="request-marketplace__header">
+    <h1>Patient Care Request</h1>
+    <p>Submit a request for home nursing or caregiver services.</p>
+
+    <div class="request-marketplace__actions">
+      <button
+        type="button"
+        class="btn primary"
+        data-request-form-action="scroll"
+      >
+        Add New Request
       </button>
-      <a href="/track-request" class="btn btn-track">Already Registered? Track Your Request</a>
+      <a href="/track-request" class="btn btn-track">Track Your Request</a>
     </div>
   </div>
 
-  <div class="request-form-shell <%= showRequestForm ? 'is-open' : '' %>" id="requestForm">
-    <% if (preferredNurse) { %>
-    <div class="card selected-nurse">
-      <h3>Preferred Nurse Selected</h3>
-      <p><strong><%= preferredNurse.fullName %></strong> (<%= preferredNurse.isAvailable ? 'Available' : 'Not Available' %>)</p>
-      <p>Skills: <%= preferredNurse.skills.join(', ') || '-' %></p>
+  <section class="request-form-panel" id="requestForm">
+    <div class="request-form-panel__header">
+      <h2>Submit Care Request</h2>
+      <p>Add the patient details, service schedule, duration, and care notes below.</p>
     </div>
+
+    <% if (preferredNurse) { %>
+      <div class="card selected-nurse request-selected-nurse">
+        <h3>Preferred Nurse Selected</h3>
+        <p><strong><%= preferredNurse.fullName %></strong> (<%= preferredNurse.isAvailable ? "Available" : "Not Available" %>)</p>
+        <p>Skills: <%= preferredNurse.skills.join(", ") || "-" %></p>
+      </div>
     <% } %>
 
     <form method="POST" action="/request-care" class="form-grid" id="requestCareForm">
@@ -88,17 +96,16 @@
         </div>
       </label>
 
-      <div class="form-group">
-        <label for="budget" id="budgetLabel">Budget (INR)</label>
+      <label class="full-width">
+        <span id="budgetLabel">Budget (INR)</span>
         <input
           type="number"
           id="budget"
           name="budget"
-          class="form-control"
           required
           placeholder="Enter your budget"
         />
-      </div>
+      </label>
 
       <label class="full-width">
         Patient Condition (Additional Notes)
@@ -110,13 +117,13 @@
         <span class="spinner" style="display: none;"></span>
       </button>
     </form>
-  </div>
+  </section>
 
   <section class="public-board-section">
     <div class="public-board-section__header">
       <div>
         <h2>Public Care Requests</h2>
-        <p>Verified open requests are visible here for the public, nurses, agents, and admins from one shared marketplace.</p>
+        <p>Open public requests are visible here for nurses, agents, and general visibility.</p>
       </div>
     </div>
 
@@ -124,17 +131,23 @@
       <div class="public-board-grid">
         <% requests.forEach((request) => { %>
           <article class="public-board-card">
-            <div class="public-board-card__head">
-              <strong><%= request.request_code %></strong>
-              <span class="public-board-pill approved">open</span>
+            <div class="public-board-card__top">
+              <span class="public-board-pill approved">Open</span>
+              <span class="public-board-card__code"><%= request.request_code %></span>
             </div>
 
             <h3><%= request.service_summary || "General care support required" %></h3>
-            <p><strong>ID:</strong> <%= request.request_code %></p>
-            <p><strong>Location:</strong> <%= request.location || "-" %></p>
-            <% if (request.total_interested > 0) { %>
-              <p><strong>Interested Nurses:</strong> <%= request.total_interested %></p>
-            <% } %>
+
+            <div class="public-board-card__details">
+              <p><strong>Location:</strong> <%= request.location || "-" %></p>
+              <p>
+                <strong>Posted:</strong>
+                <%= request.created_at ? new Date(request.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "-" %>
+              </p>
+              <% if (request.total_interested > 0) { %>
+                <p><strong>Interested Nurses:</strong> <%= request.total_interested %></p>
+              <% } %>
+            </div>
 
             <div class="public-board-card__actions">
               <% if (!user) { %>
@@ -145,13 +158,13 @@
                 <% } else { %>
                   <form method="POST" action="/nurse/apply-request">
                     <input type="hidden" name="request_id" value="<%= request.id %>">
-                    <button type="submit" class="board-action-btn board-action-btn--success">I'm Interested</button>
+                    <button type="submit" class="board-action-btn board-action-btn--success">I&apos;m Interested</button>
                   </form>
                 <% } %>
               <% } else if (user.role === "agent") { %>
                 <a href="/agent/dashboard#requests" class="board-action-btn board-action-btn--warning">Manage in Agent Dashboard</a>
               <% } else if (user.role === "admin") { %>
-                <a href="/admin/requests" class="board-action-btn board-action-btn--info">Manage</a>
+                <a href="/admin/requests" class="board-action-btn board-action-btn--info">Manage Request</a>
               <% } else { %>
                 <a href="/login" class="board-action-btn board-action-btn--secondary">Login to Apply</a>
               <% } %>
@@ -160,7 +173,9 @@
         <% }) %>
       </div>
     <% } else { %>
-      <p>No public requests yet.</p>
+      <div class="public-board-empty">
+        <p>Care requests submitted by families will appear here.</p>
+      </div>
     <% } %>
   </section>
 
@@ -170,7 +185,17 @@
       const durationLabel = document.getElementById("durationLabel");
       const budgetLabel = document.getElementById("budgetLabel");
       const requestFormShell = document.getElementById("requestForm");
-      const toggleRequestFormButton = document.getElementById("toggleRequestForm");
+      const requestFormButtons = Array.from(document.querySelectorAll("[data-request-form-action='scroll']"));
+
+      function scrollToRequestForm() {
+        if (!requestFormShell) {
+          return;
+        }
+
+        requestAnimationFrame(function () {
+          requestFormShell.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
 
       function updateDurationLabel() {
         const selectedText = durationUnitSelect.options[durationUnitSelect.selectedIndex].text;
@@ -194,230 +219,18 @@
       durationUnitSelect.addEventListener("change", updateDurationLabel);
       durationUnitSelect.addEventListener("change", updateBudgetLabel);
 
-      if (toggleRequestFormButton && requestFormShell) {
-        toggleRequestFormButton.addEventListener("click", function () {
-          const isOpen = requestFormShell.classList.toggle("is-open");
-          toggleRequestFormButton.textContent = isOpen ? "Hide Request Form" : "Add New Request";
-        });
+      requestFormButtons.forEach(function (button) {
+        button.addEventListener("click", scrollToRequestForm);
+      });
+
+      if (window.location.hash === "#requestForm") {
+        scrollToRequestForm();
       }
 
-      if (window.location.hash === "#requestForm" && requestFormShell) {
-        requestFormShell.classList.add("is-open");
-        if (toggleRequestFormButton) {
-          toggleRequestFormButton.textContent = "Hide Request Form";
-        }
-        requestAnimationFrame(function () {
-          requestFormShell.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-      }
-
-      // Run once on page load
       updateDurationLabel();
       updateBudgetLabel();
     });
   </script>
-
-  <aside class="urgent-support">
-    <h2>Need Immediate Assistance?</h2>
-    <p>
-      For emergency or urgent care response, connect with our support team directly on WhatsApp.
-    </p>
-    <div class="support-row">
-      <a
-        class="btn whatsapp"
-        href="https://wa.me/919138913355?text=Hello%20Prisha%20Home%20Care%2C%20I%20need%20immediate%20patient%20care%20support."
-        target="_blank"
-        rel="noopener"
-        >Connect on WhatsApp</a
-      >
-      <span class="support-number">+91 9138913355</span>
-    </div>
-  </aside>
 </section>
-
-<style>
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-
-.header-text {
-  flex: 1;
-  min-width: 250px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.btn-add-request {
-  background: #0f766e;
-  color: white;
-}
-
-.btn-add-request:hover {
-  background: #115e59;
-  color: white;
-}
-
-.btn-track {
-  background: #667eea;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 5px;
-  text-decoration: none;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background 0.3s;
-}
-
-.btn-track:hover {
-  background: #5568d3;
-  color: white;
-}
-
-.budget-inputs {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-  align-items: center;
-}
-
-.budget-inputs input {
-  flex: 1;
-}
-
-.budget-separator {
-  color: #666;
-  font-weight: 500;
-}
-
-.helper-text {
-  display: block;
-  margin-top: 4px;
-  color: #666;
-  font-size: 0.875rem;
-}
-
-.request-form-shell {
-  display: none;
-}
-
-.request-form-shell.is-open {
-  display: block;
-}
-
-.public-board-section {
-  margin-top: 2rem;
-}
-
-.public-board-section__header {
-  margin-bottom: 1rem;
-}
-
-.public-board-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
-}
-
-.public-board-card {
-  background: #fff;
-  border: 1px solid #d7e4f2;
-  border-radius: 14px;
-  padding: 1rem;
-  box-shadow: 0 8px 24px rgba(17, 65, 115, 0.08);
-}
-
-.public-board-card__head {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  align-items: center;
-  margin-bottom: 0.9rem;
-}
-
-.public-board-card__actions {
-  margin-top: 1rem;
-}
-
-.public-board-pill {
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: capitalize;
-}
-
-.public-board-pill.approved {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.public-board-pill.pending {
-  background: #fff4dc;
-  color: #9a6700;
-}
-
-.public-board-lock {
-  background: #fff4f4;
-  border: 1px solid #f5c2c7;
-  color: #8b1e2d;
-  border-radius: 12px;
-  padding: 0.9rem;
-  text-align: center;
-}
-
-.public-board-lock p {
-  margin: 0 0 0.35rem;
-  font-weight: 700;
-}
-
-.board-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  padding: 0.7rem 1rem;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  font-family: "Inter", sans-serif;
-}
-
-.board-action-btn--secondary {
-  background: #eef3f8;
-  color: #24425d;
-  border-color: #d1deeb;
-}
-
-.board-action-btn--success {
-  background: #1f8f52;
-  color: #fff;
-}
-
-.board-action-btn--warning {
-  background: #f59e0b;
-  color: #1f2937;
-}
-
-.board-action-btn--info {
-  background: #1f6fb2;
-  color: #fff;
-}
-
-.board-action-btn--muted {
-  background: #e5e7eb;
-  color: #4b5563;
-}
-</style>
 
 <%- include("../partials/footer") %>

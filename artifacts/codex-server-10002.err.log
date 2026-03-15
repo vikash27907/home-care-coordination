@@ -1,0 +1,4 @@
+Resend email error: Resend API key is not configured.
+Admin nurse signup email failed for codex.nurse.http.1773582683714@example.com: Error: Resend API key is not configured.
+    at createNurseUnderAgent (C:\Users\vikas\Desktop\vikash\Home Care\Test02\server.js:2203:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)

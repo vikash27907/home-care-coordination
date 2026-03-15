@@ -2733,6 +2733,282 @@ thead th {
   }
 }
 
+/* ============================================================
+   PUBLIC REQUEST MARKETPLACE
+   ============================================================ */
+
+.request-marketplace {
+  max-width: 900px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.request-marketplace__header {
+  margin-bottom: 1.5rem;
+}
+
+.request-marketplace__header h1 {
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  color: #0f172a;
+}
+
+.request-marketplace__header p {
+  margin-top: 0.55rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.request-marketplace__actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.request-marketplace__actions .btn {
+  min-height: 46px;
+  padding: 0.78rem 1.15rem;
+  border-radius: 10px;
+}
+
+.request-marketplace .btn-track {
+  background: #ffffff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.request-marketplace .btn-track:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.request-form-panel {
+  padding: 1.4rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.request-form-panel__header {
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.request-form-panel__header h2 {
+  font-size: 1.4rem;
+  color: #0f172a;
+}
+
+.request-form-panel__header p {
+  margin-top: 0.55rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.request-selected-nurse {
+  margin-bottom: 1rem;
+  border-color: #dbeafe;
+  background: #f8fbff;
+}
+
+.request-marketplace .form-grid {
+  gap: 1rem;
+}
+
+.request-marketplace .form-grid label,
+.request-marketplace .form-grid fieldset {
+  color: #1e293b;
+}
+
+.request-marketplace .form-grid input,
+.request-marketplace .form-grid textarea,
+.request-marketplace .form-grid select {
+  background: #ffffff;
+  border-color: #d1dbe8;
+}
+
+.request-marketplace .form-grid input:focus,
+.request-marketplace .form-grid textarea:focus,
+.request-marketplace .form-grid select:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.public-board-section {
+  margin-top: 1.5rem;
+  padding: 1.4rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.public-board-section__header {
+  margin-bottom: 1rem;
+}
+
+.public-board-section__header h2 {
+  font-size: 1.4rem;
+  color: #0f172a;
+}
+
+.public-board-section__header p {
+  margin-top: 0.55rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.public-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.public-board-card {
+  padding: 1rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.public-board-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.public-board-card__code {
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.public-board-card h3 {
+  margin-top: 0.9rem;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.public-board-card__details {
+  margin-top: 0.75rem;
+}
+
+.public-board-card__details p {
+  margin-top: 0.35rem;
+  color: #475569;
+}
+
+.public-board-card__actions form {
+  margin: 0;
+}
+
+.public-board-card__actions {
+  margin-top: 1rem;
+}
+
+.board-action-btn {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.board-action-btn--secondary {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.board-action-btn--secondary:hover {
+  background: #dbeafe;
+}
+
+.board-action-btn--success {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.board-action-btn--success:hover {
+  background: #15803d;
+}
+
+.board-action-btn--warning {
+  background: #f59e0b;
+  color: #111827;
+}
+
+.board-action-btn--warning:hover {
+  background: #d97706;
+  color: #111827;
+}
+
+.board-action-btn--info {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.board-action-btn--info:hover {
+  background: #1d4ed8;
+}
+
+.board-action-btn--muted {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.public-board-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.public-board-pill.approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.public-board-empty {
+  padding: 1.4rem;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px dashed #dbeafe;
+  background: #f8fbff;
+}
+
+.public-board-empty p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .request-form-panel,
+  .public-board-section {
+    padding: 1rem;
+  }
+
+  .request-marketplace__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .request-marketplace__actions .btn {
+    width: 100%;
+  }
+}
+
 .profile-menu-shell {
   position: relative;
   display: inline-flex;
