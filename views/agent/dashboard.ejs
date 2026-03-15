@@ -1,224 +1,106 @@
 <%- include("../partials/head", { title }) %>
-<link rel="stylesheet" href="/css/agent-dashboard.css">
+<link rel="stylesheet" href="/css/agent-dashboard-tabs.css">
 
-<div class="agent-dashboard" id="agentDashboard" data-agent-email="<%= currentUser && currentUser.email ? currentUser.email : '' %>">
-  <aside class="agent-sidebar">
-    <div class="agent-sidebar__brand">
+<section class="agent-hub container py-4">
+  <div class="agent-hub__header mb-4">
+    <div>
+      <p class="agent-hub__eyebrow">Operations Console</p>
       <h1>Agent Dashboard</h1>
-      <p>Operations Console</p>
+      <p class="agent-hub__intro">Manage care requests and your nurse roster from one unified dashboard.</p>
     </div>
-    <nav class="agent-sidebar__nav" aria-label="Agent sections">
-      <a href="#overview" class="is-active" data-nav-link>Overview</a>
-      <a href="/agent/profile">Profile</a>
-      <a href="#requests" data-nav-link>Requests</a>
-      <a href="#applications" data-nav-link>Applications</a>
-      <a href="#nurses" data-nav-link>Nurses</a>
-      <a href="#financials" data-nav-link>Financials</a>
-      <a href="#patients" data-nav-link>Patients</a>
-      <a href="#agents" data-nav-link>Agents</a>
-      <a href="#reports" data-nav-link>Reports</a>
-    </nav>
-    <div class="agent-sidebar__meta">
-      <p><strong>Logged in:</strong> <%= currentUser.email %></p>
-      <% if (agent && agent.status && agent.status !== "approved") { %>
-        <p class="pending-badge">Status: <%= agent.status %></p>
+    <% if (agent && agent.status && agent.status !== "approved") { %>
+      <span class="badge bg-secondary">Status: <%= agent.status %></span>
+    <% } %>
+  </div>
+
+  <ul class="nav nav-pills mb-4" aria-label="Agent dashboard tabs">
+    <li class="nav-item">
+      <a
+        class="nav-link <%= activeTab === 'jobs' ? 'active' : '' %>"
+        href="/agent/dashboard?tab=jobs"
+      >
+        My Jobs
+      </a>
+    </li>
+    <li class="nav-item">
+      <a
+        class="nav-link <%= activeTab === 'staff' ? 'active' : '' %>"
+        href="/agent/dashboard?tab=staff"
+      >
+        My Staff
+      </a>
+    </li>
+  </ul>
+
+  <% if (activeTab === "jobs") { %>
+    <div class="section-head d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2>Patient Requests</h2>
+        <p class="text-muted">Current care requests mapped to your account.</p>
+      </div>
+      <a href="/request-care" class="btn btn-primary">+ Add Job</a>
+    </div>
+
+    <div class="row g-3">
+      <% if (!jobs.length) { %>
+        <div class="col-12">
+          <div class="empty-state">No jobs added yet.</div>
+        </div>
+      <% } else { %>
+        <% jobs.forEach((job) => { %>
+          <div class="col-12 col-md-6">
+            <article class="card shadow-sm h-100">
+              <div class="card-body">
+                <div class="card-copy">
+                  <h3 class="card-title"><%= job.service_required %></h3>
+                  <p class="text-muted mb-1">ID: <%= job.request_code %></p>
+                  <p class="text-muted mb-2"><%= job.address %></p>
+                  <span class="badge bg-secondary"><%= job.status %></span>
+                </div>
+              </div>
+            </article>
+          </div>
+        <% }) %>
       <% } %>
     </div>
-  </aside>
+  <% } %>
 
-  <section class="agent-main">
-    <header class="agent-header">
+  <% if (activeTab === "staff") { %>
+    <div class="section-head d-flex justify-content-between align-items-center mb-3">
       <div>
-        <h2>Control Panel</h2>
-        <p>Build flow: UI -> Mock -> API -> Live Data.</p>
+        <h2>Your Nurses</h2>
+        <p class="text-muted">Nurses linked to your agent roster.</p>
       </div>
-      <div class="agent-header__actions">
-        <input type="search" id="requestSearch" placeholder="Search requests, city, care type" aria-label="Search requests">
-      </div>
-    </header>
+      <a href="/nurse/register?ref_agent=<%= user && user.id ? user.id : '' %>" class="btn btn-primary">+ Add Nurse</a>
+    </div>
 
-    <% if (agent && agent.status && agent.status !== "approved") { %>
-      <section class="agent-alert" aria-live="polite">
-        Profile approval is pending. Dashboard is visible; restricted actions may require approval.
-      </section>
-    <% } %>
-
-    <section id="overview" class="panel">
-      <div class="panel-heading">
-        <h3>Overview</h3>
-      </div>
-      <div class="stats-grid">
-        <article class="stat-card">
-          <span>Pending Requests</span>
-          <strong id="statPendingRequests">0</strong>
-        </article>
-        <article class="stat-card">
-          <span>Active Jobs</span>
-          <strong id="statActiveJobs">0</strong>
-        </article>
-        <article class="stat-card">
-          <span>Available Nurses</span>
-          <strong id="statAvailableNurses">0</strong>
-        </article>
-        <article class="stat-card">
-          <span>Revenue</span>
-          <strong id="statRevenue">INR 0</strong>
-        </article>
-      </div>
-      <div class="chart-card">
-        <div class="panel-heading panel-heading--compact">
-          <h4>Monthly Performance</h4>
-          <small>Revenue / Completed Jobs / Active Nurses</small>
+    <div class="row g-3">
+      <% if (!staff.length) { %>
+        <div class="col-12">
+          <div class="empty-state">No nurses added yet.</div>
         </div>
-        <div id="monthlyChart" class="mini-chart" aria-label="Monthly performance chart"></div>
-      </div>
-    </section>
+      <% } else { %>
+        <% staff.forEach((nurse) => { %>
+          <% const profileHref = nurse.profile_slug ? `/nurse/${nurse.profile_slug}` : `/agent/nurses/${nurse.id}`; %>
+          <div class="col-12 col-md-6">
+            <article class="card shadow-sm h-100">
+              <div class="card-body">
+                <div class="card-copy">
+                  <h3 class="card-title"><%= nurse.full_name %></h3>
+                  <p class="text-muted mb-1">ID: <%= nurse.unique_id || `N-${nurse.id}` %></p>
+                  <p class="text-muted mb-2"><%= nurse.city %></p>
+                </div>
+                <div class="card-actions">
+                  <span class="badge bg-secondary"><%= nurse.status %></span>
+                  <a href="<%= profileHref %>" class="btn btn-outline-primary btn-sm">View Profile</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
+  <% } %>
+</section>
 
-    <section id="requests" class="panel">
-      <div class="panel-heading">
-        <h3>Care Requests</h3>
-      </div>
-      <div class="filters-row">
-        <select id="cityFilter" aria-label="Filter by city">
-          <option value="all">All Cities</option>
-        </select>
-        <select id="careTypeFilter" aria-label="Filter by care type">
-          <option value="all">All Care Types</option>
-        </select>
-        <select id="statusFilter" aria-label="Filter by status">
-          <option value="all">All Status</option>
-        </select>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Patient</th>
-              <th>City</th>
-              <th>Care Type</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="requestsTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="applications" class="panel">
-      <div class="panel-heading">
-        <h3>Nurse Applications</h3>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Application</th>
-              <th>Request</th>
-              <th>Nurse</th>
-              <th>City</th>
-              <th>Care Type</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="applicationsTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="nurses" class="panel">
-      <div class="panel-heading">
-        <h3>My Nurses</h3>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>City</th>
-              <th>Experience</th>
-              <th>Availability</th>
-              <th>Status</th>
-              <th>Active Jobs</th>
-            </tr>
-          </thead>
-          <tbody id="nursesTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="financials" class="panel">
-      <div class="panel-heading">
-        <h3>Financial Summary</h3>
-      </div>
-      <div class="finance-grid">
-        <article class="finance-card">
-          <span>Gross Amount</span>
-          <strong id="grossAmount">INR 0</strong>
-        </article>
-        <article class="finance-card">
-          <span>Platform Fee</span>
-          <strong id="platformFee">INR 0</strong>
-        </article>
-        <article class="finance-card">
-          <span>Agent Margin</span>
-          <strong id="agentMargin">INR 0</strong>
-        </article>
-        <article class="finance-card">
-          <span>Nurse Payout</span>
-          <strong id="nursePayout">INR 0</strong>
-        </article>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Request</th>
-              <th>Patient</th>
-              <th>Nurse</th>
-              <th>Gross</th>
-              <th>Platform Fee</th>
-              <th>Net / Payout</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="financialTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="patients" class="panel panel-placeholder">
-      <div class="panel-heading">
-        <h3>Patients</h3>
-      </div>
-      <p>Planned for Phase 10 production scope.</p>
-    </section>
-
-    <section id="agents" class="panel panel-placeholder">
-      <div class="panel-heading">
-        <h3>Agents</h3>
-      </div>
-      <p>Planned for Phase 10 production scope.</p>
-    </section>
-
-    <section id="reports" class="panel panel-placeholder">
-      <div class="panel-heading">
-        <h3>Reports</h3>
-      </div>
-      <p>Planned for Phase 10 production scope.</p>
-    </section>
-
-    <section class="panel">
-      <div class="panel-heading">
-        <h3>Operational Feed</h3>
-      </div>
-      <ul id="actionFeed" class="feed-list"></ul>
-    </section>
-  </section>
-</div>
-
-<script src="/js/agent-dashboard.js"></script>
 <%- include("../partials/footer") %>

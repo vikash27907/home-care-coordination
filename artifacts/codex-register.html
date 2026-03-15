@@ -1,12 +1,71 @@
-<%- include("../partials/head", { title }) %>
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Register Nurse | Prisha Home Care
+    </title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <meta
+      name="description"
+      content="Prisha Home Care provides trusted home nursing and coordinated care services for patients and families."
+    />
+    <meta name="theme-color" content="#1E88E5" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css?v=1773582522581" />
+    
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap nav-wrap">
+        <nav class="navbar">
+          
+          <div class="nav-left">
+            <a class="brand" href="/">
+              <span class="brand-mark" aria-hidden="true">&#10084;</span>
+              <span>Prisha Home Care</span>
+            </a>
+          </div>
+          <div class="nav-links" id="navLinks">
+            <a href="/" class="">Home</a>
+            <a href="/nurses" class="">Find Nurses</a>
+            <a href="/request-care" class="">Request Care</a>
+          </div>
+          <div class="nav-right">
+            
+            <a href="/login" class="btn-login ">Login</a>
+            <button
+              type="button"
+              class="hamburger"
+              id="navToggle"
+              aria-label="Toggle navigation menu"
+              aria-controls="navLinks"
+              aria-expanded="false"
+            >
+              &#9776;
+            </button>
+            
+          </div>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap main-wrap">
+      
+
 
 <section class="form-section narrow">
-  <h1><%= title || "Nurse Signup Application" %></h1>
+  <h1>Register Nurse</h1>
   <p>Your profile will be created with <strong>Pending</strong> status until verification is complete.</p>
-  <form method="POST" action="<%= formAction || '/nurse-signup' %>" class="form-grid" id="nurseSignupForm">
-    <% if (refAgentId) { %>
-      <input type="hidden" name="ref_agent" value="<%= refAgentId %>" />
-    <% } %>
+  <form method="POST" action="/nurse/register" class="form-grid" id="nurseSignupForm">
+    
     <label>
       Full Name <span class="required-indicator" title="Required"></span>
       <input name="fullName" type="text" required />
@@ -120,4 +179,23 @@
   });
 </script>
 
-<%- include("../partials/footer") %>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-copy">
+        Prisha Home Care supports families with trusted home nursing, compassionate professionals, and clear
+        care coordination.
+      </div>
+    </footer>
+    <a
+      href="https://wa.me/919138913355?text=Hello%20I%20need%20help%20from%20Prisha%20Homecare"
+      class="whatsapp-float"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      💬 Help
+    </a>
+    
+    <script src="/app.js?v=1773582522582"></script>
+  </body>
+</html>
+

@@ -1971,8 +1971,87 @@ async function ensureAdmin() {
   }
 }
 
+function getRequestedReferralAgentId(req) {
+  const rawValue = req.body.ref_agent ?? req.query.ref_agent;
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function resolveAgentLinkContext(req) {
+  if (!req.currentUser || req.currentUser.role !== "agent") {
+    return {
+      agentUserId: null,
+      agentEmail: ""
+    };
+  }
+
+  const requestedReferralAgentId = getRequestedReferralAgentId(req);
+  if (requestedReferralAgentId && requestedReferralAgentId !== req.currentUser.id) {
+    const error = new Error("Invalid agent referral link.");
+    error.code = "INVALID_AGENT_REFERRAL";
+    throw error;
+  }
+
+  const agentRecord = await getAgentRecordForUser(req.currentUser.id);
+  if (!agentRecord || !isApprovedAgentStatus(agentRecord.status)) {
+    const error = new Error("Only approved agents can register nurses.");
+    error.code = "AGENT_NOT_APPROVED";
+    throw error;
+  }
+
+  return {
+    agentUserId: req.currentUser.id,
+    agentEmail: normalizeEmail(req.currentUser.email)
+  };
+}
+
+async function linkNurseToAgent(agentUserId, nurseId, agentEmail) {
+  if (!Number.isInteger(agentUserId) || agentUserId <= 0 || !Number.isInteger(nurseId) || nurseId <= 0) {
+    return;
+  }
+
+  await pool.query(
+    `INSERT INTO agent_nurse_roster (agent_id, nurse_id)
+     VALUES ($1, $2)
+     ON CONFLICT (agent_id, nurse_id) DO NOTHING`,
+    [agentUserId, nurseId]
+  );
+
+  const normalizedAgentEmail = normalizeEmail(agentEmail);
+  if (!normalizedAgentEmail) {
+    return;
+  }
+
+  await pool.query(
+    `UPDATE nurses
+     SET agent_email = CASE
+           WHEN NULLIF(BTRIM(COALESCE(agent_email, '')), '') IS NULL THEN $1
+           ELSE agent_email
+         END,
+         agent_emails = CASE
+           WHEN agent_emails IS NULL OR array_length(agent_emails, 1) IS NULL THEN ARRAY[$1]::TEXT[]
+           WHEN EXISTS (
+             SELECT 1
+             FROM unnest(agent_emails) AS assigned(agent_email)
+             WHERE LOWER(assigned.agent_email) = LOWER($1)
+           ) THEN agent_emails
+           ELSE array_append(agent_emails, $1::TEXT)
+         END
+     WHERE id = $2`,
+    [normalizedAgentEmail, nurseId]
+  );
+}
+
 async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpExpiry) {
-  const creatorAgentEmail = req.currentUser && req.currentUser.role === "agent" ? normalizeEmail(req.currentUser.email) : "";
+  let agentLinkContext;
+  try {
+    agentLinkContext = await resolveAgentLinkContext(req);
+  } catch (error) {
+    setFlash(req, "error", error.message || "Unable to validate the agent referral.");
+    return res.redirect(failRedirect);
+  }
+
+  const creatorAgentEmail = agentLinkContext.agentEmail;
   const fullName = String(req.body.fullName || "").trim();
   const emailInput = String(req.body.email || "").trim();
   const password = String(req.body.password || "");
@@ -2079,6 +2158,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     city,
     gender,
     currentStatus: currentStatus || "Available for Work",
+    claimedByNurse: false,
     status: "Pending",
     profileImagePath: defaultAvatar,
     createdAt: now()
@@ -2089,6 +2169,18 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     await deleteUser(createdUser.id);
     setFlash(req, "error", "Unable to create nurse profile. Please try again.");
     return res.redirect(failRedirect);
+  }
+
+  if (agentLinkContext.agentUserId) {
+    try {
+      await linkNurseToAgent(agentLinkContext.agentUserId, createdNurse.id, creatorAgentEmail);
+    } catch (error) {
+      console.error("Agent nurse roster link failed:", error);
+      await deleteNurse(createdNurse.id);
+      await deleteUser(createdUser.id);
+      setFlash(req, "error", "Unable to link this nurse to your staff roster right now.");
+      return res.redirect(failRedirect);
+    }
   }
 
   try {
@@ -2126,7 +2218,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
       ? "Nurse profile created successfully. Please verify email."
       : "Nurse profile created successfully.";
     setFlash(req, "success", successMessage);
-    return res.redirect("/agent");
+    return res.redirect("/agent/dashboard?tab=staff");
   }
 
   // Redirect to OTP verification page
@@ -2916,6 +3008,16 @@ app.post("/update-request", async (req, res) => {
   }
 });
 
+function renderNurseSignupView(req, res, options = {}) {
+  return res.render("public/nurse-signup", {
+    title: options.title || "Nurse Signup",
+    formAction: options.formAction || "/nurse-signup",
+    refAgentId: options.refAgentId || "",
+    skillsOptions: SKILLS_OPTIONS,
+    availabilityOptions: AVAILABILITY_OPTIONS
+  });
+}
+
 app.get("/nurse-signup", (req, res) => {
   if (req.currentUser) {
     if (req.currentUser.role === "agent") {
@@ -2923,11 +3025,7 @@ app.get("/nurse-signup", (req, res) => {
     }
     return res.redirect(redirectByRole(req.currentUser.role));
   }
-  return res.render("public/nurse-signup", {
-    title: "Nurse Signup",
-    skillsOptions: SKILLS_OPTIONS,
-    availabilityOptions: AVAILABILITY_OPTIONS
-  });
+  return renderNurseSignupView(req, res);
 });
 
 app.post("/nurse-signup", async (req, res) => {
@@ -2947,6 +3045,59 @@ app.post("/nurse-signup", async (req, res) => {
   req.body.otpExpiry = otpExpiry;
   
   return createNurseUnderAgent(req, res, "/nurse-signup", generatedOtp, otpExpiry);
+});
+
+app.get("/nurse/register", async (req, res) => {
+  if (req.currentUser && req.currentUser.role !== "agent") {
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+
+  if (req.currentUser && req.currentUser.role === "agent") {
+    const requestedReferralAgentId = getRequestedReferralAgentId(req);
+    if (requestedReferralAgentId && requestedReferralAgentId !== req.currentUser.id) {
+      setFlash(req, "error", "Invalid agent referral link.");
+      return res.redirect("/agent/dashboard?tab=staff");
+    }
+
+    const agentRecord = await getAgentRecordForUser(req.currentUser.id);
+    if (!agentRecord || !isApprovedAgentStatus(agentRecord.status)) {
+      return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
+    }
+
+    return renderNurseSignupView(req, res, {
+      title: "Register Nurse",
+      formAction: "/nurse/register",
+      refAgentId: String(req.currentUser.id)
+    });
+  }
+
+  return renderNurseSignupView(req, res, {
+    title: "Register Nurse",
+    formAction: "/nurse/register"
+  });
+});
+
+app.post("/nurse/register", async (req, res) => {
+  if (req.currentUser && req.currentUser.role && req.currentUser.role !== "agent") {
+    return res.redirect(redirectByRole(req.currentUser.role));
+  }
+
+  const requestedReferralAgentId = getRequestedReferralAgentId(req);
+  const failRedirect = requestedReferralAgentId
+    ? `/nurse/register?ref_agent=${encodeURIComponent(requestedReferralAgentId)}`
+    : "/nurse/register";
+
+  if (req.currentUser && req.currentUser.role === "agent") {
+    return createNurseUnderAgent(req, res, failRedirect);
+  }
+
+  const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+  const otpExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  req.body.generatedOtp = generatedOtp;
+  req.body.otpExpiry = otpExpiry;
+
+  return createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpExpiry);
 });
 
 app.get("/verify-otp", (req, res) => {
@@ -3002,13 +3153,22 @@ app.post("/verify-otp", async (req, res) => {
     otpExpiry: null
   });
 
+  if (user.role === "nurse") {
+    const verifiedNurse = await getNurseByUserId(user.id);
+    if (verifiedNurse && verifiedNurse.claimedByNurse !== true) {
+      await updateNurse(verifiedNurse.id, {
+        claimedByNurse: true
+      });
+    }
+  }
+
   // Set session
   req.session.userId = user.id;
   req.session.role = user.role;
   req.session.user = await getSessionUserPayload(user);
 
   setFlash(req, "success", "Email verified successfully! Welcome to your dashboard.");
-  return res.redirect("/nurse/profile");
+  return res.redirect(user.role === "nurse" ? "/nurse/dashboard" : redirectByRole(user.role));
 });
 
 app.get(["/agent-registration", "/agent/register"], (req, res) => {
@@ -3268,7 +3428,7 @@ app.post("/login", loginRateLimiter, async (req, res) => {
     return res.redirect("/login");
   }
 
-  if (!user.emailVerified) {
+  if (!user.emailVerified && user.role !== "nurse") {
     console.warn("[Login] Blocked: email not verified", { userId: user.id, role: user.role, email: user.email });
     setFlash(req, "error", "Please verify your email before logging in.");
     return res.redirect("/login");
@@ -3278,6 +3438,11 @@ app.post("/login", loginRateLimiter, async (req, res) => {
   req.session.role = user.role;
   req.session.user = await getSessionUserPayload(user);
   console.log("[Login] Success", { userId: user.id, role: user.role, email: user.email });
+
+  if (!user.emailVerified && user.role === "nurse") {
+    setFlash(req, "success", "Welcome back. Verify your email to take full control of this account.");
+    return res.redirect("/nurse/dashboard");
+  }
 
   setFlash(req, "success", `Welcome, ${user.fullName || user.email}.`);
   return res.redirect(redirectByRole(user.role));
@@ -6234,14 +6399,24 @@ function getAgentStoreSlice(agentEmail) {
   return { store, patients, nurses };
 }
 
-function getAgentNurseOwnershipSql(alias, emailParamRef) {
+function getAgentNurseOwnershipSql(alias, emailParamRef, userIdParamRef) {
+  const rosterSql = userIdParamRef
+    ? `
+    OR EXISTS (
+      SELECT 1
+      FROM agent_nurse_roster anr
+      WHERE anr.nurse_id = ${alias}.id
+        AND anr.agent_id = ${userIdParamRef}
+    )`
+    : "";
+
   return `(
     LOWER(COALESCE(${alias}.agent_email, '')) = LOWER(${emailParamRef})
     OR EXISTS (
       SELECT 1
       FROM unnest(COALESCE(${alias}.agent_emails, ARRAY[]::text[])) AS ae(agent_email)
       WHERE LOWER(agent_email) = LOWER(${emailParamRef})
-    )
+    )${rosterSql}
   )`;
 }
 
@@ -6249,15 +6424,74 @@ app.get("/agent", requireRole("agent"), (req, res) => {
   return res.redirect("/agent/dashboard");
 });
 
-app.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, (req, res) => {
-  return res.render("agent/dashboard", {
-    title: "Agent Dashboard",
-    agent: req.agentRecord
-  });
+app.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+  const agentUserId = req.currentUser.id;
+  const requestedTab = String(req.query.tab || "jobs").trim().toLowerCase();
+  const activeTab = requestedTab === "staff" ? "staff" : "jobs";
+
+  try {
+    let jobs = [];
+    let staff = [];
+
+    if (activeTab === "jobs") {
+      const jobsResult = await pool.query(
+        `SELECT
+            cr.id,
+            COALESCE(NULLIF(cr.care_type, ''), NULLIF(p.notes, ''), 'General care support') AS service_required,
+            COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+            COALESCE(NULLIF(p.city, ''), '-') AS address,
+            COALESCE(cr.status, 'open') AS status,
+            cr.created_at
+         FROM care_requests cr
+         LEFT JOIN patients p ON p.id = cr.patient_id
+         WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+         ORDER BY cr.created_at DESC`,
+        [agentEmail]
+      );
+
+      jobs = jobsResult.rows;
+    }
+
+    if (activeTab === "staff") {
+      const staffResult = await pool.query(
+        `SELECT
+            n.id,
+            n.full_name,
+            n.unique_id,
+            COALESCE(NULLIF(n.city, ''), '-') AS city,
+            n.profile_slug,
+            COALESCE(NULLIF(n.status, ''), 'Pending') AS status,
+            anr.added_at
+         FROM agent_nurse_roster anr
+         JOIN nurses n ON n.id = anr.nurse_id
+         JOIN users u ON u.id = n.user_id
+         WHERE anr.agent_id = $1
+           AND COALESCE(u.is_deleted, FALSE) = FALSE
+         ORDER BY anr.added_at DESC, n.created_at DESC`,
+        [agentUserId]
+      );
+
+      staff = staffResult.rows;
+    }
+
+    return res.render("agent/dashboard", {
+      title: "Agent Dashboard",
+      agent: req.agentRecord,
+      user: req.currentUser,
+      jobs,
+      staff,
+      activeTab
+    });
+  } catch (error) {
+    console.error("Agent dashboard error:", error);
+    return res.status(500).send("Server error");
+  }
 });
 
 app.get("/agent/dashboard/stats", requireRole("agent"), loadAgentProfile, async (req, res) => {
   const agentEmail = normalizeEmail(req.currentUser.email);
+  const agentUserId = req.currentUser.id;
 
   try {
     const [requestsResult, nursesResult, revenueResult] = await Promise.all([
@@ -6277,8 +6511,8 @@ app.get("/agent/dashboard/stats", requireRole("agent"), loadAgentProfile, async 
          WHERE COALESCE(u.is_deleted, FALSE) = FALSE
            AND LOWER(COALESCE(n.status, 'pending')) = 'approved'
            AND COALESCE(n.is_available, TRUE) = TRUE
-           AND ${getAgentNurseOwnershipSql("n", "$1")}`,
-        [agentEmail]
+           AND ${getAgentNurseOwnershipSql("n", "$1", "$2")}`,
+        [agentEmail, agentUserId]
       ),
       pool.query(
         `SELECT
@@ -6391,6 +6625,7 @@ app.get("/agent/applications", requireRole("agent"), loadAgentProfile, async (re
 
 app.get("/agent/nurses", requireRole("agent"), loadAgentProfile, async (req, res) => {
   const agentEmail = normalizeEmail(req.currentUser.email);
+  const agentUserId = req.currentUser.id;
 
   try {
     const result = await pool.query(
@@ -6415,10 +6650,10 @@ app.get("/agent/nurses", requireRole("agent"), loadAgentProfile, async (req, res
          GROUP BY cr.assigned_nurse_id
        ) active_jobs ON active_jobs.assigned_nurse_id = n.id
        WHERE COALESCE(u.is_deleted, FALSE) = FALSE
-         AND ${getAgentNurseOwnershipSql("n", "$1")}
+         AND ${getAgentNurseOwnershipSql("n", "$1", "$2")}
        ORDER BY n.created_at DESC
        LIMIT 100`,
-      [agentEmail]
+      [agentEmail, agentUserId]
     );
 
     return res.json(result.rows);
@@ -6561,6 +6796,7 @@ app.post("/agent/requests/:id/actions", requireRole("agent"), requireApprovedAge
   const requestId = Number.parseInt(req.params.id, 10);
   const action = String(req.body.action || "").trim().toLowerCase();
   const agentEmail = normalizeEmail(req.currentUser.email);
+  const agentUserId = req.currentUser.id;
 
   if (Number.isNaN(requestId) || requestId <= 0) {
     return res.status(400).json({ error: "Invalid request ID." });
@@ -6616,9 +6852,9 @@ app.post("/agent/requests/:id/actions", requireRole("agent"), requireApprovedAge
          JOIN users u ON u.id = n.user_id
          WHERE n.id = $2
            AND COALESCE(u.is_deleted, FALSE) = FALSE
-           AND ${getAgentNurseOwnershipSql("n", "$1")}
+           AND ${getAgentNurseOwnershipSql("n", "$1", "$3")}
          LIMIT 1`,
-        [agentEmail, nurseId]
+        [agentEmail, nurseId, agentUserId]
       );
       const nurse = nurseResult.rows[0];
       if (!nurse) {
@@ -7082,7 +7318,7 @@ app.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, async (req
 app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
   try {
     const nurseResult = await pool.query(
-      "SELECT id FROM nurses WHERE user_id = $1",
+      "SELECT id, COALESCE(claimed_by_nurse, FALSE) AS claimed_by_nurse FROM nurses WHERE user_id = $1",
       [req.session.user.id]
     );
 
@@ -7091,6 +7327,7 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
     }
 
     const nurseId = nurseResult.rows[0].id;
+    const showOwnershipBanner = nurseResult.rows[0].claimed_by_nurse !== true;
     const statsResult = await pool.query(
       `SELECT
           (SELECT COUNT(*)
@@ -7115,11 +7352,58 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
     return res.render("nurse/dashboard", {
       title: "Nurse Dashboard",
       user: req.session.user,
-      stats: statsResult.rows[0]
+      stats: statsResult.rows[0],
+      showOwnershipBanner
     });
   } catch (error) {
     console.error("Nurse dashboard stats error:", error);
     return res.status(500).send("Server Error");
+  }
+});
+
+app.get("/verify-email", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
+  try {
+    const nurse = await getNurseByUserId(req.currentUser.id);
+    if (!nurse) {
+      setFlash(req, "error", "Nurse profile not found.");
+      return res.redirect("/nurse/dashboard");
+    }
+
+    if (nurse.claimedByNurse === true) {
+      setFlash(req, "success", "Your account is already verified and claimed.");
+      return res.redirect("/nurse/dashboard");
+    }
+
+    if (!req.currentUser.emailVerified) {
+      const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+      const otpExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await updateUser(req.currentUser.id, {
+        otpCode: generatedOtp,
+        otpExpiry: otpExpiry.toISOString()
+      });
+
+      try {
+        await sendVerificationOtpEmail(req.currentUser.email, nurse.fullName || req.currentUser.fullName || "Nurse", generatedOtp);
+      } catch (error) {
+        console.error(`Ownership verification OTP email failed for ${req.currentUser.email}:`, error);
+      }
+
+      setFlash(req, "success", "Verification OTP sent to your email.");
+      return res.redirect(`/verify-otp?email=${encodeURIComponent(req.currentUser.email)}`);
+    }
+
+    await updateNurse(nurse.id, {
+      claimedByNurse: true
+    });
+
+    req.session.user = await getSessionUserPayload(req.currentUser);
+    setFlash(req, "success", "You now have full control of your account.");
+    return res.redirect("/nurse/dashboard");
+  } catch (error) {
+    console.error("Nurse ownership verification error:", error);
+    setFlash(req, "error", "Unable to complete verification right now.");
+    return res.redirect("/nurse/dashboard");
   }
 });
 

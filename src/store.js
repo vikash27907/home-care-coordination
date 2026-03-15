@@ -187,13 +187,13 @@ async function persistStoreToDb(store) {
           id, user_id, full_name, city, gender, status, profile_image_path,
           aadhar_number, experience_years, experience_months, current_status,
           work_locations, current_address, skills, qualifications, resume_url,
-          unique_id, profile_slug, public_profile_enabled, created_at
+          unique_id, profile_slug, public_profile_enabled, claimed_by_nurse, created_at
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11,
           $12, $13, $14, $15, $16,
-          $17, $18, $19, $20
+          $17, $18, $19, $20, $21
         )
       `, [
         nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
@@ -218,6 +218,7 @@ async function persistStoreToDb(store) {
         nurse.uniqueId || '',
         nurse.profileSlug || '',
         nurse.publicProfileEnabled !== false,
+        nurse.claimedByNurse === true,
         nurse.createdAt
       ]);
     }
@@ -242,17 +243,33 @@ async function persistStoreToDb(store) {
           commission_value, commission_amount, nurse_net_amount, referrer_nurse_id, referral_commission_percent, referral_commission_amount,
           preferred_nurse_id, preferred_nurse_name, transfer_margin_type, transfer_margin_value, transfer_margin_amount,
           last_transferred_at, last_transferred_by, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
       `, [
         patient.id, patient.userId, patient.requestId, patient.fullName, patient.email, patient.phoneNumber, patient.city,
         patient.serviceSchedule || '', patient.duration || '', patient.durationUnit || '', patient.durationValue,
-        patient.budgetType || '', patient.budget || 0, patient.notes || '', patient.status,
-        patient.agentEmail || '', patient.nurseId, patient.nurseAmount, patient.commissionType || 'Percent',
-        patient.commissionValue || 0, patient.commissionAmount || 0, patient.nurseNetAmount,
-        patient.referrerNurseId, patient.referralCommissionPercent || 0, patient.referralCommissionAmount || 0,
-        patient.preferredNurseId, patient.preferredNurseName || '', patient.transferMarginType || 'Percent',
-        patient.transferMarginValue || 0, patient.transferMarginAmount || 0,
-        patient.lastTransferredAt || null, patient.lastTransferredBy || '', patient.createdAt
+        patient.budgetType || '',
+        patient.budgetMin ?? patient.budget ?? 0,
+        patient.budgetMax ?? patient.budget ?? 0,
+        patient.notes || '',
+        patient.status,
+        patient.agentEmail || '',
+        patient.nurseId,
+        patient.nurseAmount,
+        patient.commissionType || 'Percent',
+        patient.commissionValue || 0,
+        patient.commissionAmount || 0,
+        patient.nurseNetAmount,
+        patient.referrerNurseId,
+        patient.referralCommissionPercent || 0,
+        patient.referralCommissionAmount || 0,
+        patient.preferredNurseId,
+        patient.preferredNurseName || '',
+        patient.transferMarginType || 'Percent',
+        patient.transferMarginValue || 0,
+        patient.transferMarginAmount || 0,
+        patient.lastTransferredAt || null,
+        patient.lastTransferredBy || '',
+        patient.createdAt
       ]);
     }
 
@@ -364,6 +381,7 @@ function transformNurseFromDB(row) {
     uniqueId: row.unique_id || '',
     profileSlug: row.profile_slug || '',
     publicProfileEnabled: row.public_profile_enabled !== false,
+    claimedByNurse: row.claimed_by_nurse === true,
     isPublic: resolveNursePublicVisibility(row),
     userIsDeleted: row.user_is_deleted === true,
     userDeletedAt: row.user_deleted_at ? new Date(row.user_deleted_at).toISOString() : "",
@@ -734,27 +752,29 @@ async function createNurse(nurse) {
       ? await pool.query(`
           INSERT INTO nurses (
             id, user_id, full_name, city, gender, status, profile_image_path,
-            current_status, unique_id, profile_slug, public_profile_enabled, created_at
+            current_status, unique_id, profile_slug, public_profile_enabled, claimed_by_nurse, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           RETURNING *
         `, [
           nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
           nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
           nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
+          nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
         ])
       : await pool.query(`
           INSERT INTO nurses (
             user_id, full_name, city, gender, status, profile_image_path,
-            current_status, unique_id, profile_slug, public_profile_enabled, created_at
+            current_status, unique_id, profile_slug, public_profile_enabled, claimed_by_nurse, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING *
         `, [
           nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
           nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
           nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
+          nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
         ]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -792,6 +812,7 @@ async function updateNurse(id, updates) {
         uniqueId: 'unique_id',
         profileSlug: 'profile_slug',
         publicProfileEnabled: 'public_profile_enabled',
+        claimedByNurse: 'claimed_by_nurse',
         isPublic: 'public_profile_enabled',
         referralCode: 'referral_code',
         profileStatus: 'profile_status',

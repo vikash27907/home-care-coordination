@@ -103,7 +103,23 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS current_status VARCHAR(50),
       ADD COLUMN IF NOT EXISTS unique_id VARCHAR(20),
       ADD COLUMN IF NOT EXISTS profile_slug TEXT,
-      ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT true
+      ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT true,
+      ADD COLUMN IF NOT EXISTS claimed_by_nurse BOOLEAN DEFAULT FALSE
+    `);
+
+    await pool.query(`
+      UPDATE nurses n
+      SET claimed_by_nurse = TRUE
+      FROM users u
+      WHERE u.id = n.user_id
+        AND COALESCE(u.email_verified, FALSE) = TRUE
+        AND COALESCE(n.claimed_by_nurse, FALSE) = FALSE
+        AND NULLIF(BTRIM(COALESCE(n.agent_email, '')), '') IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM unnest(COALESCE(n.agent_emails, ARRAY[]::TEXT[])) AS assigned(agent_email)
+          WHERE NULLIF(BTRIM(COALESCE(assigned.agent_email, '')), '') IS NOT NULL
+        )
     `);
 
     await pool.query(`
@@ -194,6 +210,90 @@ async function initializeDatabase() {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS agent_nurse_roster (
+        id SERIAL PRIMARY KEY,
+        agent_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        nurse_id INTEGER REFERENCES nurses(id) ON DELETE CASCADE,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(agent_id, nurse_id)
+      )
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'agent_nurse_roster_agent_id_fkey'
+            AND conrelid = 'agent_nurse_roster'::regclass
+        ) THEN
+          ALTER TABLE agent_nurse_roster DROP CONSTRAINT agent_nurse_roster_agent_id_fkey;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'agent_nurse_roster_nurse_id_fkey'
+            AND conrelid = 'agent_nurse_roster'::regclass
+        ) THEN
+          ALTER TABLE agent_nurse_roster DROP CONSTRAINT agent_nurse_roster_nurse_id_fkey;
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      ALTER TABLE agent_nurse_roster
+      ADD CONSTRAINT agent_nurse_roster_agent_id_fkey
+      FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE CASCADE
+    `);
+
+    await pool.query(`
+      ALTER TABLE agent_nurse_roster
+      ADD CONSTRAINT agent_nurse_roster_nurse_id_fkey
+      FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE CASCADE
+    `);
+
+    await pool.query(`
+      INSERT INTO agent_nurse_roster (agent_id, nurse_id)
+      SELECT DISTINCT
+        u.id AS agent_id,
+        n.id AS nurse_id
+      FROM nurses n
+      JOIN users u
+        ON u.role = 'agent'
+       AND COALESCE(u.is_deleted, FALSE) = FALSE
+       AND LOWER(u.email) = LOWER(COALESCE(n.agent_email, ''))
+      WHERE NULLIF(BTRIM(COALESCE(n.agent_email, '')), '') IS NOT NULL
+      ON CONFLICT (agent_id, nurse_id) DO NOTHING
+    `);
+
+    await pool.query(`
+      INSERT INTO agent_nurse_roster (agent_id, nurse_id)
+      SELECT DISTINCT
+        u.id AS agent_id,
+        n.id AS nurse_id
+      FROM nurses n
+      CROSS JOIN LATERAL unnest(COALESCE(n.agent_emails, ARRAY[]::TEXT[])) AS assigned(agent_email)
+      JOIN users u
+        ON u.role = 'agent'
+       AND COALESCE(u.is_deleted, FALSE) = FALSE
+       AND LOWER(u.email) = LOWER(assigned.agent_email)
+      WHERE NULLIF(BTRIM(COALESCE(assigned.agent_email, '')), '') IS NOT NULL
+      ON CONFLICT (agent_id, nurse_id) DO NOTHING
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_agent_nurse_roster_agent
+      ON agent_nurse_roster (agent_id, added_at DESC)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_agent_nurse_roster_nurse
+      ON agent_nurse_roster (nurse_id, added_at DESC)
+    `);
+
+    await pool.query(`
       ALTER TABLE agents
       ALTER COLUMN status SET DEFAULT 'pending'
     `);
@@ -256,6 +356,9 @@ async function initializeDatabase() {
         duration VARCHAR(50),
         duration_unit VARCHAR(20),
         duration_value INTEGER,
+        budget_type VARCHAR(20),
+        budget_min NUMERIC DEFAULT 0,
+        budget_max NUMERIC DEFAULT 0,
         budget NUMERIC NOT NULL DEFAULT 0,
         notes TEXT,
         status VARCHAR(20) DEFAULT 'New',
@@ -278,6 +381,21 @@ async function initializeDatabase() {
         last_transferred_by VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await pool.query(`
+      ALTER TABLE patients
+      ADD COLUMN IF NOT EXISTS budget_type VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS budget_min NUMERIC DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS budget_max NUMERIC DEFAULT 0
+    `);
+
+    await pool.query(`
+      UPDATE patients
+      SET budget_min = COALESCE(budget_min, budget, 0),
+          budget_max = COALESCE(budget_max, budget, 0)
+      WHERE budget_min IS NULL
+         OR budget_max IS NULL
     `);
 
     // Create care requests table for marketplace demand

@@ -1,5 +1,6 @@
 <%- include("../partials/head", { title }) %>
 <link rel="stylesheet" href="/css/agent-profile.css">
+<% const agentReferralUserId = (currentUser && currentUser.id) || (session && session.user && session.user.id) || ""; %>
 
 <div class="agent-profile">
   <div class="cover">
@@ -41,6 +42,15 @@
     <div class="stat">
       <h3><%= stats && stats.rating ? stats.rating : '4.8' %></h3>
       <p>Rating</p>
+    </div>
+  </div>
+
+  <div class="profile-section quick-actions">
+    <h2>Quick Actions</h2>
+    <div class="quick-actions__grid">
+      <a href="/nurse/register?ref_agent=<%= agentReferralUserId %>" class="btn-primary">+ Add Nurse</a>
+      <a href="/request-care" class="btn-success">+ Add Job</a>
+      <a href="/agent/dashboard?tab=staff" class="btn-outline-primary">View Staff</a>
     </div>
   </div>
 

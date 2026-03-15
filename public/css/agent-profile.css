@@ -69,6 +69,26 @@
   cursor: pointer;
 }
 
+.btn-success,
+.btn-outline-primary {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 8px 16px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn-success {
+  background: #256f57;
+  color: #fff;
+}
+
+.btn-outline-primary {
+  border: 1px solid #2e7d5b;
+  color: #2e7d5b;
+  background: transparent;
+}
+
 .stats {
   display: flex;
   justify-content: space-around;
@@ -100,6 +120,13 @@
 
 .profile-section h2 {
   margin-top: 0;
+}
+
+.quick-actions__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
 .nurse-grid {
@@ -170,5 +197,14 @@
 
   .nurse-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quick-actions__grid {
+    flex-direction: column;
+  }
+
+  .quick-actions__grid a {
+    width: 100%;
+    text-align: center;
   }
 }

@@ -51,9 +51,28 @@ function createAgentController(dependencies) {
     }, {});
     const transferTargets = getApprovedAgents(store).filter((agent) => normalizeEmail(agent.email) !== agentEmail);
     const createdAgents = store.agents.filter((agent) => normalizeEmail(agent.createdByAgentEmail) === agentEmail && !isStoreUserDeleted(store, agent.userId));
+    const jobs = patients.map((patient) => ({
+      id: patient.id,
+      service_required: patient.careRequirement || patient.notes || "General care support",
+      request_code: patient.requestId || `CR-${patient.id}`,
+      address: patient.city || "-",
+      status: patient.status || "New"
+    }));
+    const staff = nurses.map((nurse) => ({
+      id: nurse.id,
+      full_name: nurse.fullName || "Nurse",
+      unique_id: nurse.uniqueId || "",
+      city: nurse.city || "-",
+      profile_slug: nurse.profileSlug || "",
+      status: nurse.status || "Pending"
+    }));
 
     return res.render("agent/dashboard", {
       title: "Agent Dashboard",
+      activeTab: "jobs",
+      user: req.currentUser,
+      jobs,
+      staff,
       patients,
       nurses,
       approvedNurses,

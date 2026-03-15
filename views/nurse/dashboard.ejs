@@ -5,6 +5,16 @@
   <p>Personal application and assignment intelligence.</p>
 </section>
 
+<% if (showOwnershipBanner) { %>
+  <section class="ownership-banner" aria-live="polite">
+    <div>
+      <strong>This account was created by an agent.</strong>
+      <p>Verify your email to take full control of your profile.</p>
+    </div>
+    <a href="/verify-email" class="btn primary small">Verify Email</a>
+  </section>
+<% } %>
+
 <div class="dashboard-grid">
   <a href="/nurse/care-requests#pending" class="dash-card blue">
     <h3><%= stats.pending_apps %></h3>
@@ -35,6 +45,23 @@
   padding: 30px 0;
 }
 
+.ownership-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-top: 18px;
+  border: 1px solid #b7d9f7;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eef7ff, #f7fbff);
+  color: #12344d;
+}
+
+.ownership-banner p {
+  margin: 6px 0 0;
+}
+
 .dash-card {
   padding: 25px;
   border-radius: 16px;
@@ -59,6 +86,17 @@
 .green { background: linear-gradient(90deg, #198754, #20c997); }
 .purple { background: linear-gradient(90deg, #6f42c1, #9b5de5); }
 .teal { background: linear-gradient(90deg, #0f766e, #14b8a6); }
+
+@media (max-width: 700px) {
+  .ownership-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ownership-banner .btn {
+    width: 100%;
+  }
+}
 </style>
 
 <%- include("../partials/footer") %>
