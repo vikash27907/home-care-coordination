@@ -106,7 +106,8 @@
             nurse,
             href: nurse.publicUrl,
             showRequestButton: false,
-            showStatus: true
+            showStatus: true,
+            showDeleteButton: !!(agent && String(agent.status || "").toLowerCase() === "approved")
           }) %>
         <% }) %>
       <% } %>

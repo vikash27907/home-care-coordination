@@ -1,6 +1,7 @@
 const { pool } = require('./db');
 const { generateNurseId, generateAgentId } = require('./utils/idGenerator');
 const generateSlug = require('./utils/slug');
+const { normalizePhone } = require('../utils/phone');
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
@@ -396,7 +397,7 @@ async function getUserByEmail(email, options = {}) {
 async function getUserByPhone(phoneNumber, options = {}) {
   try {
     const includeDeleted = options && options.includeDeleted === true;
-    const normalizedPhone = String(phoneNumber || "").replace(/\D/g, "");
+    const normalizedPhone = normalizePhone(phoneNumber);
     if (!normalizedPhone) {
       return null;
     }
@@ -454,6 +455,26 @@ async function getUserByUniqueId(uniqueId, options = {}) {
 
 async function createUser(user) {
   try {
+    let normalizedPhone = null;
+    if (user.phoneNumber) {
+      normalizedPhone = normalizePhone(user.phoneNumber);
+      if (!normalizedPhone) {
+        throw new Error("Phone number is required");
+      }
+
+      const existingPhoneResult = await pool.query(
+        `SELECT id
+         FROM users
+         WHERE phone_number = $1
+         LIMIT 1`,
+        [normalizedPhone]
+      );
+
+      if (existingPhoneResult.rowCount > 0) {
+        throw new Error("Phone number already registered");
+      }
+    }
+
     const result = await pool.query(`
       INSERT INTO users (
         email, phone_number, password_hash, role, status, email_verified,
@@ -462,7 +483,7 @@ async function createUser(user) {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
-      user.email || null, user.phoneNumber || null, user.passwordHash, user.role || 'user',
+      user.email || null, normalizedPhone, user.passwordHash, user.role || 'user',
       user.status || 'Pending', user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
       user.createdAt || new Date().toISOString(),
       user.isDeleted === true,

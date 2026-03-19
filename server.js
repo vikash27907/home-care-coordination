@@ -35,6 +35,7 @@ const { initializeDatabase } = require("./src/schema");
 const { pool } = require("./src/db");
 const { cloudinary } = require("./src/cloudinary");
 const generateQR = require("./src/utils/qr");
+const { normalizePhone: normalizePhoneValue } = require("./utils/phone");
 const fs = require("fs");
 
 // ============================================================
@@ -360,7 +361,7 @@ function validateIndiaPhone(phone) {
   if (!phone || typeof phone !== "string") {
     return { valid: false, error: "Please enter a valid 10-digit Indian mobile number." };
   }
-  const cleaned = phone.replace(/\D/g, "");
+  const cleaned = normalizePhoneValue(phone);
   if (!INDIA_PHONE_REGEX.test(cleaned)) {
     return { valid: false, error: "Please enter a valid 10-digit Indian mobile number." };
   }
@@ -834,7 +835,7 @@ function normalizeEmail(value) {
 }
 
 function normalizePhone(value) {
-  return String(value || "").replace(/\D/g, "");
+  return normalizePhoneValue(value);
 }
 
 function normalizeUniqueLoginId(value) {
@@ -1302,6 +1303,8 @@ function buildPublicNurse(nurse) {
 }
 
 function buildAgentDashboardNurse(row) {
+  const status = String(row.status || "Pending").trim() || "Pending";
+  const emailVerified = row.email_verified === true;
   const nurse = {
     id: row.id,
     fullName: row.full_name || "Nurse",
@@ -1322,7 +1325,10 @@ function buildAgentDashboardNurse(row) {
 
   return {
     ...buildPublicNurse(nurse),
-    status: row.status || "Pending"
+    status,
+    emailVerified,
+    email_verified: emailVerified,
+    canDelete: !emailVerified && status.toLowerCase() !== "approved"
   };
 }
 
@@ -1714,8 +1720,11 @@ async function getSessionUserPayload(user) {
     role: user.role,
     fullName: user.fullName || "",
     full_name: user.fullName || "",
+    email: user.email || "",
     phoneNumber: user.phoneNumber || "",
     phone_number: user.phoneNumber || "",
+    emailVerified: user.emailVerified === true,
+    email_verified: user.emailVerified === true,
     profileImageUrl,
     profile_image_url: profileImageUrl
   };
@@ -1745,7 +1754,9 @@ function loadCurrentUser(req, res, next) {
         email: user.email,
         role: user.role,
         status: user.status,
-        phoneNumber: user.phoneNumber || ""
+        phoneNumber: user.phoneNumber || "",
+        emailVerified: user.emailVerified === true,
+        email_verified: user.emailVerified === true
       };
       req.session.user = await getSessionUserPayload(user);
       return next();
@@ -2092,6 +2103,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   const fullName = String(req.body.fullName || "").trim();
   const emailInput = String(req.body.email || "").trim();
   const password = String(req.body.password || "");
+  const confirmPassword = String(req.body.confirm_password || "");
   const phoneNumber = String(req.body.phoneNumber || "").trim();
   const city = String(req.body.city || "").trim();
   const gender = String(req.body.gender || "").trim();
@@ -2110,6 +2122,14 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   // Validate required fields
   if (!fullName || !phoneNumber || !city || !gender || !password) {
     setFlash(req, "error", "Please complete all required nurse details.");
+    return res.redirect(failRedirect);
+  }
+  if (password.length < 6) {
+    setFlash(req, "error", "Password must be at least 6 characters.");
+    return res.redirect(failRedirect);
+  }
+  if (confirmPassword && password !== confirmPassword) {
+    setFlash(req, "error", "Passwords do not match.");
     return res.redirect(failRedirect);
   }
 
@@ -2324,21 +2344,8 @@ async function createAgentUnderAgent(req, res, failRedirect) {
       return res.redirect(failRedirect);
     }
 
-    // Check if phone already exists
-    const users = await getUsers();
-    const nurses = await getNurses();
-    const agents = await getAgents();
-
-    const hasRegisteredPhone = (phone) => {
-      const normalized = normalizePhone(phone);
-      if (!normalized) return false;
-      if (users.some((u) => normalizePhone(u.phoneNumber) === normalized)) return true;
-      if (agents.some((a) => normalizePhone(a.phoneNumber) === normalized)) return true;
-      if (nurses.some((n) => normalizePhone(n.phoneNumber) === normalized)) return true;
-      return false;
-    };
-
-    if (hasRegisteredPhone(phoneNumber)) {
+    const existingUserByPhone = await getUserByPhone(phoneValidation.value);
+    if (existingUserByPhone) {
       setFlash(req, "error", "This phone number already has a registered account.");
       return res.redirect(failRedirect);
     }
@@ -2353,7 +2360,7 @@ async function createAgentUnderAgent(req, res, failRedirect) {
     const user = {
       fullName,
       email,
-      phoneNumber,
+      phoneNumber: phoneValidation.value,
       passwordHash: bcrypt.hashSync(password, 10),
       role: "agent",
       status: "pending",
@@ -2380,7 +2387,7 @@ async function createAgentUnderAgent(req, res, failRedirect) {
       userId: createdUser.id,
       fullName,
       email,
-      phoneNumber,
+      phoneNumber: phoneValidation.value,
       companyName,
       workingRegion,
       status: "pending",
@@ -2458,17 +2465,8 @@ async function stagePublicAgentRegistration(req, res, failRedirect) {
       return res.redirect(failRedirect);
     }
 
-    const [users, nurses, agents] = await Promise.all([
-      getUsers(),
-      getNurses(),
-      getAgents()
-    ]);
-    const normalizedPhone = normalizePhone(phoneValidation.value);
-    const hasRegisteredPhone = users.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone)
-      || nurses.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone)
-      || agents.some((item) => normalizePhone(item.phoneNumber) === normalizedPhone);
-
-    if (hasRegisteredPhone) {
+    const existingUserByPhone = await getUserByPhone(phoneValidation.value);
+    if (existingUserByPhone) {
       setFlash(req, "error", "This phone number already has a registered account.");
       return res.redirect(failRedirect);
     }
@@ -6547,6 +6545,7 @@ app.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (req, 
             COALESCE(n.public_bio, '') AS public_bio,
             n.profile_slug,
             COALESCE(NULLIF(n.status, ''), 'Pending') AS status,
+            COALESCE(u.email_verified, FALSE) AS email_verified,
             COALESCE(n.is_available, TRUE) AS is_available,
             COALESCE(n.public_show_city, TRUE) AS public_show_city,
             COALESCE(n.public_show_experience, TRUE) AS public_show_experience,
@@ -6574,6 +6573,186 @@ app.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (req, 
   } catch (error) {
     console.error("Agent dashboard error:", error);
     return res.status(500).send("Server error");
+  }
+});
+
+app.post("/agent/nurse/delete", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const redirectTarget = "/agent/dashboard?tab=staff";
+  const nurseId = Number.parseInt(req.body.nurseId, 10);
+  const agentEmail = normalizeEmail(req.currentUser.email);
+  const agentUserId = req.currentUser.id;
+
+  if (Number.isNaN(nurseId) || nurseId <= 0) {
+    setFlash(req, "error", "Invalid nurse.");
+    return res.redirect(redirectTarget);
+  }
+
+  let client;
+  let assetUrls = [];
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const nurseResult = await client.query(
+      `SELECT
+          n.id,
+          n.user_id,
+          n.status,
+          n.profile_image_url,
+          n.profile_image_path,
+          n.resume_url,
+          n.aadhar_image_url,
+          n.certificate_url,
+          n.qualifications
+       FROM nurses n
+       WHERE n.id = $3
+         AND ${getAgentNurseOwnershipSql("n", "$1", "$2")}
+       LIMIT 1`,
+      [agentEmail, agentUserId, nurseId]
+    );
+    const nurse = nurseResult.rows[0];
+
+    if (!nurse) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "You can only delete nurses in your own roster.");
+      return res.redirect(redirectTarget);
+    }
+
+    let emailVerified = false;
+    let userRole = "";
+    if (Number.isInteger(nurse.user_id)) {
+      const userResult = await client.query(
+        `SELECT email_verified, role
+         FROM users
+         WHERE id = $1
+         LIMIT 1`,
+        [nurse.user_id]
+      );
+      const linkedUser = userResult.rows[0];
+      emailVerified = linkedUser ? linkedUser.email_verified === true : false;
+      userRole = linkedUser ? String(linkedUser.role || "").trim().toLowerCase() : "";
+    }
+
+    const normalizedStatus = String(nurse.status || "Pending").trim().toLowerCase();
+    if (emailVerified || normalizedStatus === "approved") {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "This nurse is locked and cannot be deleted.");
+      return res.redirect(redirectTarget);
+    }
+
+    const activeAssignmentsResult = await client.query(
+      `SELECT id
+       FROM care_requests
+       WHERE assigned_nurse_id = $1
+         AND LOWER(COALESCE(status, 'open')) NOT IN ('completed', 'cancelled')
+       LIMIT 1`,
+      [nurseId]
+    );
+    if (activeAssignmentsResult.rowCount > 0) {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Cannot delete nurse assigned to active jobs.");
+      return res.redirect(redirectTarget);
+    }
+
+    if (userRole && userRole !== "nurse") {
+      await client.query("ROLLBACK");
+      setFlash(req, "error", "Selected account is not a nurse.");
+      return res.redirect(redirectTarget);
+    }
+
+    assetUrls = collectNurseAssetUrls(nurse);
+
+    await client.query(
+      "UPDATE nurses SET referred_by_nurse_id = NULL WHERE referred_by_nurse_id = $1",
+      [nurseId]
+    );
+
+    await client.query(
+      `UPDATE patients
+       SET nurse_id = NULL,
+           referrer_nurse_id = NULL,
+           preferred_nurse_id = NULL,
+           preferred_nurse_name = NULL
+       WHERE nurse_id = $1
+          OR referrer_nurse_id = $1
+          OR preferred_nurse_id = $1`,
+      [nurseId]
+    );
+
+    await client.query(
+      `UPDATE care_requests
+       SET assigned_nurse_id = NULL,
+           nurse_notified = false,
+           assignment_comment = CASE
+             WHEN status IN ('assigned', 'payment_pending')
+             THEN 'Assigned nurse was deleted by agent before activation.'
+             ELSE assignment_comment
+           END,
+           status = CASE
+             WHEN status IN ('assigned', 'payment_pending')
+             THEN 'open'
+             ELSE status
+           END,
+           payment_status = CASE
+             WHEN status = 'payment_pending'
+             THEN 'pending'
+             ELSE payment_status
+           END
+       WHERE assigned_nurse_id = $1`,
+      [nurseId]
+    );
+
+    await client.query("DELETE FROM care_request_ratings WHERE nurse_id = $1", [nurseId]);
+    await client.query("DELETE FROM care_request_earnings WHERE nurse_id = $1", [nurseId]);
+    await client.query("DELETE FROM care_applications WHERE nurse_id = $1", [nurseId]);
+    await client.query("DELETE FROM nurses WHERE id = $1", [nurseId]);
+
+    if (Number.isInteger(nurse.user_id)) {
+      await client.query("DELETE FROM users WHERE id = $1", [nurse.user_id]);
+    }
+
+    await client.query("COMMIT");
+
+    const cache = readStore();
+    if (Number.isInteger(nurse.user_id)) {
+      cache.users = (cache.users || []).filter((item) => item.id !== nurse.user_id);
+    }
+    cache.nurses = (cache.nurses || []).filter((item) => item.id !== nurseId);
+    (cache.nurses || []).forEach((item) => {
+      if (item.referredByNurseId === nurseId) {
+        item.referredByNurseId = null;
+      }
+    });
+    (cache.patients || []).forEach((patient) => {
+      if (patient.nurseId === nurseId) patient.nurseId = null;
+      if (patient.referrerNurseId === nurseId) patient.referrerNurseId = null;
+      if (patient.preferredNurseId === nurseId) {
+        patient.preferredNurseId = null;
+        patient.preferredNurseName = "";
+      }
+    });
+
+    try {
+      await deleteNurseAssets(assetUrls);
+    } catch (assetError) {
+      console.error("Agent nurse asset cleanup error:", assetError);
+    }
+
+    setFlash(req, "success", "Nurse deleted successfully.");
+    return res.redirect(redirectTarget);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Agent nurse delete rollback error:", rollbackError);
+      }
+    }
+    console.error("DELETE ERROR:", error);
+    setFlash(req, "error", "Unable to delete nurse right now.");
+    return res.redirect(redirectTarget);
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -7462,11 +7641,99 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
       title: "Nurse Dashboard",
       user: req.session.user,
       stats: statsResult.rows[0],
-      showOwnershipBanner
+      showOwnershipBanner,
+      pendingEmailVerification: String(req.session.pendingNurseEmailVerification || "").trim()
     });
   } catch (error) {
     console.error("Nurse dashboard stats error:", error);
     return res.status(500).send("Server Error");
+  }
+});
+
+app.post("/nurse/request-email-otp", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
+  const emailInput = String(req.body.new_email || "").trim();
+  const emailValidation = validateEmail(emailInput);
+
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect("/nurse/dashboard");
+  }
+
+  const email = emailValidation.value;
+
+  try {
+    const existingUser = await getUserByEmail(email);
+    if (existingUser && existingUser.id !== req.currentUser.id) {
+      setFlash(req, "error", "Email already in use.");
+      return res.redirect("/nurse/dashboard");
+    }
+
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    await updateUser(req.currentUser.id, {
+      otpCode,
+      otpExpiry
+    });
+
+    req.session.pendingNurseEmailVerification = email;
+
+    const nurse = await getNurseByUserId(req.currentUser.id);
+    await sendVerificationOtpEmail(email, (nurse && nurse.fullName) || req.currentUser.fullName || "Nurse", otpCode);
+
+    setFlash(req, "success", "OTP sent to your email.");
+    return res.redirect("/nurse/dashboard");
+  } catch (error) {
+    console.error("Nurse email OTP request error:", error);
+    setFlash(req, "error", "Unable to send OTP right now.");
+    return res.redirect("/nurse/dashboard");
+  }
+});
+
+app.post("/nurse/verify-email-otp", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
+  const pendingEmail = String(req.session.pendingNurseEmailVerification || "").trim();
+  const otp = String(req.body.otp || "").trim();
+
+  if (!pendingEmail) {
+    setFlash(req, "error", "Start email verification again.");
+    return res.redirect("/nurse/dashboard");
+  }
+
+  if (!/^\d{6}$/.test(otp)) {
+    setFlash(req, "error", "Enter a valid 6-digit OTP.");
+    return res.redirect("/nurse/dashboard");
+  }
+
+  try {
+    const user = await getUserById(req.currentUser.id);
+    if (!user || !user.otpCode || String(user.otpCode).trim() !== otp || new Date() > new Date(user.otpExpiry)) {
+      setFlash(req, "error", "Invalid or expired OTP.");
+      return res.redirect("/nurse/dashboard");
+    }
+
+    const updatedUser = await updateUser(req.currentUser.id, {
+      email: pendingEmail,
+      emailVerified: true,
+      otpCode: "",
+      otpExpiry: null
+    });
+
+    const nurse = await getNurseByUserId(req.currentUser.id);
+    if (nurse && nurse.claimedByNurse !== true) {
+      await updateNurse(nurse.id, {
+        claimedByNurse: true
+      });
+    }
+
+    delete req.session.pendingNurseEmailVerification;
+    req.session.user = await getSessionUserPayload(updatedUser || user);
+
+    setFlash(req, "success", "Email verified successfully.");
+    return res.redirect("/nurse/dashboard");
+  } catch (error) {
+    console.error("Nurse email OTP verify error:", error);
+    setFlash(req, "error", "Unable to verify OTP right now.");
+    return res.redirect("/nurse/dashboard");
   }
 });
 
@@ -7480,6 +7747,11 @@ app.get("/verify-email", requireRole("nurse"), requireApprovedNurse, async (req,
 
     if (nurse.claimedByNurse === true) {
       setFlash(req, "success", "Your account is already verified and claimed.");
+      return res.redirect("/nurse/dashboard");
+    }
+
+    if (!req.currentUser.email) {
+      setFlash(req, "error", "Add your email first to continue verification.");
       return res.redirect("/nurse/dashboard");
     }
 

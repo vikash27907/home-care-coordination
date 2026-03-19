@@ -255,6 +255,31 @@
   gap: 0.45rem;
 }
 
+.agent-hub .nurse-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.agent-hub .nurse-card {
+  height: 100%;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.agent-hub .nurse-card:hover {
+  transform: translateY(-4px);
+}
+
+.nurse-delete-form {
+  margin: 0;
+}
+
+.nurse-delete-form .btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
 @media (min-width: 768px) {
   .row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -276,5 +301,9 @@
   .card-actions .btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .agent-hub .nurse-cards-grid {
+    grid-template-columns: 1fr;
   }
 }

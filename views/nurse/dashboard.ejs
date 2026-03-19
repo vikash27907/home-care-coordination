@@ -9,9 +9,45 @@
   <section class="ownership-banner" aria-live="polite">
     <div>
       <strong>This account was created by an agent.</strong>
-      <p>Verify your email to take full control of your profile.</p>
+      <p><%= currentUser && currentUser.email ? "Verify your email to take full control of your profile." : "Add an email address to enable email login and secure your account." %></p>
     </div>
-    <a href="/verify-email" class="btn primary small">Verify Email</a>
+    <% if (currentUser && currentUser.email) { %>
+      <a href="/verify-email" class="btn primary small">Verify Email</a>
+    <% } %>
+  </section>
+<% } %>
+
+<% if (currentUser && !currentUser.email_verified) { %>
+  <section class="ownership-banner ownership-banner--warning" aria-live="polite">
+    <div>
+      <strong>Secure Your Account</strong>
+      <p>Add email to enable email login.</p>
+      <form action="/nurse/request-email-otp" method="POST" class="ownership-form">
+        <input
+          type="email"
+          name="new_email"
+          value="<%= pendingEmailVerification || currentUser.email || '' %>"
+          required
+          placeholder="Enter email"
+        >
+        <button type="submit" class="btn primary small">Send OTP</button>
+      </form>
+
+      <% if (pendingEmailVerification) { %>
+        <form action="/nurse/verify-email-otp" method="POST" class="ownership-form ownership-form--otp">
+          <input
+            type="text"
+            name="otp"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required
+            placeholder="Enter 6-digit OTP"
+          >
+          <button type="submit" class="btn small">Verify OTP</button>
+        </form>
+      <% } %>
+    </div>
   </section>
 <% } %>
 
@@ -58,8 +94,35 @@
   color: #12344d;
 }
 
+.ownership-banner--warning {
+  margin-top: 18px;
+  border-color: #f5d48b;
+  background: linear-gradient(135deg, #fff8e8, #fffdf5);
+  color: #5b410c;
+}
+
 .ownership-banner p {
   margin: 6px 0 0;
+}
+
+.ownership-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.ownership-form input {
+  flex: 1 1 240px;
+  min-height: 42px;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(18, 52, 77, 0.14);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.ownership-form--otp input {
+  max-width: 220px;
 }
 
 .dash-card {
@@ -95,6 +158,10 @@
 
   .ownership-banner .btn {
     width: 100%;
+  }
+
+  .ownership-form {
+    flex-direction: column;
   }
 }
 </style>

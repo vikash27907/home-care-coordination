@@ -733,8 +733,47 @@ a {
 .nurse-card {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 14px;
+  gap: 0.9rem;
+  padding: 16px;
+  border-radius: 18px;
+}
+
+.nurse-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.nurse-card__identity {
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.nurse-card__identity h3 {
+  margin: 0;
+}
+
+.nurse-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.nurse-card__body {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.nurse-card__body p {
+  margin: 0;
+}
+
+.nurse-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: stretch;
 }
 
 .nurse-image {
@@ -744,6 +783,14 @@ a {
   object-fit: cover;
   border-radius: 14px;
   border: 1px solid var(--line);
+}
+
+.nurse-card__avatar {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  border-radius: 50%;
 }
 
 .nurse-image-fallback {
@@ -772,6 +819,16 @@ a {
 
 .nurse-actions {
   justify-content: flex-start;
+}
+
+.nurse-actions .btn,
+.nurse-actions .nurse-delete-form,
+.nurse-actions .nurse-delete-form .btn {
+  min-height: 42px;
+}
+
+.nurse-actions .nurse-delete-form {
+  margin: 0;
 }
 
 .nurse-card .status-badge {
@@ -1115,6 +1172,20 @@ thead th {
 @media (max-width: 600px) {
   .nurse-card {
     padding: 10px;
+  }
+
+  .nurse-card__header {
+    align-items: flex-start;
+  }
+
+  .nurse-card__actions {
+    flex-direction: column;
+  }
+
+  .nurse-actions .btn,
+  .nurse-actions .nurse-delete-form,
+  .nurse-actions .nurse-delete-form .btn {
+    width: 100%;
   }
 }
 

@@ -20,13 +20,31 @@
       <input name="email" type="email" placeholder="Used later for verified email OTP login" />
     </label>
     <label>
-      Temporary Password
+      Password
       <div class="password-input-wrapper">
-        <input name="password" type="password" id="passwordInput" required />
+        <input
+          name="password"
+          type="password"
+          id="passwordInput"
+          required
+          minlength="6"
+          placeholder="Set password for nurse"
+        />
         <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Toggle password visibility">
           <span id="eyeIcon">👁️</span>
         </button>
       </div>
+      <small class="helper-text">This password will be used by the nurse to login.</small>
+    </label>
+    <label>
+      Confirm Password
+      <input
+        name="confirm_password"
+        type="password"
+        required
+        minlength="6"
+        placeholder="Re-enter password"
+      />
     </label>
     <label>
       Phone Number
@@ -168,6 +186,12 @@
 }
 .password-toggle:hover {
   color: #333;
+}
+.helper-text {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 </style>
 

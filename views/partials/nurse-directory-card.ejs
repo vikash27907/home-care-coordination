@@ -18,30 +18,50 @@ const experienceLabel = Number.isInteger(experienceYears) && experienceYears > 0
   : "Fresher";
 const availabilityLabel = nurse.isAvailable ? "Available" : "Currently Unavailable";
 const statusLabel = String(nurse.status || "").trim();
-const showRequest = showRequestButton === true;
+const showRequest = typeof showRequestButton !== "undefined" && showRequestButton === true;
+const showDeleteAction = typeof showDeleteButton !== "undefined" && showDeleteButton === true;
+const showStatusDetails = typeof showStatus !== "undefined" && showStatus === true;
 const availabilityClass = nurse.isAvailable ? "available" : "unavailable";
 const statusClass = statusLabel.toLowerCase().replace(/\s+/g, "-") || "pending";
 %>
 
 <article class="card nurse-card">
-  <img src="<%= imageSrc %>" alt="<%= nurseName %> profile" class="nurse-image" onerror="this.onerror=null;this.src='/images/default-male.png';" />
+  <div class="nurse-card__header">
+    <img src="<%= imageSrc %>" alt="<%= nurseName %> profile" class="nurse-image nurse-card__avatar" onerror="this.onerror=null;this.src='/images/default-male.png';" />
+    <div class="nurse-card__identity">
+      <h3><%= nurseName %></h3>
+      <div class="nurse-card__badges">
+        <span class="status-badge <%= availabilityClass %>"><%= availabilityLabel %></span>
+        <% if (showStatusDetails && statusLabel) { %>
+        <span class="status-badge <%= statusClass %>"><%= statusLabel %></span>
+        <% } %>
+      </div>
+    </div>
+  </div>
 
-  <h3><%= nurseName %></h3>
-  <p><span class="status-badge <%= availabilityClass %>"><%= availabilityLabel %></span></p>
-  <p><strong>City:</strong> <%= nurse.city || "Not shared" %></p>
-  <p><strong>Skills:</strong> <%= publicSkills.length ? publicSkills.join(", ") : "Not specified" %></p>
-  <p><strong>Experience:</strong> <%= experienceLabel %></p>
-  <% if (showStatus && statusLabel) { %>
-  <p><strong>Status:</strong> <span class="status-badge <%= statusClass %>"><%= statusLabel %></span></p>
-  <% } %>
+  <div class="nurse-card__body">
+    <p><strong>City:</strong> <%= nurse.city || "Not shared" %></p>
+    <p><strong>Skills:</strong> <%= publicSkills.length ? publicSkills.join(", ") : "Not specified" %></p>
+    <p><strong>Experience:</strong> <%= experienceLabel %></p>
+  </div>
 
-  <% if (profileHref || (showRequest && nurse.isAvailable)) { %>
-  <div class="cta-row nurse-actions">
+  <% if (profileHref || (showRequest && nurse.isAvailable) || showDeleteAction) { %>
+  <div class="cta-row nurse-actions nurse-card__actions">
     <% if (profileHref) { %>
-    <a href="<%= profileHref %>" class="btn<%= showRequest ? '' : ' stretched-link' %>">View Profile</a>
+    <a href="<%= profileHref %>" class="btn primary">View Profile</a>
     <% } %>
     <% if (showRequest && nurse.isAvailable) { %>
     <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request This Nurse</a>
+    <% } %>
+    <% if (showDeleteAction) { %>
+    <form method="POST" action="/agent/nurse/delete" class="nurse-delete-form" onsubmit="return confirm('Delete this nurse?');">
+      <input type="hidden" name="nurseId" value="<%= nurse.id %>" />
+      <% if (nurse.canDelete) { %>
+      <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+      <% } else { %>
+      <button class="btn btn-secondary btn-sm" type="button" disabled>Locked</button>
+      <% } %>
+    </form>
     <% } %>
   </div>
   <% } %>
