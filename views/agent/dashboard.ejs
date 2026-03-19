@@ -52,11 +52,34 @@
             <article class="card shadow-sm h-100">
               <div class="card-body">
                 <div class="card-copy">
-                  <h3 class="card-title"><%= job.service_required %></h3>
+                  <h3 class="card-title"><%= job.patient_name %></h3>
+                  <p class="text-muted mb-1"><strong>Service:</strong> <%= job.service_required %></p>
                   <p class="text-muted mb-1">ID: <%= job.request_code %></p>
-                  <p class="text-muted mb-2"><%= job.address %></p>
+                  <p class="text-muted mb-2"><strong>City:</strong> <%= job.address %></p>
                   <span class="badge bg-secondary"><%= job.status %></span>
                 </div>
+                <% if (!job.assigned_nurse_id) { %>
+                  <% if (assignableNurses && assignableNurses.length) { %>
+                    <form method="POST" action="/agent/requests/<%= job.id %>/actions" class="assign-form">
+                      <input type="hidden" name="action" value="assign" />
+                      <label class="assign-form__label" for="nurse-<%= job.id %>">Assign Nurse</label>
+                      <select id="nurse-<%= job.id %>" name="nurseId" class="assign-form__select" required>
+                        <option value="">Select a nurse</option>
+                        <% assignableNurses.forEach((nurse) => { %>
+                          <option value="<%= nurse.id %>"><%= nurse.full_name %> (<%= nurse.unique_id %>)</option>
+                        <% }) %>
+                      </select>
+                      <button type="submit" class="btn btn-primary btn-sm">Assign Nurse</button>
+                    </form>
+                  <% } else { %>
+                    <p class="text-muted mb-0">No available nurses in your roster right now.</p>
+                  <% } %>
+                <% } else { %>
+                  <div class="assigned-note">
+                    <span class="badge bg-secondary">Assigned</span>
+                    <p class="text-muted mb-0"><strong>Nurse:</strong> <%= job.assigned_nurse_name %></p>
+                  </div>
+                <% } %>
               </div>
             </article>
           </div>
@@ -69,34 +92,22 @@
     <div class="section-head d-flex justify-content-between align-items-center mb-3">
       <div>
         <h2>Your Nurses</h2>
-        <p class="text-muted">Nurses linked to your agent roster.</p>
+        <p class="text-muted">Only nurses mapped to your account are shown here.</p>
       </div>
       <a href="/nurse/register?ref_agent=<%= user && user.id ? user.id : '' %>" class="btn btn-primary">+ Add Nurse</a>
     </div>
 
-    <div class="row g-3">
+    <div class="nurse-cards-grid">
       <% if (!staff.length) { %>
-        <div class="col-12">
-          <div class="empty-state">No nurses added yet.</div>
-        </div>
+        <div class="empty-state">No nurses added yet.</div>
       <% } else { %>
         <% staff.forEach((nurse) => { %>
-          <% const profileHref = nurse.profile_slug ? `/nurse/${nurse.profile_slug}` : `/agent/nurses/${nurse.id}`; %>
-          <div class="col-12 col-md-6">
-            <article class="card shadow-sm h-100">
-              <div class="card-body">
-                <div class="card-copy">
-                  <h3 class="card-title"><%= nurse.full_name %></h3>
-                  <p class="text-muted mb-1">ID: <%= nurse.unique_id || `N-${nurse.id}` %></p>
-                  <p class="text-muted mb-2"><%= nurse.city %></p>
-                </div>
-                <div class="card-actions">
-                  <span class="badge bg-secondary"><%= nurse.status %></span>
-                  <a href="<%= profileHref %>" class="btn btn-outline-primary btn-sm">View Profile</a>
-                </div>
-              </div>
-            </article>
-          </div>
+          <%- include("../partials/nurse-directory-card", {
+            nurse,
+            href: nurse.publicUrl,
+            showRequestButton: false,
+            showStatus: true
+          }) %>
         <% }) %>
       <% } %>
     </div>

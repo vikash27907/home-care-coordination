@@ -229,6 +229,32 @@
   padding: 0.55rem 0.85rem;
 }
 
+.assign-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.assign-form__label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.assign-form__select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.assigned-note {
+  display: grid;
+  gap: 0.45rem;
+}
+
 @media (min-width: 768px) {
   .row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

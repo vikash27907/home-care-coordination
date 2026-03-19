@@ -734,6 +734,7 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding: 14px;
 }
 
 .nurse-image {
@@ -771,6 +772,20 @@ a {
 
 .nurse-actions {
   justify-content: flex-start;
+}
+
+.nurse-card .status-badge {
+  text-transform: none;
+}
+
+.status-badge.available {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.unavailable {
+  background: #f1f3f5;
+  color: #495057;
 }
 
 .card p {
@@ -1094,6 +1109,12 @@ thead th {
 
   .check-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .nurse-card {
+    padding: 10px;
   }
 }
 

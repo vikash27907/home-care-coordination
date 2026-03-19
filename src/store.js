@@ -51,7 +51,7 @@ async function initializeStore() {
           u.is_deleted AS user_is_deleted,
           u.deleted_at AS user_deleted_at
         FROM nurses n
-        JOIN users u ON u.id = n.user_id
+        LEFT JOIN users u ON u.id = n.user_id
         ORDER BY n.id
       `),
       pool.query('SELECT * FROM agents ORDER BY id'),
@@ -144,166 +144,13 @@ function writeStore(store) {
   storeCache = JSON.parse(JSON.stringify(store));
   
   // Async persist to database (don't wait)
-  persistStoreToDb(store).catch(err => {
-    console.error('Error persisting store to database:', err);
-  });
+ 
 }
 
 /**
  * Persist full store to database asynchronously
  */
-async function persistStoreToDb(store) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Clear existing data and rebuild
-    await client.query('DELETE FROM concerns');
-    await client.query('DELETE FROM patients');
-    await client.query('DELETE FROM nurses');
-    await client.query('DELETE FROM agents');
-    await client.query('DELETE FROM users');
-
-    // Insert users
-    for (const user of store.users || []) {
-      await client.query(`
-        INSERT INTO users (
-          id, email, phone_number, password_hash, role, status, created_at,
-          email_verified, otp_code, otp_expiry, is_deleted, deleted_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      `, [
-        user.id, user.email, user.phoneNumber, user.passwordHash, user.role, user.status,
-        user.createdAt, user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
-        user.isDeleted === true,
-        user.deletedAt || null
-      ]);
-    }
-
-    // Insert nurses (profile-specific columns only)
-    for (const nurse of store.nurses || []) {
-      await client.query(`
-        INSERT INTO nurses (
-          id, user_id, full_name, city, gender, status, profile_image_path,
-          aadhar_number, experience_years, experience_months, current_status,
-          work_locations, current_address, skills, qualifications, resume_url,
-          unique_id, profile_slug, public_profile_enabled, claimed_by_nurse, created_at
-        )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11,
-          $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21
-        )
-      `, [
-        nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-        nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
-        nurse.aadhaarNumber || nurse.aadharNumber || '',
-        Number.parseInt(nurse.experienceYears, 10) || 0,
-        Number.parseInt(nurse.experienceMonths, 10) || 0,
-        nurse.currentStatus || '',
-
-        // Native PG array — DO NOT stringify
-        Array.isArray(nurse.workLocations) ? nurse.workLocations : [],
-
-        nurse.currentAddress || nurse.address || '',
-
-        // Native PG array — DO NOT stringify
-        Array.isArray(nurse.skills) ? nurse.skills : [],
-
-        // JSONB — MUST stringify
-        JSON.stringify(Array.isArray(nurse.qualifications) ? nurse.qualifications : []),
-
-        nurse.resumeUrl || '',
-        nurse.uniqueId || '',
-        nurse.profileSlug || '',
-        nurse.publicProfileEnabled !== false,
-        nurse.claimedByNurse === true,
-        nurse.createdAt
-      ]);
-    }
-
-    // Insert agents
-    for (const agent of store.agents || []) {
-      await client.query(`
-        INSERT INTO agents (id, user_id, full_name, email, phone_number, company_name, working_region, status, created_by_agent_email, unique_id, profile_slug, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      `, [
-        agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '', 
-        agent.workingRegion || agent.region || '', normalizeAgentStatus(agent.status), agent.createdByAgentEmail || '',
-        agent.uniqueId || '', agent.profileSlug || '', agent.createdAt
-      ]);
-    }
-
-    // Insert patients
-    for (const patient of store.patients || []) {
-      await client.query(`
-        INSERT INTO patients (id, user_id, request_id, full_name, email, phone_number, city, service_schedule, duration, duration_unit, 
-          duration_value, budget_type, budget_min, budget_max, notes, status, agent_email, nurse_id, nurse_amount, commission_type,
-          commission_value, commission_amount, nurse_net_amount, referrer_nurse_id, referral_commission_percent, referral_commission_amount,
-          preferred_nurse_id, preferred_nurse_name, transfer_margin_type, transfer_margin_value, transfer_margin_amount,
-          last_transferred_at, last_transferred_by, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
-      `, [
-        patient.id, patient.userId, patient.requestId, patient.fullName, patient.email, patient.phoneNumber, patient.city,
-        patient.serviceSchedule || '', patient.duration || '', patient.durationUnit || '', patient.durationValue,
-        patient.budgetType || '',
-        patient.budgetMin ?? patient.budget ?? 0,
-        patient.budgetMax ?? patient.budget ?? 0,
-        patient.notes || '',
-        patient.status,
-        patient.agentEmail || '',
-        patient.nurseId,
-        patient.nurseAmount,
-        patient.commissionType || 'Percent',
-        patient.commissionValue || 0,
-        patient.commissionAmount || 0,
-        patient.nurseNetAmount,
-        patient.referrerNurseId,
-        patient.referralCommissionPercent || 0,
-        patient.referralCommissionAmount || 0,
-        patient.preferredNurseId,
-        patient.preferredNurseName || '',
-        patient.transferMarginType || 'Percent',
-        patient.transferMarginValue || 0,
-        patient.transferMarginAmount || 0,
-        patient.lastTransferredAt || null,
-        patient.lastTransferredBy || '',
-        patient.createdAt
-      ]);
-    }
-
-    // Insert concerns
-    for (const concern of store.concerns || []) {
-      await client.query(`
-        INSERT INTO concerns (id, user_id, role, user_name, subject, message, category, status, admin_reply, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      `, [
-        concern.id, concern.userId, concern.role, concern.userName, concern.subject || '', concern.message,
-        concern.category || '', concern.status || 'Open', concern.adminReply || '', concern.createdAt, concern.updatedAt
-      ]);
-    }
-
-    // Update counters
-    for (const [key, value] of Object.entries(store.counters || {})) {
-      const keyMap = { user: 'user', nurse: 'nurse', patient: 'patient', agent: 'agent', concern: 'concern' };
-      const dbKey = keyMap[key];
-      if (dbKey) {
-        await client.query(
-          'INSERT INTO counters (key_name, current_value) VALUES ($1, $2) ON CONFLICT (key_name) DO UPDATE SET current_value = $2',
-          [dbKey, value]
-        );
-      }
-    }
-
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error writing store to database:', error);
-  } finally {
-    client.release();
-  }
-}
+ 
 
 /**
  * Update store with a mutator function (synchronous)
@@ -546,6 +393,65 @@ async function getUserByEmail(email, options = {}) {
   }
 }
 
+async function getUserByPhone(phoneNumber, options = {}) {
+  try {
+    const includeDeleted = options && options.includeDeleted === true;
+    const normalizedPhone = String(phoneNumber || "").replace(/\D/g, "");
+    if (!normalizedPhone) {
+      return null;
+    }
+
+    const result = await pool.query(`
+      SELECT
+        u.*,
+        n.full_name AS nurse_full_name,
+        a.full_name AS agent_full_name,
+        COALESCE(n.full_name, a.full_name) AS profile_full_name
+      FROM users u
+      LEFT JOIN nurses n ON n.user_id = u.id
+      LEFT JOIN agents a ON a.user_id = u.id
+      WHERE u.phone_number = $1
+        ${includeDeleted ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+      LIMIT 1
+    `, [normalizedPhone]);
+    return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
+  } catch (error) {
+    console.error('Error getting user by phone:', error);
+    return null;
+  }
+}
+
+async function getUserByUniqueId(uniqueId, options = {}) {
+  try {
+    const includeDeleted = options && options.includeDeleted === true;
+    const compactId = String(uniqueId || "").trim().toUpperCase().replace(/-/g, "");
+    if (!compactId) {
+      return null;
+    }
+
+    const result = await pool.query(`
+      SELECT
+        u.*,
+        n.full_name AS nurse_full_name,
+        a.full_name AS agent_full_name,
+        COALESCE(n.full_name, a.full_name) AS profile_full_name
+      FROM users u
+      LEFT JOIN nurses n ON n.user_id = u.id
+      LEFT JOIN agents a ON a.user_id = u.id
+      WHERE (
+          REPLACE(COALESCE(n.unique_id, ''), '-', '') = $1
+          OR REPLACE(COALESCE(a.unique_id, ''), '-', '') = $1
+        )
+        ${includeDeleted ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+      LIMIT 1
+    `, [compactId]);
+    return result.rows[0] ? transformUserFromDB(result.rows[0]) : null;
+  } catch (error) {
+    console.error('Error getting user by unique id:', error);
+    return null;
+  }
+}
+
 async function createUser(user) {
   try {
     const result = await pool.query(`
@@ -556,7 +462,7 @@ async function createUser(user) {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
-      user.email, user.phoneNumber || '', user.passwordHash, user.role || 'user',
+      user.email || null, user.phoneNumber || null, user.passwordHash, user.role || 'user',
       user.status || 'Pending', user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
       user.createdAt || new Date().toISOString(),
       user.isDeleted === true,
@@ -634,8 +540,8 @@ async function getNurses(options = {}) {
         u.is_deleted AS user_is_deleted,
         u.deleted_at AS user_deleted_at
       FROM nurses n
-      JOIN users u ON n.user_id = u.id
-      ${includeDeletedUsers ? "" : "WHERE COALESCE(u.is_deleted, false) = false"}
+      LEFT JOIN users u ON n.user_id = u.id
+      ${includeDeletedUsers ? "" : "WHERE (u.id IS NULL OR COALESCE(u.is_deleted, false) = false)"}
       ORDER BY n.id
     `);
     return result.rows.map(transformNurseFromDB);
@@ -657,9 +563,9 @@ async function getNurseById(id, options = {}) {
         u.is_deleted AS user_is_deleted,
         u.deleted_at AS user_deleted_at
       FROM nurses n
-      JOIN users u ON n.user_id = u.id
+      LEFT JOIN users u ON n.user_id = u.id
       WHERE n.id = $1
-        ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+        ${includeDeletedUsers ? "" : "AND (u.id IS NULL OR COALESCE(u.is_deleted, false) = false)"}
       LIMIT 1
     `, [id]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -730,9 +636,9 @@ async function getNurseByProfileSlug(profileSlug, options = {}) {
         u.is_deleted AS user_is_deleted,
         u.deleted_at AS user_deleted_at
       FROM nurses n
-      JOIN users u ON u.id = n.user_id
+      LEFT JOIN users u ON u.id = n.user_id
       WHERE n.profile_slug = $1
-        ${includeDeletedUsers ? "" : "AND COALESCE(u.is_deleted, false) = false"}
+        ${includeDeletedUsers ? "" : "AND (u.id IS NULL OR COALESCE(u.is_deleted, false) = false)"}
       LIMIT 1
     `, [profileSlug]);
     return result.rows[0] ? transformNurseFromDB(result.rows[0]) : null;
@@ -1247,6 +1153,8 @@ module.exports = {
   getUsers,
   getUserById,
   getUserByEmail,
+  getUserByPhone,
+  getUserByUniqueId,
   createUser,
   updateUser,
   deleteUser,

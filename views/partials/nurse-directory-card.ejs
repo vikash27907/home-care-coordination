@@ -1,0 +1,48 @@
+<%
+const nurseName = nurse.fullName || "Nurse";
+const profileHref = typeof href === "string" ? href.trim() : "";
+const publicSkills = Array.isArray(nurse.skills) ? nurse.skills.filter(Boolean) : [];
+const imageSrc = String(
+  nurse.profileImageUrl
+  || nurse.profile_image_url
+  || nurse.profileImagePath
+  || nurse.profile_image_path
+  || "/images/default-male.png"
+).trim();
+const experienceYears = Number.parseInt(
+  nurse.experienceYears ?? nurse.experience_years,
+  10
+);
+const experienceLabel = Number.isInteger(experienceYears) && experienceYears > 0
+  ? `${experienceYears} years`
+  : "Fresher";
+const availabilityLabel = nurse.isAvailable ? "Available" : "Currently Unavailable";
+const statusLabel = String(nurse.status || "").trim();
+const showRequest = showRequestButton === true;
+const availabilityClass = nurse.isAvailable ? "available" : "unavailable";
+const statusClass = statusLabel.toLowerCase().replace(/\s+/g, "-") || "pending";
+%>
+
+<article class="card nurse-card">
+  <img src="<%= imageSrc %>" alt="<%= nurseName %> profile" class="nurse-image" onerror="this.onerror=null;this.src='/images/default-male.png';" />
+
+  <h3><%= nurseName %></h3>
+  <p><span class="status-badge <%= availabilityClass %>"><%= availabilityLabel %></span></p>
+  <p><strong>City:</strong> <%= nurse.city || "Not shared" %></p>
+  <p><strong>Skills:</strong> <%= publicSkills.length ? publicSkills.join(", ") : "Not specified" %></p>
+  <p><strong>Experience:</strong> <%= experienceLabel %></p>
+  <% if (showStatus && statusLabel) { %>
+  <p><strong>Status:</strong> <span class="status-badge <%= statusClass %>"><%= statusLabel %></span></p>
+  <% } %>
+
+  <% if (profileHref || (showRequest && nurse.isAvailable)) { %>
+  <div class="cta-row nurse-actions">
+    <% if (profileHref) { %>
+    <a href="<%= profileHref %>" class="btn<%= showRequest ? '' : ' stretched-link' %>">View Profile</a>
+    <% } %>
+    <% if (showRequest && nurse.isAvailable) { %>
+    <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request This Nurse</a>
+    <% } %>
+  </div>
+  <% } %>
+</article>

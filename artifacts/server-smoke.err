@@ -1,0 +1,18 @@
+node:internal/fs/utils:347
+    throw err;
+    ^
+
+Error: EPERM: operation not permitted, lstat 'C:\Users\vikas'
+    at Object.realpathSync (node:fs:2580:7)
+    at toRealPath (node:internal/modules/cjs/loader:477:13)
+    at Module._findPath (node:internal/modules/cjs/loader:662:22)
+    at resolveMainPath (node:internal/modules/run_main:19:25)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:75:24)
+    at node:internal/main/run_main_module:23:47 {
+  errno: -4048,
+  syscall: 'lstat',
+  code: 'EPERM',
+  path: 'C:\\Users\\vikas'
+}
+
+Node.js v18.16.0

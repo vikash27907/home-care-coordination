@@ -9,7 +9,7 @@ async function initializeDatabase() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
         phone_number VARCHAR(15),
         password_hash TEXT NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'user',
@@ -38,6 +38,23 @@ async function initializeDatabase() {
     `);
 
     await pool.query(`
+      ALTER TABLE users
+      ALTER COLUMN email DROP NOT NULL
+    `);
+
+    await pool.query(`
+      UPDATE users
+      SET email = NULL
+      WHERE NULLIF(BTRIM(COALESCE(email, '')), '') IS NULL
+    `);
+
+    await pool.query(`
+      UPDATE users
+      SET phone_number = NULL
+      WHERE NULLIF(BTRIM(COALESCE(phone_number, '')), '') IS NULL
+    `);
+
+    await pool.query(`
       DO $$
       BEGIN
         IF EXISTS (
@@ -51,10 +68,18 @@ async function initializeDatabase() {
       END $$;
     `);
 
+    await pool.query(`DROP INDEX IF EXISTS users_email_active_unique`);
+
     await pool.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS users_email_active_unique
+      CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
       ON users (LOWER(email))
-      WHERE is_deleted = false
+      WHERE email IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique
+      ON users (phone_number)
+      WHERE phone_number IS NOT NULL
     `);
 
     // Create nurses table - stores only profile-specific data, auth via users table
@@ -984,14 +1009,14 @@ async function initializeDatabase() {
 
     await pool.query(`
       WITH nurse_seed AS (
-        SELECT COALESCE(MAX(CAST(SUBSTRING(unique_id FROM 5) AS INTEGER)), 0) AS current_value
+        SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(unique_id, '^PHCN-?', '') AS INTEGER)), 0) AS current_value
         FROM nurses
-        WHERE unique_id ~ '^PHCN[0-9]+$'
+        WHERE unique_id ~ '^PHCN-?[0-9]+$'
       ),
       agent_seed AS (
-        SELECT COALESCE(MAX(CAST(SUBSTRING(unique_id FROM 5) AS INTEGER)), 0) AS current_value
+        SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(unique_id, '^PHCA-?', '') AS INTEGER)), 0) AS current_value
         FROM agents
-        WHERE unique_id ~ '^PHCA[0-9]+$'
+        WHERE unique_id ~ '^PHCA-?[0-9]+$'
       )
       INSERT INTO counters (key_name, current_value)
       VALUES

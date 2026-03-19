@@ -14,13 +14,13 @@ async function getNextCounterValue(db, keyName) {
 async function generateNurseId(db) {
   const count = await getNextCounterValue(db, "nurse_public_id");
   const padded = String(count).padStart(3, "0");
-  return `PHCN${padded}`;
+  return `PHCN-${padded}`;
 }
 
 async function generateAgentId(db) {
   const count = await getNextCounterValue(db, "agent_public_id");
   const padded = String(count).padStart(3, "0");
-  return `PHCA${padded}`;
+  return `PHCA-${padded}`;
 }
 
 module.exports = {
