@@ -1346,12 +1346,17 @@ function buildPublicNurseProfileView(nurse) {
   return {
     id: nurse.id,
     fullName: nurse.fullName,
+    status: nurse.status || "Pending",
     gender: nurse.gender || "Not specified",
     city: nurse.publicShowCity ? nurse.city : "Not shared",
     qualificationsText: qualificationNames.join(", "),
+    experienceYears: nurse.publicShowExperience ? experienceYears : null,
     experienceText: nurse.publicShowExperience ? `${experienceYears} Years` : "Not shared",
     profileImageUrl: nurse.profileImageUrl || nurse.profileImagePath || "",
-    uniqueId: nurse.uniqueId || ""
+    uniqueId: nurse.uniqueId || "",
+    profileSlug: nurse.profileSlug || "",
+    isAvailable: nurse.isAvailable !== false,
+    currentStatus: nurse.currentStatus || (nurse.isAvailable === false ? "Currently Unavailable" : "Available")
   };
 }
 function normalizeStoreShape(store) {

@@ -263,63 +263,14 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
         <% if (!isVerified) { %>
           <div class="not-verified-watermark">NOT VERIFIED</div>
         <% } %>
-        <div class="card-top">
-          <div class="photo-section">
-            <img class="nurse-photo" src="<%= cardImage %>" alt="<%= fullName %>" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
-
-            <div class="qr-overlay">
-              <img src="/api/nurse/<%= nurseId %>/qr" alt="QR code for <%= fullName %>">
-              <span>Scan to verify nurse profile</span>
-            </div>
-          </div>
-
-          <div class="details-section">
-            <div class="row">
-              <span>Name:</span>
-              <b><%= fullName %></b>
-            </div>
-
-            <div class="row">
-              <span>ID:</span>
-              <b><%= uniqueId || "-" %></b>
-            </div>
-
-            <div class="row">
-              <span>Experience:</span>
-              <b><%= experienceYears %> Years</b>
-            </div>
-
-            <div class="row">
-              <span>City:</span>
-              <b><%= city || "-" %></b>
-            </div>
-
-            <div class="row">
-              <span>Gender:</span>
-              <b><%= gender || "-" %></b>
-            </div>
-
-            <div class="verified">
-              Verified By: Prisha HomeCare
-            </div>
-          </div>
-        </div>
-
-        <div class="brand-strip">
-          <div class="brand-left">
-            <img class="logo" src="/images/prisha-logo.png" alt="Prisha HomeCare logo" onerror="this.style.display='none'">
-            <span>Verified Care Staff From</span>
-          </div>
-
-          <div class="brand-center">
-            <h2>PRISHA HOMECARE</h2>
-            <p>Book Nurses &amp; Caregivers Online</p>
-          </div>
-        </div>
-
-        <div class="card-footer">
-          Contact: 9138913355 | Email: prishahomecare@gmail.com
-        </div>
+        <%- include("../partials/nurse-card-base", {
+          nurse,
+          mode: "full",
+          showQrCode: true,
+          showBranding: true,
+          showContact: true,
+          showWatermarkOverlay: !isVerified
+        }) %>
       </div>
 
       <div class="card-actions">

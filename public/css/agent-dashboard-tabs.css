@@ -264,10 +264,9 @@
 
 .agent-hub .nurse-card {
   height: 100%;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
-.agent-hub .nurse-card:hover {
+.agent-hub .nurse-card:hover .nurse-card-base {
   transform: translateY(-4px);
 }
 

@@ -1,52 +1,37 @@
 <%- include("partials/head", { title, metaTitle, metaDescription }) %>
 
 <section class="public-nurse-hero">
-  <div class="public-nurse-card">
-    <div class="public-nurse-media">
-      <% if (nurse.profileImageUrl) { %>
-        <img src="<%= nurse.profileImageUrl %>" alt="<%= nurse.fullName %> profile" class="public-nurse-image" onerror="this.onerror=null;this.src='/images/default-avatar.png';" />
-      <% } else { %>
-        <div class="public-nurse-fallback" aria-hidden="true"><%= nurse.fullName.charAt(0).toUpperCase() %></div>
-      <% } %>
-    </div>
+  <article class="public-nurse-card-shell">
+    <%- include("partials/nurse-card-base", {
+      nurse,
+      mode: "full",
+      showQrCode: true,
+      showBranding: true,
+      showContact: true,
+      showWatermarkOverlay: !isVerified
+    }) %>
 
-    <div class="public-nurse-copy">
-      <p class="public-nurse-eyebrow">Public Nurse Profile</p>
-      <h1><%= nurse.fullName %></h1>
+    <div class="public-nurse-support">
       <% if (isVerified) { %>
-        <span class="verified-badge">Verified Nurse</span>
-        <p class="public-nurse-verified">Verified by Prisha Home Care</p>
+        <p class="public-nurse-note public-nurse-note--verified">Verified by Prisha Home Care</p>
       <% } else { %>
-        <span class="pending-badge">Verification Pending</span>
-        <p class="public-nurse-pending">This nurse profile is public, but verification is still pending.</p>
+        <p class="public-nurse-note public-nurse-note--pending">This nurse profile is public, but verification is still pending.</p>
       <% } %>
 
-      <dl class="public-nurse-grid">
+      <div class="public-nurse-extra-grid">
         <div>
-          <dt>ID</dt>
-          <dd><%= nurse.uniqueId || "-" %></dd>
+          <p class="public-nurse-extra-label">Qualification</p>
+          <p class="public-nurse-extra-value"><%= nurse.qualificationsText || "-" %></p>
         </div>
-        <div>
-          <dt>Qualification</dt>
-          <dd><%= nurse.qualificationsText || "-" %></dd>
-        </div>
-        <div>
-          <dt>Experience</dt>
-          <dd><%= nurse.experienceText %></dd>
-        </div>
-        <div>
-          <dt>City</dt>
-          <dd><%= nurse.city || "-" %></dd>
-        </div>
-        <div>
-          <dt>Gender</dt>
-          <dd><%= nurse.gender || "-" %></dd>
-        </div>
-      </dl>
+      </div>
 
-      <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request Care</a>
+      <div class="cta-row public-nurse-actions">
+        <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary">Request Care</a>
+        <button type="button" class="btn" data-share-url="/nurse/<%= nurse.profileSlug %>" data-share-title="<%= nurse.fullName %> | Nurse Profile">Share Profile</button>
+        <a href="/nurses" class="btn">Back to Directory</a>
+      </div>
     </div>
-  </div>
+  </article>
 </section>
 
 <style>
@@ -56,11 +41,10 @@
   padding: 2rem 0 3rem;
 }
 
-.public-nurse-card {
-  width: min(860px, 100%);
+.public-nurse-card-shell {
+  width: min(920px, 100%);
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 1.5rem;
+  gap: 1.4rem;
   background: linear-gradient(145deg, #ffffff, #f4fbf8);
   border: 1px solid #d5ebe0;
   border-radius: 28px;
@@ -68,88 +52,32 @@
   box-shadow: 0 24px 60px rgba(16, 61, 44, 0.08);
 }
 
-.public-nurse-media {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+.public-nurse-support {
+  display: grid;
+  gap: 1rem;
 }
 
-.public-nurse-image,
-.public-nurse-fallback {
-  width: 190px;
-  height: 190px;
-  border-radius: 24px;
-}
-
-.public-nurse-image {
-  object-fit: cover;
-  border: 4px solid #e2f4eb;
-}
-
-.public-nurse-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #0f9d7a, #157347);
-  color: #ffffff;
-  font-size: 4rem;
-  font-weight: 800;
-}
-
-.public-nurse-copy h1 {
-  margin: 0.2rem 0 0.5rem;
-}
-
-.public-nurse-eyebrow {
+.public-nurse-note {
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.78rem;
   font-weight: 700;
+}
+
+.public-nurse-note--verified {
   color: #157347;
 }
 
-.public-nurse-verified {
-  margin: 0 0 1.25rem;
-  color: #157347;
-  font-weight: 700;
-}
-
-.public-nurse-pending {
-  margin: 0 0 1.25rem;
-  color: #9a3412;
-  font-weight: 700;
-}
-
-.verified-badge,
-.pending-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0.32rem 0.75rem;
-  margin-bottom: 0.7rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.verified-badge {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.pending-badge {
-  background: #ffedd5;
+.public-nurse-note--pending {
   color: #9a3412;
 }
 
-.public-nurse-grid {
+.public-nurse-extra-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-  margin: 0 0 1.5rem;
 }
 
-.public-nurse-grid dt {
+.public-nurse-extra-label {
+  margin: 0 0 0.2rem;
   margin-bottom: 0.2rem;
   font-size: 0.82rem;
   font-weight: 700;
@@ -158,30 +86,23 @@
   color: #55716a;
 }
 
-.public-nurse-grid dd {
+.public-nurse-extra-value {
   margin: 0;
   color: #11332a;
   font-size: 1rem;
 }
 
 @media (max-width: 720px) {
-  .public-nurse-card {
+  .public-nurse-extra-grid {
     grid-template-columns: 1fr;
   }
 
-  .public-nurse-media {
-    justify-content: flex-start;
+  .public-nurse-actions {
+    flex-direction: column;
   }
 
-  .public-nurse-image,
-  .public-nurse-fallback {
-    width: 140px;
-    height: 140px;
-    border-radius: 20px;
-  }
-
-  .public-nurse-grid {
-    grid-template-columns: 1fr;
+  .public-nurse-actions .btn {
+    width: 100%;
   }
 }
 </style>

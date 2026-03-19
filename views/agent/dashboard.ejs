@@ -105,6 +105,7 @@
           <%- include("../partials/nurse-directory-card", {
             nurse,
             href: nurse.publicUrl,
+            mode: "compact",
             showRequestButton: false,
             showStatus: true,
             showDeleteButton: !!(agent && String(agent.status || "").toLowerCase() === "approved")

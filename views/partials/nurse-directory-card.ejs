@@ -1,31 +1,11 @@
 <%
 const nurseName = nurse.fullName || "Nurse";
 const profileHref = typeof href === "string" ? href.trim() : "";
-const publicSkills = Array.isArray(nurse.skills) ? nurse.skills.filter(Boolean) : [];
-const imageSrc = String(
-  nurse.profileImageUrl
-  || nurse.profile_image_url
-  || nurse.profileImagePath
-  || nurse.profile_image_path
-  || "/images/default-male.png"
-).trim();
-const experienceYears = Number.parseInt(
-  nurse.experienceYears ?? nurse.experience_years,
-  10
-);
-const experienceLabel = Number.isInteger(experienceYears) && experienceYears > 0
-  ? `${experienceYears} years`
-  : "Fresher";
-const availabilityLabel = nurse.isAvailable ? "Available" : "Currently Unavailable";
-const statusLabel = String(nurse.status || "").trim();
 const showRequest = typeof showRequestButton !== "undefined" && showRequestButton === true;
 const showDeleteAction = typeof showDeleteButton !== "undefined" && showDeleteButton === true;
-const showStatusDetails = typeof showStatus !== "undefined" && showStatus === true;
 const showUtilityActions = typeof showUtilityButtons === "undefined" ? Boolean(profileHref) : showUtilityButtons === true;
-const availabilityClass = nurse.isAvailable ? "available" : "unavailable";
-const statusClass = statusLabel.toLowerCase().replace(/\s+/g, "-") || "pending";
+const resolvedCardMode = String(typeof mode !== "undefined" ? mode : "compact").trim().toLowerCase() === "full" ? "full" : "compact";
 const profileSlug = String(nurse.profileSlug || nurse.profile_slug || "").trim();
-const qrSrc = nurse.id && profileSlug ? `/api/nurse/${encodeURIComponent(nurse.id)}/qr` : "";
 const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName || "nurse-card")
   .trim()
   .toLowerCase()
@@ -43,31 +23,14 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
   tabindex="0"
   <% } %>
 >
-  <div class="nurse-card__header">
-    <img src="<%= imageSrc %>" alt="<%= nurseName %> profile" class="nurse-image nurse-card__avatar" onerror="this.onerror=null;this.src='/images/default-male.png';" />
-    <div class="nurse-card__identity">
-      <h3><%= nurseName %></h3>
-      <div class="nurse-card__badges">
-        <span class="status-badge <%= availabilityClass %>"><%= availabilityLabel %></span>
-        <% if (showStatusDetails && statusLabel) { %>
-        <span class="status-badge <%= statusClass %>"><%= statusLabel %></span>
-        <% } %>
-      </div>
-    </div>
-  </div>
-
-  <div class="nurse-card__body">
-    <p><strong>City:</strong> <%= nurse.city || "Not shared" %></p>
-    <p><strong>Skills:</strong> <%= publicSkills.length ? publicSkills.join(", ") : "Not specified" %></p>
-    <p><strong>Experience:</strong> <%= experienceLabel %></p>
-  </div>
-
-  <% if (qrSrc) { %>
-  <div class="qr-section">
-    <img src="<%= qrSrc %>" alt="QR code for <%= nurseName %> profile" loading="lazy" />
-    <p>Scan to open the public profile</p>
-  </div>
-  <% } %>
+  <%- include("./nurse-card-base", {
+    nurse,
+    mode: resolvedCardMode,
+    showQrCode: Boolean(profileSlug),
+    showBranding: true,
+    showContact: resolvedCardMode === "full",
+    showWatermarkOverlay: resolvedCardMode === "full" && !!(nurse.status && String(nurse.status).toLowerCase() !== "approved")
+  }) %>
 
   <% if (profileHref || (showRequest && nurse.isAvailable) || showUtilityActions || showDeleteAction) { %>
   <div class="cta-row nurse-actions nurse-card__actions">

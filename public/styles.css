@@ -730,16 +730,259 @@ a {
   margin-top: 0.55rem;
 }
 
+.card.nurse-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  overflow: visible;
+}
+
+.card.nurse-card:hover {
+  box-shadow: none;
+}
+
 .nurse-card {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-  padding: 16px;
-  border-radius: 18px;
 }
 
 .nurse-card--interactive {
   cursor: pointer;
+}
+
+.nurse-card--interactive:hover .nurse-card-base,
+.nurse-card--interactive:focus-within .nurse-card-base {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 46px rgba(17, 51, 42, 0.16);
+}
+
+.nurse-card-base {
+  width: 100%;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 16px 38px rgba(17, 51, 42, 0.12);
+  overflow: hidden;
+  position: relative;
+  font-family: "Open Sans", sans-serif;
+  border: 1px solid rgba(42, 111, 165, 0.12);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.nurse-card-base__top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  position: relative;
+  z-index: 2;
+}
+
+.nurse-card-base__photo-section {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.nurse-card-base__photo {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 4px solid #eef4fa;
+  background: #fff;
+}
+
+.nurse-card-base__qr-overlay {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  padding: 0.45rem;
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  text-align: center;
+  width: 118px;
+}
+
+.nurse-card-base__qr-overlay img {
+  width: 68px;
+  height: 68px;
+}
+
+.nurse-card-base__qr-overlay span {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: #14324a;
+}
+
+.nurse-card-base__details {
+  width: 100%;
+  display: grid;
+  gap: 0.25rem;
+  padding-top: 2.6rem;
+}
+
+.nurse-card-base__chip {
+  justify-self: center;
+  margin-bottom: 0.3rem;
+  background: #eef6ff;
+  color: #1f4e79;
+  border: 1px solid #c9dff5;
+  border-radius: 999px;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.nurse-card-base__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #e8edf2;
+}
+
+.nurse-card-base__row span {
+  font-weight: 700;
+  color: #1f4e79;
+}
+
+.nurse-card-base__row b {
+  text-align: right;
+  color: #153551;
+  font-size: 1rem;
+}
+
+.nurse-card-base__verified {
+  margin-top: 0.55rem;
+  font-weight: 800;
+  font-size: 1rem;
+  color: #17324a;
+}
+
+.nurse-card-base__brand-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-align: center;
+  background: #eaf2f8;
+  padding: 0.95rem 1rem;
+  position: relative;
+  z-index: 2;
+}
+
+.nurse-card-base__brand-left {
+  font-size: 0.86rem;
+  color: #14324a;
+}
+
+.nurse-card-base__brand-center h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  letter-spacing: 0.03em;
+  color: #2a6fa5;
+}
+
+.nurse-card-base__brand-center p {
+  margin: 0.1rem 0 0;
+  color: #14324a;
+  font-size: 0.9rem;
+}
+
+.nurse-card-base__contact-footer {
+  background: #2b6da3;
+  color: #fff;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  font-size: 0.92rem;
+  position: relative;
+  z-index: 2;
+}
+
+.nurse-card-base__watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(2rem, 8vw, 4.8rem);
+  color: #cf2e2e;
+  opacity: 0.13;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  transform: rotate(-22deg);
+  pointer-events: none;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.nurse-card-base.compact {
+  max-width: 100%;
+}
+
+.nurse-card-base.compact .nurse-card-base__contact-footer,
+.nurse-card-base.compact .nurse-card-base__watermark {
+  display: none;
+}
+
+.nurse-card-base.full {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .nurse-card-base__top {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.25rem;
+    padding: 1.35rem;
+  }
+
+  .nurse-card-base__photo-section {
+    width: auto;
+    display: block;
+  }
+
+  .nurse-card-base__photo {
+    width: 120px;
+    height: 128px;
+    border-radius: 16px;
+  }
+
+  .nurse-card-base__qr-overlay {
+    left: 10px;
+    transform: none;
+  }
+
+  .nurse-card-base__details {
+    padding-top: 0;
+  }
+
+  .nurse-card-base__chip {
+    justify-self: end;
+  }
+
+  .nurse-card-base__brand-strip {
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+    gap: 1rem;
+    padding: 1rem 1.3rem;
+  }
+
+  .nurse-card-base__brand-center {
+    flex: 1;
+    text-align: center;
+  }
 }
 
 .nurse-card__header {
@@ -1206,6 +1449,14 @@ thead th {
 @media (max-width: 600px) {
   .nurse-card {
     padding: 10px;
+  }
+
+  .nurse-card-base__row {
+    align-items: flex-start;
+  }
+
+  .nurse-card-base__row b {
+    max-width: 58%;
   }
 
   .nurse-card__header {

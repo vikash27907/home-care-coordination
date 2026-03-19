@@ -1,0 +1,120 @@
+<%
+const resolvedMode = String(
+  typeof mode !== "undefined"
+    ? mode
+    : (typeof cardMode !== "undefined"
+      ? cardMode
+      : (typeof cardVariant !== "undefined" ? cardVariant : "compact"))
+).trim().toLowerCase() === "full" ? "full" : "compact";
+const nurseName = String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse").trim();
+const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").trim();
+const city = String((nurse && nurse.city) || "").trim();
+const gender = String((nurse && nurse.gender) || "Not specified").trim();
+const imageSrc = String(
+  (nurse && (
+    nurse.profileImageUrl
+    || nurse.profile_image_url
+    || nurse.profileImagePath
+    || nurse.profile_image_path
+  )) || "/images/default-avatar.png"
+).trim();
+const profileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "").trim();
+const nurseId = Number.parseInt((nurse && nurse.id) || 0, 10);
+const statusLabel = String((nurse && nurse.status) || "").trim();
+const currentStatusLabel = String(
+  (nurse && (
+    nurse.currentStatus
+    || nurse.current_status
+    || (nurse.isAvailable === false ? "Currently Unavailable" : "Available")
+  )) || ""
+).trim();
+const explicitExperienceLabel = String((nurse && (nurse.experienceText || nurse.experience_text)) || "").trim();
+const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10);
+const experienceLabel = explicitExperienceLabel || (Number.isInteger(experienceYears) && experienceYears >= 0 ? `${experienceYears} Years` : "0 Years");
+const showQr = typeof showQrCode === "undefined" ? Boolean(profileSlug && nurseId) : showQrCode === true;
+const showBrand = typeof showBranding === "undefined" ? true : showBranding === true;
+const showContactFooter = typeof showContact === "undefined" ? resolvedMode === "full" : showContact === true;
+const showWatermark = typeof showWatermarkOverlay === "undefined"
+  ? (resolvedMode === "full" && statusLabel && statusLabel.toLowerCase() !== "approved")
+  : showWatermarkOverlay === true;
+const verificationLabel = statusLabel && statusLabel.toLowerCase() === "approved"
+  ? "Verified By: Prisha HomeCare"
+  : "Verified By: Prisha HomeCare";
+const stateChip = currentStatusLabel || statusLabel || "";
+%>
+
+<div class="nurse-card-base <%= resolvedMode %>">
+  <% if (showWatermark) { %>
+  <div class="nurse-card-base__watermark">UNVERIFIED</div>
+  <% } %>
+
+  <div class="nurse-card-base__top">
+    <div class="nurse-card-base__photo-section">
+      <img
+        class="nurse-card-base__photo"
+        src="<%= imageSrc %>"
+        alt="<%= nurseName %> profile"
+        onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+      />
+
+      <% if (showQr) { %>
+      <div class="nurse-card-base__qr-overlay">
+        <img src="/api/nurse/<%= nurseId %>/qr" alt="QR code for <%= nurseName %> profile" loading="lazy" />
+        <span>Scan to verify nurse profile</span>
+      </div>
+      <% } %>
+    </div>
+
+    <div class="nurse-card-base__details">
+      <% if (stateChip) { %>
+      <div class="nurse-card-base__chip"><%= stateChip %></div>
+      <% } %>
+
+      <div class="nurse-card-base__row">
+        <span>Name:</span>
+        <b><%= nurseName %></b>
+      </div>
+
+      <div class="nurse-card-base__row">
+        <span>ID:</span>
+        <b><%= uniqueId || "-" %></b>
+      </div>
+
+      <div class="nurse-card-base__row">
+        <span>Experience:</span>
+        <b><%= experienceLabel %></b>
+      </div>
+
+      <div class="nurse-card-base__row">
+        <span>City:</span>
+        <b><%= city || "Not shared" %></b>
+      </div>
+
+      <div class="nurse-card-base__row">
+        <span>Gender:</span>
+        <b><%= gender || "Not specified" %></b>
+      </div>
+
+      <div class="nurse-card-base__verified"><%= verificationLabel %></div>
+    </div>
+  </div>
+
+  <% if (showBrand) { %>
+  <div class="nurse-card-base__brand-strip">
+    <div class="nurse-card-base__brand-left">
+      <span>Verified Care Staff From</span>
+    </div>
+
+    <div class="nurse-card-base__brand-center">
+      <h2>PRISHA HOMECARE</h2>
+      <p>Book Nurses &amp; Caregivers Online</p>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (showContactFooter) { %>
+  <div class="nurse-card-base__contact-footer">
+    Contact: 9138913355 | Email: prishahomecare@gmail.com
+  </div>
+  <% } %>
+</div>
