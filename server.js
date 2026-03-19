@@ -808,6 +808,9 @@ app.use(express.static("public", {
   maxAge: "1d",
   etag: true
 }));
+app.get("/vendor/html-to-image.js", (req, res) => {
+  return res.sendFile(path.join(process.cwd(), "node_modules", "html-to-image", "dist", "html-to-image.js"));
+});
 
 // Dynamic HTML cache policy:
 // - Always vary by Cookie so guest/login variants do not share stale HTML.
@@ -7616,6 +7619,7 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
 
     const nurseId = nurseResult.rows[0].id;
     const showOwnershipBanner = nurseResult.rows[0].claimed_by_nurse !== true;
+    const nurseProfile = await getNurseById(nurseId);
     const statsResult = await pool.query(
       `SELECT
           (SELECT COUNT(*)
@@ -7641,6 +7645,12 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
       title: "Nurse Dashboard",
       user: req.session.user,
       stats: statsResult.rows[0],
+      profileCard: nurseProfile
+        ? {
+          ...buildPublicNurse(nurseProfile),
+          status: nurseProfile.status || "Pending"
+        }
+        : null,
       showOwnershipBanner,
       pendingEmailVerification: String(req.session.pendingNurseEmailVerification || "").trim()
     });

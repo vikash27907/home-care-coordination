@@ -51,6 +51,26 @@
   </section>
 <% } %>
 
+<% if (profileCard) { %>
+  <section class="dashboard-preview">
+    <div class="section-head">
+      <div>
+        <h2>Your Public Card</h2>
+        <p class="text-muted">This is the same card patients and agents see across the platform.</p>
+      </div>
+    </div>
+    <div class="nurse-cards-grid nurse-cards-grid--single">
+      <%- include("../partials/nurse-directory-card", {
+        nurse: profileCard,
+        href: profileCard.publicUrl,
+        showRequestButton: false,
+        showStatus: true,
+        showUtilityButtons: true
+      }) %>
+    </div>
+  </section>
+<% } %>
+
 <div class="dashboard-grid">
   <a href="/nurse/care-requests#pending" class="dash-card blue">
     <h3><%= stats.pending_apps %></h3>
@@ -123,6 +143,14 @@
 
 .ownership-form--otp input {
   max-width: 220px;
+}
+
+.dashboard-preview {
+  margin-top: 28px;
+}
+
+.nurse-cards-grid--single {
+  grid-template-columns: minmax(0, 420px);
 }
 
 .dash-card {

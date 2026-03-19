@@ -738,6 +738,10 @@ a {
   border-radius: 18px;
 }
 
+.nurse-card--interactive {
+  cursor: pointer;
+}
+
 .nurse-card__header {
   display: flex;
   align-items: center;
@@ -774,6 +778,32 @@ a {
   flex-wrap: wrap;
   gap: 0.65rem;
   align-items: stretch;
+}
+
+.qr-section {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  border: 1px dashed rgba(30, 136, 229, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(30, 136, 229, 0.04), rgba(14, 109, 98, 0.02));
+}
+
+.qr-section img {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.qr-section p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+  text-align: center;
 }
 
 .nurse-image {
@@ -825,6 +855,10 @@ a {
 .nurse-actions .nurse-delete-form,
 .nurse-actions .nurse-delete-form .btn {
   min-height: 42px;
+}
+
+.nurse-actions .btn {
+  justify-content: center;
 }
 
 .nurse-actions .nurse-delete-form {

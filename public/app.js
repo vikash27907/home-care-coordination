@@ -227,3 +227,144 @@ if (navToggle && navLinks) {
     }
   });
 }
+
+const nurseCards = document.querySelectorAll("[data-nurse-card][data-card-url]");
+if (nurseCards.length) {
+  const isCardActionTarget = (target) => Boolean(
+    target && target.closest("[data-card-action], a, button, form, input, select, textarea, label")
+  );
+
+  const openCardUrl = (card) => {
+    const nextUrl = String(card.getAttribute("data-card-url") || "").trim();
+    if (nextUrl) {
+      window.location.href = nextUrl;
+    }
+  };
+
+  nurseCards.forEach((card) => {
+    card.addEventListener("click", (event) => {
+      if (event.defaultPrevented || isCardActionTarget(event.target)) return;
+      openCardUrl(card);
+    });
+
+    card.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key) || isCardActionTarget(event.target)) return;
+      event.preventDefault();
+      openCardUrl(card);
+    });
+  });
+}
+
+const shareButtons = document.querySelectorAll("[data-share-url]");
+if (shareButtons.length) {
+  const resolveAbsoluteUrl = (value) => {
+    try {
+      return new URL(String(value || "").trim(), window.location.origin).toString();
+    } catch (error) {
+      return window.location.href;
+    }
+  };
+
+  shareButtons.forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const shareUrl = resolveAbsoluteUrl(button.getAttribute("data-share-url"));
+      const shareTitle = String(button.getAttribute("data-share-title") || "Nurse Profile").trim();
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: shareTitle,
+            url: shareUrl
+          });
+          return;
+        } catch (error) {
+          if (error && error.name === "AbortError") return;
+        }
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          alert("Profile link copied!");
+          return;
+        } catch (error) {
+          // Fall through to manual copy prompt.
+        }
+      }
+
+      window.prompt("Copy this profile link:", shareUrl);
+    });
+  });
+}
+
+const downloadButtons = document.querySelectorAll("[data-download-card]");
+if (downloadButtons.length) {
+  let htmlToImageLoader = null;
+
+  const loadHtmlToImage = () => {
+    if (window.htmlToImage) {
+      return Promise.resolve(window.htmlToImage);
+    }
+    if (htmlToImageLoader) {
+      return htmlToImageLoader;
+    }
+
+    htmlToImageLoader = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-html-to-image-loader="true"]');
+      if (existingScript) {
+        existingScript.addEventListener("load", () => resolve(window.htmlToImage));
+        existingScript.addEventListener("error", reject);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "/vendor/html-to-image.js";
+      script.async = true;
+      script.dataset.htmlToImageLoader = "true";
+      script.onload = () => {
+        if (window.htmlToImage) {
+          resolve(window.htmlToImage);
+          return;
+        }
+        reject(new Error("html-to-image failed to load."));
+      };
+      script.onerror = () => reject(new Error("Unable to load download helper."));
+      document.head.appendChild(script);
+    });
+
+    return htmlToImageLoader;
+  };
+
+  downloadButtons.forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const card = button.closest("[data-nurse-card]");
+      if (!card) return;
+
+      try {
+        button.disabled = true;
+        const htmlToImage = await loadHtmlToImage();
+        const dataUrl = await htmlToImage.toPng(card, {
+          cacheBust: true,
+          pixelRatio: Math.max(window.devicePixelRatio || 1, 2)
+        });
+        const fileName = String(card.getAttribute("data-card-file-name") || "nurse-card.png").trim();
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (error) {
+        alert("Unable to download card right now.");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
