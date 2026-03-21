@@ -116,6 +116,13 @@ async function initializeDatabase() {
         current_status VARCHAR(50),
         address TEXT,
         work_city TEXT,
+        height_text TEXT,
+        weight_kg INTEGER,
+        languages TEXT[] DEFAULT ARRAY[]::TEXT[],
+        duty_type TEXT,
+        is_verified BOOLEAN DEFAULT FALSE,
+        availability_label TEXT DEFAULT 'Available',
+        medical_fit_url TEXT,
         custom_skills TEXT[],
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -126,10 +133,43 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(20),
       ADD COLUMN IF NOT EXISTS aadhar_image_url TEXT,
       ADD COLUMN IF NOT EXISTS current_status VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS height_text TEXT,
+      ADD COLUMN IF NOT EXISTS weight_kg INTEGER,
+      ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT ARRAY[]::TEXT[],
+      ADD COLUMN IF NOT EXISTS duty_type TEXT,
+      ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS availability_label TEXT DEFAULT 'Available',
+      ADD COLUMN IF NOT EXISTS medical_fit_url TEXT,
       ADD COLUMN IF NOT EXISTS unique_id VARCHAR(20),
       ADD COLUMN IF NOT EXISTS profile_slug TEXT,
       ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT true,
       ADD COLUMN IF NOT EXISTS claimed_by_nurse BOOLEAN DEFAULT FALSE
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET languages = ARRAY[]::TEXT[]
+      WHERE languages IS NULL
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET is_verified = CASE
+        WHEN LOWER(COALESCE(status, 'pending')) = 'approved' THEN TRUE
+        ELSE COALESCE(is_verified, FALSE)
+      END
+      WHERE is_verified IS NULL
+         OR LOWER(COALESCE(status, 'pending')) = 'approved'
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET availability_label = CASE
+        WHEN NULLIF(BTRIM(COALESCE(current_status, '')), '') IS NOT NULL THEN BTRIM(current_status)
+        WHEN COALESCE(is_available, TRUE) = TRUE THEN 'Available'
+        ELSE 'Unavailable'
+      END
+      WHERE NULLIF(BTRIM(COALESCE(availability_label, '')), '') IS NULL
     `);
 
     await pool.query(`

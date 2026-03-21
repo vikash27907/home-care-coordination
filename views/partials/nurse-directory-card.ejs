@@ -4,7 +4,7 @@ const profileHref = typeof href === "string" ? href.trim() : "";
 const showRequest = typeof showRequestButton !== "undefined" && showRequestButton === true;
 const showDeleteAction = typeof showDeleteButton !== "undefined" && showDeleteButton === true;
 const showUtilityActions = typeof showUtilityButtons === "undefined" ? Boolean(profileHref) : showUtilityButtons === true;
-const resolvedCardMode = String(typeof mode !== "undefined" ? mode : "compact").trim().toLowerCase() === "full" ? "full" : "compact";
+const resolvedCardMode = String(typeof mode !== "undefined" ? mode : "compact").trim().toLowerCase() === "id" ? "id" : "compact";
 const profileSlug = String(nurse.profileSlug || nurse.profile_slug || "").trim();
 const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName || "nurse-card")
   .trim()
@@ -23,13 +23,10 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
   tabindex="0"
   <% } %>
 >
-  <%- include("./nurse-card-base", {
+  <%- include("./nurse-card", {
     nurse,
     mode: resolvedCardMode,
-    showQrCode: Boolean(profileSlug),
-    showBranding: true,
-    showContact: resolvedCardMode === "full",
-    showWatermarkOverlay: resolvedCardMode === "full" && !!(nurse.status && String(nurse.status).toLowerCase() !== "approved")
+    showQrCode: resolvedCardMode === "id"
   }) %>
 
   <% if (profileHref || (showRequest && nurse.isAvailable) || showUtilityActions || showDeleteAction) { %>

@@ -228,7 +228,8 @@ if (navToggle && navLinks) {
   });
 }
 
-const nurseCards = document.querySelectorAll("[data-nurse-card][data-card-url]");
+
+const nurseCards = document.querySelectorAll("[data-card-url]");
 if (nurseCards.length) {
   const isCardActionTarget = (target) => Boolean(
     target && target.closest("[data-card-action], a, button, form, input, select, textarea, label")
@@ -237,6 +238,11 @@ if (nurseCards.length) {
   const openCardUrl = (card) => {
     const nextUrl = String(card.getAttribute("data-card-url") || "").trim();
     if (nextUrl) {
+      const target = String(card.getAttribute("data-card-target") || "").trim().toLowerCase();
+      if (target === "_blank") {
+        window.open(nextUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
       window.location.href = nextUrl;
     }
   };

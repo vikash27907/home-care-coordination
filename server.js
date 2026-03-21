@@ -954,6 +954,7 @@ function generateToken() {
 // Generate a 6-digit OTP
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Generate a temporary password
@@ -1287,21 +1288,46 @@ function buildPublicNurse(nurse) {
     .map((item) => (item && typeof item === "object" ? item.name : item))
     .map((item) => String(item || "").trim())
     .filter(Boolean);
+  const experienceYears = Number.parseInt(nurse.experienceYears, 10) || 0;
+  const availabilityLabel = String(
+    nurse.availabilityLabel
+    || nurse.availability_label
+    || nurse.currentStatus
+    || nurse.current_status
+    || (nurse.isAvailable === false ? "Unavailable" : "Available")
+    || "Available"
+  ).trim();
 
   return {
     id: nurse.id,
     fullName: nurse.fullName,
     city: nurse.publicShowCity ? nurse.city : "Not shared",
-    experienceYears: nurse.publicShowExperience ? nurse.experienceYears : null,
+    experienceYears: nurse.publicShowExperience ? experienceYears : null,
+    experienceText: nurse.publicShowExperience ? `${experienceYears} Years` : "Not shared",
     qualifications: qualificationNames,
+    qualificationPrimary: qualificationNames[0] || "Nursing",
+    qualificationsText: qualificationNames.join(", "),
     skills: getPublicNurseSkills(nurse),
+    languages: Array.isArray(nurse.languages) ? nurse.languages.filter(Boolean) : [],
     availability: nurse.availability || [],
+    availabilityLabel,
+    dutyType: String(nurse.dutyType || nurse.duty_type || "").trim() || "12 hrs / 24 hrs",
+    height: String(nurse.height || nurse.heightText || nurse.height_text || "").trim() || "-",
+    weight: Number.isFinite(Number(nurse.weightKg || nurse.weight_kg || nurse.weight))
+      ? Number(nurse.weightKg || nurse.weight_kg || nurse.weight)
+      : null,
+    gender: nurse.gender || "Not specified",
     profileImageUrl: nurse.profileImageUrl || "",
+    phoneNumber: String(nurse.phoneNumber || nurse.phone_number || "").trim(),
     publicBio: nurse.publicBio || "",
     uniqueId: nurse.uniqueId || "",
     profileSlug: nurse.profileSlug || "",
     publicUrl: nurse.profileSlug ? `/nurse/${encodeURIComponent(nurse.profileSlug)}` : `/nurses/${nurse.id}`,
-    isAvailable: nurse.isAvailable !== false
+    isAvailable: nurse.isAvailable !== false,
+    currentStatus: nurse.currentStatus || nurse.current_status || availabilityLabel,
+    isVerified: nurse.isVerified === true || String(nurse.status || "").toLowerCase() === "approved",
+    ratingAverage: Number.isFinite(Number(nurse.ratingAverage)) ? Number(nurse.ratingAverage) : 0,
+    reviewCount: Number.parseInt(nurse.reviewCount, 10) || 0
   };
 }
 
@@ -1311,13 +1337,20 @@ function buildAgentDashboardNurse(row) {
   const nurse = {
     id: row.id,
     fullName: row.full_name || "Nurse",
+    gender: row.gender || "Not specified",
     city: row.city || "",
     experienceYears: Number.parseInt(row.experience_years, 10) || 0,
     qualifications: Array.isArray(row.qualifications) ? row.qualifications : [],
     skills: Array.isArray(row.skills) ? row.skills : [],
+    languages: Array.isArray(row.languages) ? row.languages : [],
     publicSkills: Array.isArray(row.public_skills) ? row.public_skills : [],
     availability: [],
+    availabilityLabel: row.availability_label || row.current_status || (row.is_available === false ? "Unavailable" : "Available"),
+    dutyType: row.duty_type || "",
+    height: row.height_text || "",
+    weight: Number.isFinite(Number(row.weight_kg)) ? Number(row.weight_kg) : null,
     profileImageUrl: normalizePublicImageUrl(row.profile_image_url || row.profile_image_path || ""),
+    phoneNumber: row.user_phone || row.phone_number || "",
     publicBio: row.public_bio || "",
     uniqueId: row.unique_id || "",
     profileSlug: row.profile_slug || "",
@@ -1342,21 +1375,89 @@ function buildPublicNurseProfileView(nurse) {
     .map((item) => String(item || "").trim())
     .filter(Boolean);
   const experienceYears = Number.parseInt(nurse.experienceYears, 10) || 0;
+  const languages = Array.isArray(nurse.languages) ? nurse.languages.filter(Boolean) : [];
+  const skills = Array.isArray(nurse.skills) ? nurse.skills.filter(Boolean) : [];
+  const phoneNumber = String(nurse.phoneNumber || nurse.phone_number || "").trim();
+  const normalizedPhone = normalizePhone(phoneNumber);
+  const availabilityLabel = String(
+    nurse.availabilityLabel
+    || nurse.availability_label
+    || nurse.currentStatus
+    || (nurse.isAvailable === false ? "Unavailable" : "Available")
+    || "Available"
+  ).trim();
+  const qualificationPrimary = qualificationNames[0] || "Nursing";
+  const hasAadhaar = Boolean(
+    nurse.aadharImageUrl
+    || nurse.aadhar_image_url
+    || nurse.aadhaarCardUrl
+    || nurse.aadhaar_card_url
+  );
+  const hasCertificate = qualifications.some((item) => item && typeof item === "object" && item.certificate_url);
+  const medicalFitUrl = String(nurse.medicalFitUrl || nurse.medical_fit_url || "").trim();
 
   return {
     id: nurse.id,
     fullName: nurse.fullName,
     status: nurse.status || "Pending",
+    isVerified: nurse.isVerified === true || String(nurse.status || "").toLowerCase() === "approved",
     gender: nurse.gender || "Not specified",
     city: nurse.publicShowCity ? nurse.city : "Not shared",
+    qualificationPrimary,
     qualificationsText: qualificationNames.join(", "),
     experienceYears: nurse.publicShowExperience ? experienceYears : null,
     experienceText: nurse.publicShowExperience ? `${experienceYears} Years` : "Not shared",
     profileImageUrl: nurse.profileImageUrl || nurse.profileImagePath || "",
     uniqueId: nurse.uniqueId || "",
     profileSlug: nurse.profileSlug || "",
+    publicUrl: nurse.profileSlug ? `/nurse/${encodeURIComponent(nurse.profileSlug)}` : `/nurses/${nurse.id}`,
     isAvailable: nurse.isAvailable !== false,
-    currentStatus: nurse.currentStatus || (nurse.isAvailable === false ? "Currently Unavailable" : "Available")
+    currentStatus: nurse.currentStatus || availabilityLabel,
+    availabilityLabel,
+    dutyType: String(nurse.dutyType || nurse.duty_type || "").trim() || "12 hrs / 24 hrs",
+    height: String(nurse.height || nurse.heightText || nurse.height_text || "").trim() || "-",
+    weight: Number.isFinite(Number(nurse.weightKg || nurse.weight_kg || nurse.weight))
+      ? Number(nurse.weightKg || nurse.weight_kg || nurse.weight)
+      : null,
+    languages,
+    skills,
+    phoneNumber,
+    whatsappLink: normalizedPhone ? `https://wa.me/91${normalizedPhone}` : "",
+    aadhaarCardUrl: String(
+      nurse.aadhaarCardUrl
+      || nurse.aadharImageUrl
+      || nurse.aadhar_image_url
+      || nurse.aadhaar_card_url
+      || ""
+    ).trim(),
+    certificateUrl: String(nurse.certificateUrl || nurse.certificate_url || "").trim(),
+    medicalFitUrl,
+    documents: [
+      {
+        key: "aadhaar",
+        label: "Aadhaar Card",
+        href: String(
+          nurse.aadhaarCardUrl
+          || nurse.aadharImageUrl
+          || nurse.aadhar_image_url
+          || nurse.aadhaar_card_url
+          || ""
+        ).trim(),
+        available: hasAadhaar
+      },
+      {
+        key: "certificate",
+        label: "Certificate",
+        href: String(nurse.certificateUrl || nurse.certificate_url || "").trim(),
+        available: hasCertificate || Boolean(nurse.certificateUrl || nurse.certificate_url)
+      },
+      {
+        key: "medical-fit",
+        label: "Medical Fit",
+        href: medicalFitUrl,
+        available: Boolean(medicalFitUrl)
+      }
+    ]
   };
 }
 function normalizeStoreShape(store) {
@@ -2479,7 +2580,7 @@ async function stagePublicAgentRegistration(req, res, failRedirect) {
       return res.redirect(failRedirect);
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = crypto.randomInt(100000, 1000000).toString();
     req.session.agentRegistration = {
       fullName,
       email,
@@ -2566,7 +2667,20 @@ app.get("/nurse/:slug([a-z0-9-]+-phcn-?[0-9]+)", async (req, res) => {
     return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
   }
 
-  const publicNurse = buildPublicNurseProfileView(nurse);
+  const ratingsResult = await pool.query(
+    `SELECT
+        COALESCE(ROUND(AVG(rating)::numeric, 1), 0)::numeric(3,1) AS average_rating,
+        COUNT(*)::int AS review_count
+     FROM care_request_ratings
+     WHERE nurse_id = $1`,
+    [nurse.id]
+  );
+  const ratingRow = ratingsResult.rows[0] || {};
+  const publicNurse = {
+    ...buildPublicNurseProfileView(nurse),
+    ratingAverage: Number.parseFloat(ratingRow.average_rating) || 0,
+    reviewCount: Number.parseInt(ratingRow.review_count, 10) || 0
+  };
   const isVerified = nurse.status === "Approved";
 
   return res.render("public-nurse-profile", {
@@ -3096,7 +3210,8 @@ app.post("/nurse-signup", async (req, res) => {
   }
 
   // Generate 4-digit OTP for email verification
-  const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+  
+  const generatedOtp = crypto.randomInt(1000, 10000).toString();
   const otpExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours for testing
 
   // Add OTP to request body for createNurseUnderAgent to use
@@ -3150,7 +3265,8 @@ app.post("/nurse/register", async (req, res) => {
     return createNurseUnderAgent(req, res, failRedirect);
   }
 
-  const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+  
+  const generatedOtp = crypto.randomInt(1000, 10000).toString();
   const otpExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   req.body.generatedOtp = generatedOtp;
@@ -7651,10 +7767,11 @@ app.get("/nurse/dashboard", requireRole("nurse"), requireApprovedNurse, async (r
       user: req.session.user,
       stats: statsResult.rows[0],
       profileCard: nurseProfile
-        ? {
-          ...buildPublicNurse(nurseProfile),
-          status: nurseProfile.status || "Pending"
-        }
+        ? buildPublicNurseProfileView({
+          ...nurseProfile,
+          ratingAverage: nurseProfile.ratingAverage || 0,
+          reviewCount: nurseProfile.reviewCount || 0
+        })
         : null,
       showOwnershipBanner,
       pendingEmailVerification: String(req.session.pendingNurseEmailVerification || "").trim()
@@ -7683,7 +7800,8 @@ app.post("/nurse/request-email-otp", requireRole("nurse"), requireApprovedNurse,
       return res.redirect("/nurse/dashboard");
     }
 
-    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+   
+    const otpCode = crypto.randomInt(100000, 1000000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await updateUser(req.currentUser.id, {
@@ -7771,7 +7889,8 @@ app.get("/verify-email", requireRole("nurse"), requireApprovedNurse, async (req,
     }
 
     if (!req.currentUser.emailVerified) {
-      const generatedOtp = String(Math.floor(1000 + Math.random() * 9000));
+      
+      const generatedOtp = crypto.randomInt(1000, 10000).toString();
       const otpExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       await updateUser(req.currentUser.id, {
@@ -7945,6 +8064,39 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     setFlash(req, "error", "Please select a valid current status.");
     return res.redirect("/nurse/profile/edit");
   }
+  const heightText = String(req.body.height || req.body.heightText || "").trim();
+  if (heightText && heightText.length > 20) {
+    setFlash(req, "error", "Height should be a short value like 5'4\".");
+    return res.redirect("/nurse/profile/edit");
+  }
+
+  const weightInput = String(req.body.weight || req.body.weightKg || "").trim();
+  const weightKg = weightInput === "" ? undefined : Number.parseInt(weightInput, 10);
+  if (typeof weightKg !== "undefined" && (Number.isNaN(weightKg) || weightKg < 20 || weightKg > 250)) {
+    setFlash(req, "error", "Weight must be between 20 and 250 kg.");
+    return res.redirect("/nurse/profile/edit");
+  }
+
+  const dutyType = String(req.body.dutyType || req.body.duty_type || "").trim();
+  if (dutyType && dutyType.length > 80) {
+    setFlash(req, "error", "Duty type is too long.");
+    return res.redirect("/nurse/profile/edit");
+  }
+
+  const availabilityLabel = String(req.body.availabilityLabel || req.body.availability_label || "").trim();
+  if (availabilityLabel && availabilityLabel.length > 50) {
+    setFlash(req, "error", "Availability label is too long.");
+    return res.redirect("/nurse/profile/edit");
+  }
+
+  const languagesRaw = String(req.body.languagesRaw || "").trim();
+  const languages = languagesRaw
+    ? [...new Set(languagesRaw.split(",").map((item) => String(item || "").trim()).filter(Boolean))]
+    : normalizeArray(req.body.languages).map((item) => String(item || "").trim()).filter(Boolean);
+  if (languages.length > 10) {
+    setFlash(req, "error", "Please keep languages to 10 items or fewer.");
+    return res.redirect("/nurse/profile/edit");
+  }
 
   const selectedSkills = normalizeArray(req.body.skills)
     .map((item) => String(item || "").trim())
@@ -7969,9 +8121,15 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
   setIfDefined("city", city);
   setIfDefined("current_address", currentAddress);
   setIfDefined("current_status", currentStatus);
+  setIfDefined("availability_label", availabilityLabel || currentStatus);
   setIfDefined("experience_years", experienceYears);
   setIfDefined("experience_months", experienceMonths);
   setIfDefined("aadhaar_number", aadhaarDigits);
+  setIfDefined("height_text", heightText);
+  setIfDefined("weight_kg", weightKg);
+  setIfDefined("languages", languages);
+  setIfDefined("duty_type", dutyType);
+  setIfDefined("is_verified", String(nurse.status || "").toLowerCase() === "approved");
   setIfDefined("skills", selectedSkills);
   setIfDefined("work_locations", normalizedWorkLocations);
 
@@ -7997,6 +8155,10 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
     if (files.resume && files.resume[0]) {
       const uploadedResume = await uploadBufferToCloudinary(files.resume[0], "home-care/nurses/resume");
       setIfDefined("resume_url", uploadedResume.secure_url);
+    }
+    if (files.medicalFit && files.medicalFit[0]) {
+      const uploadedMedicalFit = await uploadBufferToCloudinary(files.medicalFit[0], "home-care/nurses/medical-fit");
+      setIfDefined("medical_fit_url", uploadedMedicalFit.secure_url);
     }
     if (files.highestCert && files.highestCert[0]) {
       const uploadedHighest = await uploadBufferToCloudinary(files.highestCert[0], "home-care/nurses/highest-cert");
@@ -8040,7 +8202,10 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
       (existingNurse.aadhaar_number || "") !== aadhaarDigits ||
       (existingNurse.experience_years || 0) !== experienceYears ||
       (existingNurse.experience_months || 0) !== experienceMonths ||
-      JSON.stringify(safeSort(existingNurse.skills)) !== JSON.stringify(safeSort(selectedSkills));
+      JSON.stringify(safeSort(existingNurse.skills)) !== JSON.stringify(safeSort(selectedSkills)) ||
+      (existingNurse.height_text || "") !== heightText ||
+      Number(existingNurse.weight_kg || 0) !== Number(weightKg || 0) ||
+      (existingNurse.duty_type || "") !== dutyType;
 
     // 3. Apply cooldown and status lock
     if (existingNurse.profile_status === "approved" && hardFieldChanged) {
@@ -8077,8 +8242,15 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           work_locations = COALESCE($8, work_locations),
           qualifications = COALESCE($9, qualifications),
           resume_url = COALESCE($10, resume_url),
-          profile_pic_url = COALESCE($11, profile_pic_url)
-        WHERE id = $12`,
+          profile_pic_url = COALESCE($11, profile_pic_url),
+          height_text = COALESCE($12, height_text),
+          weight_kg = COALESCE($13, weight_kg),
+          languages = COALESCE($14, languages),
+          duty_type = COALESCE($15, duty_type),
+          availability_label = COALESCE($16, availability_label),
+          is_verified = COALESCE($17, is_verified),
+          medical_fit_url = COALESCE($18, medical_fit_url)
+        WHERE id = $19`,
         [
           pickValue("city"),
           pickValue("current_address"),
@@ -8091,6 +8263,13 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           pickValue("qualifications"),
           pickValue("resume_url"),
           pickValue("profile_pic_url"),
+          pickValue("height_text"),
+          pickValue("weight_kg"),
+          pickValue("languages"),
+          pickValue("duty_type"),
+          pickValue("availability_label"),
+          pickValue("is_verified"),
+          pickValue("medical_fit_url"),
           nurse.id
         ]
       );
@@ -8107,8 +8286,15 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           work_locations = COALESCE($8, work_locations),
           qualifications = COALESCE($9, qualifications),
           resume_url = COALESCE($10, resume_url),
-          profile_image_path = COALESCE($11, profile_image_path)
-        WHERE id = $12`,
+          profile_image_path = COALESCE($11, profile_image_path),
+          height_text = COALESCE($12, height_text),
+          weight_kg = COALESCE($13, weight_kg),
+          languages = COALESCE($14, languages),
+          duty_type = COALESCE($15, duty_type),
+          availability_label = COALESCE($16, availability_label),
+          is_verified = COALESCE($17, is_verified),
+          medical_fit_url = COALESCE($18, medical_fit_url)
+        WHERE id = $19`,
         [
           pickValue("city"),
           pickValue("current_address"),
@@ -8121,6 +8307,13 @@ app.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, asyn
           pickValue("qualifications"),
           pickValue("resume_url"),
           pickValue("profile_image_path"),
+          pickValue("height_text"),
+          pickValue("weight_kg"),
+          pickValue("languages"),
+          pickValue("duty_type"),
+          pickValue("availability_label"),
+          pickValue("is_verified"),
+          pickValue("medical_fit_url"),
           nurse.id
         ]
       );

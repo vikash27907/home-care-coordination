@@ -7,6 +7,9 @@ const statusOptions = currentStatusOptions || [];
 const selectedSkills = nurse.skills || [];
 const selectedQualifications = nurse.qualifications || [];
 const workLocationsRaw = (nurse.workLocations || []).join(", ");
+const languageText = Array.isArray(nurse.languages) ? nurse.languages.join(", ") : "";
+const dutyTypeOptions = ["12 hrs / 24 hrs", "12 hrs", "24 hrs", "Day Shift", "Night Shift", "Live-In"];
+const availabilityLabels = ["Available", "Limited Availability", "On Call", "Unavailable"];
 const selectedCurrentStatus =
   nurse.currentStatus
   || nurse.current_status
@@ -24,6 +27,11 @@ const selectedCurrentStatus =
     </label>
 
     <label>
+      Phone Number
+      <input name="phone" type="tel" value="<%= nurse.phoneNumber || '' %>" placeholder="10-digit mobile number" />
+    </label>
+
+    <label>
       Aadhaar Number
       <input name="aadhaarNumber" type="text" maxlength="12" pattern="[0-9]{12}" value="<%= nurse.aadhaarNumber || nurse.aadharNumber || '' %>" placeholder="12-digit Aadhaar" />
     </label>
@@ -38,6 +46,16 @@ const selectedCurrentStatus =
       <input name="experienceMonths" type="number" min="0" max="11" value="<%= nurse.experienceMonths || 0 %>" required />
     </label>
 
+    <label>
+      Height
+      <input name="height" type="text" maxlength="20" value="<%= nurse.height || nurse.heightText || '' %>" placeholder="5'4&quot;" />
+    </label>
+
+    <label>
+      Weight (kg)
+      <input name="weight" type="number" min="20" max="250" value="<%= nurse.weightKg || nurse.weight || '' %>" placeholder="58" />
+    </label>
+
     <label class="full-width">
       Current Status <span class="required-indicator" title="Required"></span>
       <select name="current_status" required>
@@ -46,6 +64,32 @@ const selectedCurrentStatus =
           <option value="<%= option %>" <%= selectedCurrentStatus === option ? "selected" : "" %>><%= option %></option>
         <% }) %>
       </select>
+    </label>
+
+    <label>
+      Duty Type
+      <input name="dutyType" list="dutyTypeOptions" value="<%= nurse.dutyType || '' %>" placeholder="12 hrs / 24 hrs" />
+      <datalist id="dutyTypeOptions">
+        <% dutyTypeOptions.forEach(function(option) { %>
+          <option value="<%= option %>"></option>
+        <% }) %>
+      </datalist>
+    </label>
+
+    <label>
+      Availability
+      <select name="availabilityLabel">
+        <option value="">Select availability</option>
+        <% availabilityLabels.forEach(function(option) { %>
+          <option value="<%= option %>" <%= (nurse.availabilityLabel || nurse.currentStatus || '') === option ? "selected" : "" %>><%= option %></option>
+        <% }) %>
+      </select>
+    </label>
+
+    <label class="full-width">
+      Languages
+      <input name="languagesRaw" type="text" value="<%= languageText %>" placeholder="Hindi, English, Marathi" />
+      <small class="field-note">Use commas to separate multiple languages.</small>
     </label>
 
     <label class="full-width">
@@ -139,6 +183,16 @@ const selectedCurrentStatus =
       <input type="file" name="resume" id="resumeInput" accept=".jpg,.jpeg,.png,.pdf" />
       <% if (nurse.resumeUrl) { %>
         <a href="<%= nurse.resumeUrl %>" target="_blank" rel="noopener noreferrer">Current Resume</a>
+      <% } %>
+    </label>
+
+    <label class="full-width">
+      Medical Fitness Certificate
+      <input type="file" name="medicalFit" id="medicalFitInput" accept=".jpg,.jpeg,.png,.pdf" />
+      <% if (nurse.medicalFitUrl) { %>
+        <a href="<%= nurse.medicalFitUrl %>" target="_blank" rel="noopener noreferrer">Current Medical Fitness File</a>
+      <% } else { %>
+        <small class="field-note">Optional, but recommended for trust and verification.</small>
       <% } %>
     </label>
 
@@ -252,6 +306,10 @@ const selectedCurrentStatus =
 }
 .warn-text {
   color: #b42318;
+}
+.field-note {
+  color: #5b7288;
+  font-size: 0.86rem;
 }
 .required-upload {
   padding: 0.75rem;

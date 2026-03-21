@@ -259,24 +259,14 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     <div class="id-card-container">
       <button type="button" class="close-card" id="npCloseIdCardBtn" aria-label="Close ID card">&times;</button>
 
-      <div id="nurse-id-card" class="phc-id-card">
-        <% if (!isVerified) { %>
-          <div class="not-verified-watermark">NOT VERIFIED</div>
-        <% } %>
-        <%- include("../partials/nurse-card-base", {
-          nurse,
-          mode: "full",
-          showQrCode: true,
-          showBranding: true,
-          showContact: true,
-          showWatermarkOverlay: !isVerified
-        }) %>
-      </div>
+      <%- include("../partials/nurse-card-image", {
+        nurse,
+        cardId: "nurse-id-card"
+      }) %>
 
       <div class="card-actions">
-        <button type="button" class="btn primary" id="download-card">Download Card</button>
-        <button type="button" class="btn" id="download-qr">Download QR</button>
-        <button type="button" class="btn" id="share-profile">Share Profile</button>
+        <button type="button" class="btn primary" id="download-card">Download Image</button>
+        <button type="button" class="btn" id="share-card">Share Image</button>
       </div>
     </div>
   </div>
@@ -1471,180 +1461,11 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
 }
 
 .id-card-modal {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(15, 23, 42, 0.58);
   display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
 }
 
 .id-card-modal.is-open {
   display: flex;
-}
-
-.id-card-container {
-  position: relative;
-  background: #ffffff;
-  padding: 20px;
-  border-radius: 18px;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
-}
-
-.close-card {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #0f4f83;
-  font-size: 1.15rem;
-  cursor: pointer;
-}
-
-#nurse-id-card {
-  width: 520px;
-  background: white;
-  border-radius: 18px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-  font-family: Arial, sans-serif;
-  position: relative;
-}
-
-.id-card-container {
-  max-width: calc(100vw - 24px);
-  overflow: auto;
-}
-
-.phc-id-card .card-top {
-  display: flex;
-  padding: 22px;
-  gap: 20px;
-}
-
-.phc-id-card .photo-section {
-  position: relative;
-}
-
-.phc-id-card .nurse-photo {
-  width: 150px;
-  height: 160px;
-  object-fit: cover;
-  border-radius: 12px;
-}
-
-.phc-id-card .qr-overlay {
-  position: absolute;
-  bottom: -10px;
-  left: 10px;
-  background: white;
-  padding: 6px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  text-align: center;
-}
-
-.phc-id-card .qr-overlay img {
-  width: 70px;
-  height: 70px;
-}
-
-.phc-id-card .qr-overlay span {
-  display: block;
-  font-size: 11px;
-}
-
-.phc-id-card .details-section {
-  flex: 1;
-}
-
-.phc-id-card .row {
-  display: flex;
-  justify-content: space-between;
-  padding: 7px 0;
-  border-bottom: 1px solid #eee;
-  gap: 12px;
-}
-
-.phc-id-card .row span {
-  font-weight: 600;
-  color: #1f4e79;
-}
-
-.phc-id-card .verified {
-  margin-top: 10px;
-  font-weight: 600;
-}
-
-.phc-id-card .brand-strip {
-  display: flex;
-  align-items: center;
-  background: #eaf2f8;
-  padding: 14px 20px;
-  gap: 20px;
-}
-
-.phc-id-card .brand-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.phc-id-card .logo {
-  width: 40px;
-}
-
-.phc-id-card .brand-center {
-  flex: 1;
-  text-align: center;
-}
-
-.phc-id-card .brand-center h2 {
-  color: #2a6fa5;
-  margin: 2px 0;
-}
-
-.phc-id-card .brand-center p {
-  font-size: 13px;
-  margin: 0;
-}
-
-.phc-id-card .card-footer {
-  background: #2b6da3;
-  color: white;
-  text-align: center;
-  padding: 10px;
-  font-size: 14px;
-}
-
-.not-verified-watermark {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-20deg);
-  font-size: 60px;
-  color: red;
-  opacity: 0.15;
-  font-weight: bold;
-  pointer-events: none;
-  white-space: nowrap;
-  z-index: 1;
-}
-
-.phc-id-card .card-top,
-.phc-id-card .brand-strip,
-.phc-id-card .card-footer {
-  position: relative;
-  z-index: 2;
 }
 
 .card-actions {
@@ -1701,13 +1522,10 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     grid-template-columns: 1fr;
   }
 
-  #nurse-id-card {
-    width: 520px;
-  }
 }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+<script src="/vendor/html-to-image.js"></script>
 <script>
 (() => {
   const shell = document.getElementById("nurseProfileShell");
@@ -1732,8 +1550,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   const idCardModal = document.getElementById("npIdCardModal");
   const closeIdCardButton = document.getElementById("npCloseIdCardBtn");
   const downloadCardButton = document.getElementById("download-card");
-  const downloadQrButton = document.getElementById("download-qr");
-  const shareProfileButton = document.getElementById("share-profile");
+  const shareCardButton = document.getElementById("share-card");
   const cancelButton = document.getElementById("npCancelEditBtn");
   const profileForm = document.getElementById("profileForm");
   const selectedSkillsContainer = document.getElementById("selectedSkillsContainer");
@@ -1752,9 +1569,8 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   const avatarMenu = document.getElementById("npAvatarMenu");
   const avatarPhotoInput = document.getElementById("npProfilePhotoInput");
   const avatarPhotoForm = document.getElementById("npProfilePhotoForm");
-  const qrDownloadUrl = "/api/nurse/<%= nurseId %>/qr";
   const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
-  const qrFileName = <%- JSON.stringify(`prisha-${(fullName || "nurse").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nurse"}-qr.png`) %>;
+  const cardFileName = <%- JSON.stringify(`${String(profileSlug || fullName || "nurse-card").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nurse-card"}.png`) %>;
 
   let selectedSkills = new Set();
   let selectedAvailability = new Set();
@@ -1997,6 +1813,40 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     if (!idCardModal) return;
     idCardModal.classList.toggle("is-open", Boolean(isOpen));
     idCardModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+    document.body.style.overflow = isOpen ? "hidden" : "";
+  };
+  const getIdCardNode = () => document.getElementById("nurse-id-card");
+  const getIdCardFileName = () => {
+    const card = getIdCardNode();
+    return String((card && card.getAttribute("data-card-file-name")) || cardFileName || "nurse-card.png").trim() || "nurse-card.png";
+  };
+  const exportIdCardBlob = async () => {
+    const card = getIdCardNode();
+    if (!card || typeof htmlToImage === "undefined") {
+      throw new Error("Card export is unavailable.");
+    }
+
+    const blob = await htmlToImage.toBlob(card, {
+      cacheBust: true,
+      backgroundColor: "#ffffff",
+      pixelRatio: Math.max(window.devicePixelRatio || 1, 2)
+    });
+
+    if (!blob) {
+      throw new Error("Card export failed.");
+    }
+
+    return blob;
+  };
+  const downloadBlob = (blob, fileName) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
   };
 
   if (editButton) {
@@ -2030,49 +1880,57 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     });
   }
   if (downloadCardButton) {
-    downloadCardButton.addEventListener("click", () => {
-      const card = document.getElementById("nurse-id-card");
-      if (!card || typeof htmlToImage === "undefined") {
-        window.alert("Unable to download the ID card right now.");
-        return;
+    downloadCardButton.addEventListener("click", async () => {
+      try {
+        downloadCardButton.disabled = true;
+        const blob = await exportIdCardBlob();
+        downloadBlob(blob, getIdCardFileName());
+      } catch (error) {
+        window.alert("Unable to download the card image right now.");
+      } finally {
+        downloadCardButton.disabled = false;
       }
+    });
+  }
+  if (shareCardButton) {
+    shareCardButton.addEventListener("click", async () => {
+      try {
+        shareCardButton.disabled = true;
+        const blob = await exportIdCardBlob();
+        const fileName = getIdCardFileName();
+        const shareUrl = publicProfileUrl ? `${window.location.origin}${publicProfileUrl}` : "";
 
-      htmlToImage.toPng(card, { pixelRatio: 2 })
-        .then((dataUrl) => {
-          const link = document.createElement("a");
-          link.download = "prisha-nurse-id.png";
-          link.href = dataUrl;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          window.alert("ID Card downloaded successfully");
-        })
-        .catch(() => {
-          window.alert("Unable to download the ID card right now.");
-        });
-    });
-  }
-  if (downloadQrButton) {
-    downloadQrButton.disabled = !publicProfileUrl;
-    downloadQrButton.addEventListener("click", () => {
-      if (!publicProfileUrl) return;
-      const link = document.createElement("a");
-      link.href = qrDownloadUrl;
-      link.download = qrFileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    });
-  }
-  if (shareProfileButton) {
-    shareProfileButton.disabled = !publicProfileUrl;
-    shareProfileButton.addEventListener("click", () => {
-      if (!publicProfileUrl) return;
-      const profileUrl = `${window.location.origin}${publicProfileUrl}`;
-      const message = encodeURIComponent(
-        "Hello,\n\nI am a verified nurse with Prisha HomeCare.\n\nView my profile:\n" + profileUrl
-      );
-      window.open(`https://wa.me/?text=${message}`, "_blank", "noopener,noreferrer");
+        if (typeof File !== "undefined" && typeof navigator.share === "function") {
+          const file = new File([blob], fileName, { type: "image/png" });
+          if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: <%- JSON.stringify(`${fullName || "Nurse"} | Nurse Card`) %>,
+              text: shareUrl || "Prisha Home Care nurse card"
+            });
+            return;
+          }
+        }
+
+        downloadBlob(blob, fileName);
+
+        if (shareUrl && navigator.clipboard && navigator.clipboard.writeText) {
+          try {
+            await navigator.clipboard.writeText(shareUrl);
+            window.alert("Image sharing is not available here. The card was downloaded and the public profile link was copied.");
+            return;
+          } catch (error) {
+            // Fall through to the generic fallback message.
+          }
+        }
+
+        window.alert("Image sharing is not available on this device. The card has been downloaded instead.");
+      } catch (error) {
+        if (error && error.name === "AbortError") return;
+        window.alert("Unable to share the card image right now.");
+      } finally {
+        shareCardButton.disabled = false;
+      }
     });
   }
   document.addEventListener("keydown", (event) => {
