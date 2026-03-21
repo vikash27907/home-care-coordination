@@ -318,7 +318,10 @@ function uploadBufferToCloudinary(file, folder) {
   });
 }
 
+
+
 const app = express();
+app.locals.version = Date.now();
 const PORT = process.env.PORT || 10000;
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -805,9 +808,14 @@ app.use(
 );
 // STATIC FILES (cached)
 app.use(express.static("public", {
-  maxAge: "1d",
-  etag: true
+  maxAge: 0,
+  etag: false,
+  lastModified: false
 }));
+app.use((req, res, next) => {
+  res.locals.version = Date.now();
+  next();
+});
 app.get("/vendor/html-to-image.js", (req, res) => {
   return res.sendFile(path.join(process.cwd(), "node_modules", "html-to-image", "dist", "html-to-image.js"));
 });
