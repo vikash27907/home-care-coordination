@@ -18,7 +18,7 @@ if (process.env.RESEND_API_KEY) {
 
 // Email configuration
 const FROM_EMAIL = process.env.FROM_EMAIL || "support@prishahomecare.com";
-const APP_URL = process.env.APP_URL || "http://localhost:3000";
+const APP_URL = String(process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000").replace(/\/+$/, "");
 const ADMIN_NOTIFICATION_EMAIL = "prishahomecare@gmail.com";
 
 /**

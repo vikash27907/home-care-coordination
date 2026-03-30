@@ -1,210 +1,131 @@
 .agent-profile {
   max-width: 1100px;
-  margin: auto;
+  margin: 0 auto;
 }
 
 .cover img {
   width: 100%;
   height: 240px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
 }
 
 .profile-header {
   display: flex;
-  margin-top: -50px;
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  gap: 1.4rem;
+  margin-top: -52px;
+  padding: 1.4rem;
 }
 
 .avatar img {
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
-  border: 4px solid white;
+  width: 116px;
+  height: 116px;
   object-fit: cover;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  box-shadow: 0 16px 30px rgba(16, 42, 68, 0.14);
 }
 
 .profile-info {
-  margin-left: 20px;
-}
-
-.profile-info h1 {
-  margin: 0;
+  flex: 1;
 }
 
 .profile-info p {
-  margin: 6px 0;
+  margin-top: 0.45rem;
+  color: var(--muted);
+}
+
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.8rem;
 }
 
 .profile-meta span {
-  margin-right: 15px;
-  color: #555;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink-soft);
+  font-weight: 600;
 }
 
 .profile-actions {
-  margin-top: 10px;
-  display: flex;
-  gap: 10px;
-}
-
-.btn-primary {
-  display: inline-block;
-  background: #2e7d5b;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  background: #eee;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.btn-success,
-.btn-outline-primary {
-  display: inline-block;
-  border-radius: 6px;
-  padding: 8px 16px;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.btn-success {
-  background: #256f57;
-  color: #fff;
-}
-
-.btn-outline-primary {
-  border: 1px solid #2e7d5b;
-  color: #2e7d5b;
-  background: transparent;
+  margin-top: 1rem;
 }
 
 .stats {
-  display: flex;
-  justify-content: space-around;
-  background: white;
-  margin-top: 20px;
-  padding: 20px;
-  border-radius: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1.2rem;
 }
 
 .stat {
+  padding: 0.95rem 1rem;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(243, 248, 255, 0.94));
+  border: 1px solid rgba(191, 209, 226, 0.72);
   text-align: center;
 }
 
 .stat h3 {
-  margin: 0;
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
 }
 
 .stat p {
-  margin: 8px 0 0;
-  color: #555;
+  margin-top: 0.35rem;
+  color: var(--muted);
 }
 
 .profile-section {
-  background: white;
-  margin-top: 20px;
-  padding: 20px;
-  border-radius: 10px;
+  margin-top: 1.25rem;
+  padding: 1.35rem;
 }
 
 .profile-section h2 {
-  margin-top: 0;
+  margin-bottom: 0.8rem;
 }
 
 .quick-actions__grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
 }
 
 .nurse-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.nurse-card {
-  background: #f5f5f5;
-  padding: 15px;
-  text-align: center;
-  border-radius: 8px;
-}
-
-.nurse-card img {
-  width: 70px;
-}
-
-.nurse-card h4 {
-  margin: 10px 0 4px;
-}
-
-.nurse-card p {
-  margin: 0 0 10px;
-  color: #555;
-}
-
-.nurse-card button,
-.nurse-view-btn {
-  display: inline-block;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  background: #2e7d5b;
-  color: white;
-  text-decoration: none;
-  cursor: pointer;
+  margin-top: 1rem;
 }
 
 .contact-card {
-  background: #f5f5f5;
-  padding: 20px;
-  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.1rem 1.15rem;
+  margin-top: 0.9rem;
+}
+
+.contact-card .btn {
+  justify-self: start;
+  margin-top: 0.35rem;
 }
 
 @media (max-width: 900px) {
-  .nurse-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .stats {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 700px) {
   .profile-header {
     flex-direction: column;
-    margin-top: 12px;
+    margin-top: 1rem;
   }
 
   .profile-info {
-    margin-left: 0;
-    margin-top: 14px;
+    margin-top: 0.15rem;
   }
 
-  .stats {
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .nurse-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .quick-actions__grid {
-    flex-direction: column;
-  }
-
-  .quick-actions__grid a {
-    width: 100%;
-    text-align: center;
+  .contact-card .btn {
+    justify-self: stretch;
   }
 }

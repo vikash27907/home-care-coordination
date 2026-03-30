@@ -1,6 +1,10 @@
 const { cloudinary } = require("../src/cloudinary");
 
 function uploadBufferToCloudinary(file, folder) {
+  if (!file || !Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+    return Promise.reject(new Error("Uploaded file buffer is missing."));
+  }
+
   return new Promise((resolve, reject) => {
     const upload = cloudinary.uploader.upload_stream(
       {

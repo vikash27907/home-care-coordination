@@ -7,6 +7,7 @@ const { pool } = require("../src/db");
 const { requireRole, requireApprovedNurse } = require("../middlewares/auth");
 const { setFlash } = require("../utils/flash");
 const { uploadBufferToCloudinary } = require("../utils/cloudinary");
+const { normalizePhone } = require("../utils/phone");
 
 const PROFILE_QUALIFICATION_OPTIONS = [
   "10th (SSC)",
@@ -681,9 +682,14 @@ router.post(
         return res.redirect("/nurse/profile");
       }
       if (phoneNumberRaw) {
-        const digits = phoneNumberRaw.replace(/\D/g, "");
-        if (digits.length !== 10) {
+        const normalizedPhoneNumber = normalizePhone(phoneNumberRaw);
+        if (!normalizedPhoneNumber) {
           setFlash(req, "error", "Please enter a valid 10-digit mobile number.");
+          return res.redirect("/nurse/profile");
+        }
+
+        if (!/^[6-9]\d{9}$/.test(normalizedPhoneNumber)) {
+          setFlash(req, "error", "Please enter a valid Indian mobile number.");
           return res.redirect("/nurse/profile");
         }
       }
@@ -841,11 +847,27 @@ router.post(
       }
 
       if (hasField("phoneNumber")) {
+        const normalizedPhoneNumber = phoneNumberRaw ? normalizePhone(phoneNumberRaw) : null;
+        if (normalizedPhoneNumber) {
+          const duplicatePhoneResult = await client.query(
+            `SELECT id
+             FROM users
+             WHERE phone_number = $1
+               AND id <> $2
+             LIMIT 1`,
+            [normalizedPhoneNumber, userId]
+          );
+
+          if (duplicatePhoneResult.rowCount > 0) {
+            throw new Error("This mobile number is already registered to another account.");
+          }
+        }
+
         const phoneResult = await client.query(
           `UPDATE users
            SET phone_number = $1
            WHERE id = $2`,
-          [phoneNumberRaw ? phoneNumberRaw.replace(/\D/g, "") : null, userId]
+          [normalizedPhoneNumber, userId]
         );
         if (phoneResult.rowCount !== 1) {
           throw new Error("Unable to update contact number.");

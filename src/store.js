@@ -18,6 +18,72 @@ let storeCache = {
 let isInitialized = false;
 const DEFAULT_NURSE_GENDER = 'Not Specified';
 const AGENT_ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'deleted']);
+const NURSE_ALLOWED_STATUS_LABELS = {
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected'
+};
+const USER_UPDATE_FIELD_MAP = {
+  email: 'email',
+  phoneNumber: 'phone_number',
+  passwordHash: 'password_hash',
+  role: 'role',
+  status: 'status',
+  emailVerified: 'email_verified',
+  otpCode: 'otp_code',
+  otpExpiry: 'otp_expiry',
+  isDeleted: 'is_deleted',
+  deletedAt: 'deleted_at'
+};
+const NURSE_UPDATE_FIELD_MAP = {
+  fullName: 'full_name',
+  city: 'city',
+  gender: 'gender',
+  status: 'status',
+  profileImagePath: 'profile_image_path',
+  profileImageUrl: 'profile_image_url',
+  aadhaarNumber: 'aadhar_number',
+  aadharNumber: 'aadhar_number',
+  aadharImageUrl: 'aadhar_image_url',
+  height: 'height_text',
+  heightText: 'height_text',
+  weight: 'weight_kg',
+  weightKg: 'weight_kg',
+  experienceYears: 'experience_years',
+  experienceMonths: 'experience_months',
+  currentStatus: 'current_status',
+  availabilityLabel: 'availability_label',
+  availability: 'availability',
+  workLocations: 'work_locations',
+  workCity: 'work_city',
+  currentAddress: 'current_address',
+  languages: 'languages',
+  dutyType: 'duty_type',
+  isVerified: 'is_verified',
+  skills: 'skills',
+  uniqueId: 'unique_id',
+  profileSlug: 'profile_slug',
+  publicProfileEnabled: 'public_profile_enabled',
+  claimedByNurse: 'claimed_by_nurse',
+  isPublic: 'public_profile_enabled',
+  referralCode: 'referral_code',
+  profileStatus: 'profile_status',
+  qualifications: 'qualifications',
+  resumeUrl: 'resume_url',
+  medicalFitUrl: 'medical_fit_url'
+};
+const AGENT_UPDATE_FIELD_MAP = {
+  fullName: 'full_name',
+  email: 'email',
+  phoneNumber: 'phone_number',
+  companyName: 'company_name',
+  workingRegion: 'working_region',
+  region: 'working_region',
+  status: 'status',
+  createdByAgentEmail: 'created_by_agent_email',
+  uniqueId: 'unique_id',
+  profileSlug: 'profile_slug'
+};
 
 function resolveNursePublicVisibility(row) {
   if (typeof row.public_profile_enabled === 'boolean') {
@@ -32,6 +98,47 @@ function resolveNursePublicVisibility(row) {
 function normalizeAgentStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return AGENT_ALLOWED_STATUSES.has(normalized) ? normalized : 'pending';
+}
+
+function normalizeNurseStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return NURSE_ALLOWED_STATUS_LABELS[normalized] || 'Pending';
+}
+
+function normalizeOptionalEmail(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || null;
+}
+
+function normalizeStoredPhone(value, { required = false } = {}) {
+  const normalized = normalizePhone(value);
+  if (normalized) {
+    return normalized;
+  }
+  if (required) {
+    throw new Error('Phone number is required');
+  }
+  return null;
+}
+
+function buildUpdateStatementParts(updates, fieldMap, transformers = {}) {
+  const fields = [];
+  const values = [];
+  let paramCount = 1;
+
+  for (const [key, value] of Object.entries(updates)) {
+    const dbKey = fieldMap[key];
+    if (!dbKey) {
+      continue;
+    }
+
+    const transformValue = transformers[key];
+    fields.push(`${dbKey} = $${paramCount}`);
+    values.push(typeof transformValue === 'function' ? transformValue(value) : value);
+    paramCount += 1;
+  }
+
+  return { fields, values, paramCount };
 }
 
 /**
@@ -464,13 +571,12 @@ async function getUserByUniqueId(uniqueId, options = {}) {
 
 async function createUser(user) {
   try {
-    let normalizedPhone = null;
-    if (user.phoneNumber) {
-      normalizedPhone = normalizePhone(user.phoneNumber);
-      if (!normalizedPhone) {
-        throw new Error("Phone number is required");
-      }
+    const normalizedEmail = normalizeOptionalEmail(user.email);
+    const normalizedPhone = user.phoneNumber
+      ? normalizeStoredPhone(user.phoneNumber, { required: true })
+      : null;
 
+    if (normalizedPhone) {
       const existingPhoneResult = await pool.query(
         `SELECT id
          FROM users
@@ -492,7 +598,7 @@ async function createUser(user) {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
-      user.email || null, normalizedPhone, user.passwordHash, user.role || 'user',
+      normalizedEmail, normalizedPhone, user.passwordHash, user.role || 'user',
       user.status || 'Pending', user.emailVerified || false, user.otpCode || '', user.otpExpiry || null,
       user.createdAt || new Date().toISOString(),
       user.isDeleted === true,
@@ -513,22 +619,10 @@ async function createUser(user) {
 
 async function updateUser(id, updates) {
   try {
-    const fields = [];
-    const values = [];
-    let paramCount = 1;
-
-    for (const [key, value] of Object.entries(updates)) {
-      const dbKey = {
-        email: 'email', phoneNumber: 'phone_number', passwordHash: 'password_hash',
-        role: 'role', status: 'status', emailVerified: 'email_verified',
-        otpCode: 'otp_code', otpExpiry: 'otp_expiry', isDeleted: 'is_deleted', deletedAt: 'deleted_at'
-      }[key];
-      if (dbKey) {
-        fields.push(`${dbKey} = $${paramCount}`);
-        values.push(value);
-        paramCount++;
-      }
-    }
+    const { fields, values, paramCount } = buildUpdateStatementParts(updates, USER_UPDATE_FIELD_MAP, {
+      email: normalizeOptionalEmail,
+      phoneNumber: normalizeStoredPhone
+    });
 
     if (fields.length === 0) return null;
 
@@ -683,6 +777,7 @@ async function createNurse(nurse) {
     const uniqueId = nurse.uniqueId || await generateNurseId(pool);
     const profileSlug = nurse.profileSlug || generateSlug(nurse.fullName, uniqueId);
     const publicProfileEnabled = nurse.publicProfileEnabled !== false;
+    const normalizedStatus = normalizeNurseStatus(nurse.status);
     const hasExplicitId = Number.isInteger(nurse.id);
     const result = hasExplicitId
       ? await pool.query(`
@@ -694,7 +789,7 @@ async function createNurse(nurse) {
           RETURNING *
         `, [
           nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-          nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+          normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
           nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
           nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
@@ -708,7 +803,7 @@ async function createNurse(nurse) {
           RETURNING *
         `, [
           nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-          nurse.status || 'Pending', nurse.profileImagePath || '/images/default-male.png',
+          normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
           nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
           nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
@@ -722,54 +817,9 @@ async function createNurse(nurse) {
 
 async function updateNurse(id, updates) {
   try {
-    const fields = [];
-    const values = [];
-    let paramCount = 1;
-
-    for (const [key, value] of Object.entries(updates)) {
-      const dbKey = {
-        fullName: 'full_name',
-        city: 'city',
-        gender: 'gender',
-        status: 'status',
-        profileImagePath: 'profile_image_path',
-        profileImageUrl: 'profile_image_url',
-        aadhaarNumber: 'aadhar_number',
-        aadharNumber: 'aadhar_number',
-        aadharImageUrl: 'aadhar_image_url',
-        height: 'height_text',
-        heightText: 'height_text',
-        weight: 'weight_kg',
-        weightKg: 'weight_kg',
-        experienceYears: 'experience_years',
-        experienceMonths: 'experience_months',
-        currentStatus: 'current_status',
-        availabilityLabel: 'availability_label',
-        availability: 'availability',
-        workLocations: 'work_locations',
-        workCity: 'work_city',
-        currentAddress: 'current_address',
-        languages: 'languages',
-        dutyType: 'duty_type',
-        isVerified: 'is_verified',
-        skills: 'skills',
-        uniqueId: 'unique_id',
-        profileSlug: 'profile_slug',
-        publicProfileEnabled: 'public_profile_enabled',
-        claimedByNurse: 'claimed_by_nurse',
-        isPublic: 'public_profile_enabled',
-        referralCode: 'referral_code',
-        profileStatus: 'profile_status',
-        qualifications: 'qualifications',
-        resumeUrl: 'resume_url',
-        medicalFitUrl: 'medical_fit_url'
-      }[key];
-      if (dbKey) {
-        fields.push(`${dbKey} = $${paramCount}`);
-        values.push(key === 'status' ? normalizeAgentStatus(value) : value);
-        paramCount++;
-      }
-    }
+    const { fields, values, paramCount } = buildUpdateStatementParts(updates, NURSE_UPDATE_FIELD_MAP, {
+      status: normalizeNurseStatus
+    });
 
     if (fields.length === 0) return null;
 
@@ -854,6 +904,9 @@ async function createAgent(agent) {
     const status = normalizeAgentStatus(agent.status);
     const uniqueId = agent.uniqueId || await generateAgentId(pool);
     const profileSlug = agent.profileSlug || generateSlug(agent.fullName, uniqueId);
+    const normalizedEmail = normalizeOptionalEmail(agent.email);
+    const normalizedPhone = normalizeStoredPhone(agent.phoneNumber);
+    const normalizedCreatorEmail = normalizeOptionalEmail(agent.createdByAgentEmail) || '';
     const hasExplicitId = Number.isInteger(agent.id);
     const result = hasExplicitId
       ? await pool.query(`
@@ -861,8 +914,8 @@ async function createAgent(agent) {
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING *
         `, [
-          agent.id, agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
-          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '',
+          agent.id, agent.userId, agent.fullName, normalizedEmail, normalizedPhone, agent.companyName || '',
+          agent.workingRegion || agent.region || '', status, normalizedCreatorEmail,
           uniqueId, profileSlug, agent.createdAt || new Date().toISOString()
         ])
       : await pool.query(`
@@ -870,8 +923,8 @@ async function createAgent(agent) {
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING *
         `, [
-          agent.userId, agent.fullName, agent.email, agent.phoneNumber, agent.companyName || '',
-          agent.workingRegion || agent.region || '', status, agent.createdByAgentEmail || '',
+          agent.userId, agent.fullName, normalizedEmail, normalizedPhone, agent.companyName || '',
+          agent.workingRegion || agent.region || '', status, normalizedCreatorEmail,
           uniqueId, profileSlug, agent.createdAt || new Date().toISOString()
         ]);
     return result.rows[0] ? transformAgentFromDB(result.rows[0]) : null;
@@ -889,22 +942,12 @@ async function createAgent(agent) {
 
 async function updateAgent(id, updates) {
   try {
-    const fields = [];
-    const values = [];
-    let paramCount = 1;
-
-    for (const [key, value] of Object.entries(updates)) {
-      const dbKey = {
-        fullName: 'full_name', phoneNumber: 'phone_number', companyName: 'company_name',
-        workingRegion: 'working_region', region: 'working_region', status: 'status', createdByAgentEmail: 'created_by_agent_email',
-        uniqueId: 'unique_id', profileSlug: 'profile_slug'
-      }[key];
-      if (dbKey) {
-        fields.push(`${dbKey} = $${paramCount}`);
-        values.push(value);
-        paramCount++;
-      }
-    }
+    const { fields, values, paramCount } = buildUpdateStatementParts(updates, AGENT_UPDATE_FIELD_MAP, {
+      email: normalizeOptionalEmail,
+      phoneNumber: normalizeStoredPhone,
+      status: normalizeAgentStatus,
+      createdByAgentEmail: (value) => normalizeOptionalEmail(value) || ''
+    });
 
     if (fields.length === 0) return null;
 

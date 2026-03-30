@@ -1,4 +1,11 @@
-<% const assetVersion = process.env.NODE_ENV === 'production' ? '1.0.0' : Date.now(); %>
+<%
+  const assetVersion = typeof res !== "undefined" && res.locals && typeof res.locals.assetVersion !== "undefined"
+    ? res.locals.assetVersion
+    : (process.env.NODE_ENV === "production" ? "1.0.0" : Date.now());
+  const styles = Array.isArray(typeof extraStylesheets !== "undefined" ? extraStylesheets : null)
+    ? extraStylesheets
+    : [];
+%>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,7 +14,7 @@
     <title>
       <%= (typeof metaTitle !== 'undefined' && metaTitle) ? metaTitle : (title ? `${title} | Prisha Home Care` : "Prisha Home Care | Professional Home Nursing Services") %>
     </title>
-    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <meta
       name="description"
       content="<%= (typeof metaDescription !== 'undefined' && metaDescription) ? metaDescription : 'Prisha Home Care provides trusted home nursing and coordinated care services for patients and families.' %>"
@@ -20,8 +27,14 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="/css/base.css?v=<%= assetVersion %>" />
+    <link rel="stylesheet" href="/css/utilities.css?v=<%= assetVersion %>" />
     <link rel="stylesheet" href="/styles.css?v=<%= assetVersion %>" />
-    
+    <link rel="stylesheet" href="/css/layout.css?v=<%= assetVersion %>" />
+    <link rel="stylesheet" href="/css/components.css?v=<%= assetVersion %>" />
+    <% styles.forEach((href) => { %>
+    <link rel="stylesheet" href="<%= href %>?v=<%= assetVersion %>" />
+    <% }) %>
   </head>
   <body>
     <header class="site-header">

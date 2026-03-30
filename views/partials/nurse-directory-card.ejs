@@ -16,6 +16,7 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
 <article
   class="card nurse-card<%= profileHref ? ' nurse-card--interactive' : '' %>"
   data-nurse-card
+  data-reveal
   data-card-file-name="<%= downloadFileName %>"
   <% if (profileHref) { %>
   data-card-url="<%= profileHref %>"

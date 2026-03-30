@@ -1,13 +1,14 @@
 <%- include("partials/head", { title, metaTitle, metaDescription }) %>
 
 <section class="public-nurse-hero">
-  <div class="public-nurse-shell">
+  <div class="public-nurse-shell" data-reveal>
     <header class="public-nurse-topbar">
       <a href="/nurses" class="public-nurse-close" aria-label="Back to nurse directory">&times;</a>
     </header>
 
     <%- include("partials/nurse-card-base", {
       nurse,
+      contactContext,
       mode: "full",
       showQrCode: false,
       showContact: true
@@ -15,59 +16,4 @@
 
   </div>
 </section>
-
-<style>
-.public-nurse-hero {
-  min-height: calc(100vh - 120px);
-  padding: 1.4rem 0 2.4rem;
-  background:
-    radial-gradient(circle at top left, rgba(129, 193, 255, 0.34), transparent 34%),
-    radial-gradient(circle at top right, rgba(197, 214, 255, 0.3), transparent 28%),
-    linear-gradient(180deg, #eef5ff 0%, #f8fbff 48%, #eef4ff 100%);
-}
-
-.public-nurse-shell {
-  width: min(980px, 100%);
-  margin: 0 auto;
-  display: grid;
-  gap: 1rem;
-}
-
-.public-nurse-topbar {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.public-nurse-close {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  text-decoration: none;
-  font-size: 2.1rem;
-  color: #1c2f5d;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 26px rgba(37, 83, 140, 0.16);
-}
-
-@media (max-width: 720px) {
-  .public-nurse-hero {
-    padding: 1rem 0 2rem;
-  }
-
-  .public-nurse-topbar {
-    justify-content: flex-end;
-  }
-
-  .public-nurse-close {
-    width: 52px;
-    height: 52px;
-    margin-left: auto;
-  }
-
-}
-</style>
-
 <%- include("partials/footer") %>

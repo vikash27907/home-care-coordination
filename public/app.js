@@ -1,24 +1,31 @@
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // Service worker is optional for this pilot build.
-    });
-  });
+function setAriaExpanded(control, isExpanded) {
+  control.setAttribute("aria-expanded", isExpanded ? "true" : "false");
 }
 
-const revealNodes = document.querySelectorAll("[data-reveal]");
-if (revealNodes.length) {
+function setupRevealAnimations() {
+  const revealNodes = document.querySelectorAll("[data-reveal]");
+  if (!revealNodes.length) {
+    return;
+  }
+
   revealNodes.forEach((node, index) => {
     node.style.transitionDelay = `${Math.min(index * 70, 420)}ms`;
   });
 
+  if (typeof IntersectionObserver !== "function") {
+    revealNodes.forEach((node) => node.classList.add("is-visible"));
+    return;
+  }
+
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
+        if (!entry.isIntersecting) {
+          return;
         }
+
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
       });
     },
     { threshold: 0.14 }
@@ -27,8 +34,12 @@ if (revealNodes.length) {
   revealNodes.forEach((node) => observer.observe(node));
 }
 
-const heroRotator = document.querySelector("[data-hero-rotator]");
-if (heroRotator) {
+function setupHeroRotator() {
+  const heroRotator = document.querySelector("[data-hero-rotator]");
+  if (!heroRotator) {
+    return;
+  }
+
   const items = Array.from(heroRotator.querySelectorAll("[data-rotator-item]"));
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let activeIndex = 0;
@@ -51,80 +62,110 @@ if (heroRotator) {
   }
 }
 
-const menuBtn = document.getElementById("menu-toggle");
-const dropdown = document.querySelector(".dropdown-menu");
-const notificationCenter = document.getElementById("notificationCenter");
-const notificationBell = document.getElementById("notificationBell");
-const notificationDropdown = document.getElementById("notificationDropdown");
-const notificationBadge = document.getElementById("notification-count");
-const notificationList = document.getElementById("notification-list");
-const navToggle = document.getElementById("navToggle");
-const navLinks = document.getElementById("navLinks");
+function setupDismissibleToggle(options) {
+  const {
+    toggle,
+    container,
+    openClass = "show",
+    onOpen,
+    onClose
+  } = options;
 
-if (menuBtn && dropdown) {
-  const setExpanded = (isExpanded) => {
-    menuBtn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+  if (!toggle || !container) {
+    return null;
+  }
+
+  const isOpen = () => container.classList.contains(openClass);
+  setAriaExpanded(toggle, isOpen());
+
+  const close = () => {
+    if (!isOpen()) {
+      return;
+    }
+
+    container.classList.remove(openClass);
+    setAriaExpanded(toggle, false);
+
+    if (typeof onClose === "function") {
+      onClose();
+    }
   };
 
-  const closeDropdown = () => {
-    dropdown.classList.remove("show");
-    setExpanded(false);
-  };
-
-  menuBtn.addEventListener("click", (event) => {
+  toggle.addEventListener("click", async (event) => {
     event.stopPropagation();
-    const isOpen = dropdown.classList.toggle("show");
-    setExpanded(isOpen);
+
+    if (isOpen()) {
+      close();
+      return;
+    }
+
+    container.classList.add(openClass);
+    setAriaExpanded(toggle, true);
+
+    if (typeof onOpen === "function") {
+      await onOpen();
+    }
   });
 
   document.addEventListener("click", (event) => {
-    if (!dropdown.contains(event.target) && !menuBtn.contains(event.target)) {
-      closeDropdown();
+    if (!container.contains(event.target) && !toggle.contains(event.target)) {
+      close();
     }
   });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      closeDropdown();
+      close();
     }
   });
+
+  return { close, isOpen };
 }
 
-if (notificationCenter && notificationBell && notificationDropdown && notificationBadge && notificationList) {
-  const setBellExpanded = (isExpanded) => {
-    notificationBell.setAttribute("aria-expanded", isExpanded ? "true" : "false");
-  };
-
-  const closeNotificationDropdown = () => {
-    notificationCenter.classList.remove("is-open");
-    setBellExpanded(false);
-  };
-
-  const formatTimestamp = (value) => {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleString();
-  };
-
-  const escapeHtml = (value) => String(value || "")
+function escapeHtml(value) {
+  return String(value || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
 
-  const renderNotificationList = (items) => {
-    if (!Array.isArray(items) || items.length === 0) {
-      notificationList.innerHTML = '<p class="notification-empty">No recent notifications.</p>';
-      return;
-    }
+function formatTimestamp(value) {
+  if (!value) {
+    return "";
+  }
 
-    notificationList.innerHTML = items.slice(0, 10).map((item) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleString();
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, { credentials: "same-origin" });
+  if (!response.ok) {
+    throw new Error(`Request failed for ${url}`);
+  }
+  return response.json();
+}
+
+function renderNotificationList(notificationList, items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    notificationList.innerHTML = '<p class="notification-empty">No recent notifications.</p>';
+    return;
+  }
+
+  notificationList.innerHTML = items
+    .slice(0, 10)
+    .map((item) => {
       const unreadClass = item.is_read ? "" : " unread";
       const safeTitle = escapeHtml(item.title || "Notification");
       const safeMessage = escapeHtml(item.message || "");
       const safeTime = escapeHtml(formatTimestamp(item.created_at));
+
       return `
         <a class="notification-item${unreadClass}" href="/notifications-page">
           <p class="notification-item-title">${safeTitle}</p>
@@ -132,22 +173,33 @@ if (notificationCenter && notificationBell && notificationDropdown && notificati
           <div class="notification-item-time">${safeTime}</div>
         </a>
       `;
-    }).join("");
-  };
+    })
+    .join("");
+}
+
+function setupNotificationCenter() {
+  const notificationCenter = document.getElementById("notificationCenter");
+  const notificationBell = document.getElementById("notificationBell");
+  const notificationBadge = document.getElementById("notification-count");
+  const notificationList = document.getElementById("notification-list");
+
+  if (!notificationCenter || !notificationBell || !notificationBadge || !notificationList) {
+    return;
+  }
 
   const loadNotificationCount = async () => {
     try {
-      const res = await fetch("/notifications/unread-count", { credentials: "same-origin" });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await fetchJson("/notifications/unread-count");
       const count = Number.parseInt(data && data.count, 10) || 0;
+
       if (count > 0) {
         notificationBadge.style.display = "inline-block";
         notificationBadge.textContent = String(count);
-      } else {
-        notificationBadge.style.display = "none";
-        notificationBadge.textContent = "0";
+        return;
       }
+
+      notificationBadge.style.display = "none";
+      notificationBadge.textContent = "0";
     } catch (error) {
       // Silent fail: polling should never block UI interactions.
     }
@@ -155,37 +207,20 @@ if (notificationCenter && notificationBell && notificationDropdown && notificati
 
   const loadNotificationPreview = async () => {
     try {
-      const res = await fetch("/notifications?limit=10", { credentials: "same-origin" });
-      if (!res.ok) {
-        renderNotificationList([]);
-        return;
-      }
-      const data = await res.json();
-      renderNotificationList(data);
+      const data = await fetchJson("/notifications?limit=10");
+      renderNotificationList(notificationList, data);
     } catch (error) {
-      renderNotificationList([]);
+      renderNotificationList(notificationList, []);
     }
   };
 
-  notificationBell.addEventListener("click", async (event) => {
-    event.stopPropagation();
-    const isOpen = notificationCenter.classList.toggle("is-open");
-    setBellExpanded(isOpen);
-    if (isOpen) {
+  setupDismissibleToggle({
+    toggle: notificationBell,
+    container: notificationCenter,
+    openClass: "is-open",
+    onOpen: async () => {
       await loadNotificationPreview();
       await loadNotificationCount();
-    }
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!notificationCenter.contains(event.target)) {
-      closeNotificationDropdown();
-    }
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeNotificationDropdown();
     }
   });
 
@@ -193,76 +228,92 @@ if (notificationCenter && notificationBell && notificationDropdown && notificati
   window.setInterval(loadNotificationCount, 30000);
 }
 
-if (navToggle && navLinks) {
-  const setMenuExpanded = (isExpanded) => {
-    navToggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
-  };
+function setupMenuDropdown() {
+  const menuBtn = document.getElementById("menu-toggle");
+  const dropdown = document.querySelector(".dropdown-menu");
 
-  const closeMenu = () => {
-    navLinks.classList.remove("show");
-    setMenuExpanded(false);
-  };
-
-  navToggle.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const isOpen = navLinks.classList.toggle("show");
-    setMenuExpanded(isOpen);
+  setupDismissibleToggle({
+    toggle: menuBtn,
+    container: dropdown
   });
+}
+
+function setupNavMenu() {
+  const navToggle = document.getElementById("navToggle");
+  const navLinks = document.getElementById("navLinks");
+  const controls = setupDismissibleToggle({
+    toggle: navToggle,
+    container: navLinks
+  });
+
+  if (!navLinks || !controls) {
+    return;
+  }
 
   navLinks.addEventListener("click", (event) => {
     if (event.target.closest("a")) {
-      closeMenu();
-    }
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!navLinks.contains(event.target) && !navToggle.contains(event.target)) {
-      closeMenu();
+      controls.close();
     }
   });
 
   window.addEventListener("resize", () => {
     if (window.innerWidth > 768) {
-      closeMenu();
+      controls.close();
     }
   });
 }
 
+function setupCardNavigation() {
+  const nurseCards = document.querySelectorAll("[data-card-url]");
+  if (!nurseCards.length) {
+    return;
+  }
 
-const nurseCards = document.querySelectorAll("[data-card-url]");
-if (nurseCards.length) {
   const isCardActionTarget = (target) => Boolean(
     target && target.closest("[data-card-action], a, button, form, input, select, textarea, label")
   );
 
   const openCardUrl = (card) => {
     const nextUrl = String(card.getAttribute("data-card-url") || "").trim();
-    if (nextUrl) {
-      const target = String(card.getAttribute("data-card-target") || "").trim().toLowerCase();
-      if (target === "_blank") {
-        window.open(nextUrl, "_blank", "noopener,noreferrer");
-        return;
-      }
-      window.location.href = nextUrl;
+    if (!nextUrl) {
+      return;
     }
+
+    const target = String(card.getAttribute("data-card-target") || "").trim().toLowerCase();
+    if (target === "_blank") {
+      window.open(nextUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    window.location.href = nextUrl;
   };
 
   nurseCards.forEach((card) => {
     card.addEventListener("click", (event) => {
-      if (event.defaultPrevented || isCardActionTarget(event.target)) return;
+      if (event.defaultPrevented || isCardActionTarget(event.target)) {
+        return;
+      }
+
       openCardUrl(card);
     });
 
     card.addEventListener("keydown", (event) => {
-      if (!["Enter", " "].includes(event.key) || isCardActionTarget(event.target)) return;
+      if (!["Enter", " "].includes(event.key) || isCardActionTarget(event.target)) {
+        return;
+      }
+
       event.preventDefault();
       openCardUrl(card);
     });
   });
 }
 
-const shareButtons = document.querySelectorAll("[data-share-url]");
-if (shareButtons.length) {
+function setupShareButtons() {
+  const shareButtons = document.querySelectorAll("[data-share-url]");
+  if (!shareButtons.length) {
+    return;
+  }
+
   const resolveAbsoluteUrl = (value) => {
     try {
       return new URL(String(value || "").trim(), window.location.origin).toString();
@@ -287,7 +338,9 @@ if (shareButtons.length) {
           });
           return;
         } catch (error) {
-          if (error && error.name === "AbortError") return;
+          if (error && error.name === "AbortError") {
+            return;
+          }
         }
       }
 
@@ -306,14 +359,19 @@ if (shareButtons.length) {
   });
 }
 
-const downloadButtons = document.querySelectorAll("[data-download-card]");
-if (downloadButtons.length) {
+function setupDownloadButtons() {
+  const downloadButtons = document.querySelectorAll("[data-download-card]");
+  if (!downloadButtons.length) {
+    return;
+  }
+
   let htmlToImageLoader = null;
 
   const loadHtmlToImage = () => {
     if (window.htmlToImage) {
       return Promise.resolve(window.htmlToImage);
     }
+
     if (htmlToImageLoader) {
       return htmlToImageLoader;
     }
@@ -335,6 +393,7 @@ if (downloadButtons.length) {
           resolve(window.htmlToImage);
           return;
         }
+
         reject(new Error("html-to-image failed to load."));
       };
       script.onerror = () => reject(new Error("Unable to load download helper."));
@@ -350,7 +409,9 @@ if (downloadButtons.length) {
       event.stopPropagation();
 
       const card = button.closest("[data-nurse-card]");
-      if (!card) return;
+      if (!card) {
+        return;
+      }
 
       try {
         button.disabled = true;
@@ -374,3 +435,20 @@ if (downloadButtons.length) {
     });
   });
 }
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Service worker is optional for this pilot build.
+    });
+  });
+}
+
+setupRevealAnimations();
+setupHeroRotator();
+setupMenuDropdown();
+setupNotificationCenter();
+setupNavMenu();
+setupCardNavigation();
+setupShareButtons();
+setupDownloadButtons();

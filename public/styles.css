@@ -1,3 +1,5 @@
+/* Legacy feature and page styles.
+   Shared design primitives now live in /public/css/base.css, layout.css, components.css, and utilities.css. */
 :root {
   --bg: #f3f8ff;
   --surface: #ffffff;
@@ -2500,16 +2502,19 @@ thead th {
 }
 
 @keyframes floaty {
+
   0%,
   100% {
     transform: translateY(0) translateX(0);
   }
+
   50% {
     transform: translateY(10px) translateX(7px);
   }
 }
 
 @media (max-width: 1040px) {
+
   .cards-grid,
   .metrics-grid,
   .nurse-cards-grid {
@@ -2599,6 +2604,7 @@ thead th {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .reveal,
   .btn,
   .link-card,
@@ -3091,9 +3097,12 @@ thead th {
 
 /* Additional spinner animations */
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -3380,6 +3389,7 @@ thead th {
     transform: translateY(-50px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -3662,7 +3672,7 @@ thead th {
   padding: 1rem 1.5rem;
   background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(10,37,64,0.05);
+  box-shadow: 0 2px 10px rgba(10, 37, 64, 0.05);
 }
 
 .quick-stats .stat-item {
@@ -4454,6 +4464,7 @@ thead th {
 }
 
 @media (max-width: 640px) {
+
   .request-form-panel,
   .public-board-section {
     padding: 1rem;
@@ -4553,11 +4564,13 @@ thead th {
     right: 0;
   }
 }
+
 /* ===== ID CARD MODAL DESIGN FIX ===== */
 
 #npIdCardModal .id-card-container {
   display: flex;
-  flex-direction: column;   /* ✅ ADD THIS */
+  flex-direction: column;
+  /* ✅ ADD THIS */
   align-items: center;
   justify-content: center;
   padding: 12px;
@@ -4566,17 +4579,20 @@ thead th {
 /* DESKTOP CARD */
 @media (min-width: 768px) {
   #npIdCardModal .phc-id-card {
-    max-width: 700px;   /* bigger for laptop */
+    max-width: 700px;
+    /* bigger for laptop */
   }
 
   #npIdCardModal .id-card-container {
-    flex-direction: row;  /* horizontal layout */
+    flex-direction: row;
+    /* horizontal layout */
   }
 }
 
 #npIdCardModal .card-actions {
   display: flex;
-  flex-direction: column;   /* 🔥 THIS FIXES YOUR ISSUE */
+  flex-direction: column;
+  /* 🔥 THIS FIXES YOUR ISSUE */
   gap: 10px;
   width: 100%;
   margin-top: 12px;
@@ -4588,22 +4604,24 @@ thead th {
 
 #npIdCardModal .phc-id-card {
   width: 100%;
-  max-width: 340px;   /* fixed card size */
+  max-width: 340px;
+  /* fixed card size */
   border-radius: 18px;
   padding-bottom: 10px;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
 }
 
 #npIdCardModal {
-  display: none;   /* hidden by default */
+  display: none;
+  /* hidden by default */
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.4);
   z-index: 9999;
 }
 
@@ -4621,7 +4639,7 @@ thead th {
 
 /* ===== CONTENT SPACING FIX ===== */
 
-#npIdCardModal .phc-id-card > div {
+#npIdCardModal .phc-id-card>div {
   padding: 10px 14px;
 }
 
@@ -5664,8 +5682,8 @@ thead th {
 }
 
 .nurse-card-image--replica .nurse-card-image__footer {
-  left: 18px;
-  right: 18px;
+  left: 12px;
+  right: 12px;
   bottom: 18px;
   height: auto;
   min-height: 62px;
@@ -5673,7 +5691,7 @@ thead th {
   padding: 12px 14px;
   border-radius: 20px;
   justify-content: flex-start;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .nurse-card-image--replica .nurse-card-image__footer::before {
@@ -5693,11 +5711,7 @@ thead th {
   font-size: 0.94rem;
 }
 
-.nurse-card-image--replica .nurse-card-image__footer-divider {
-  width: 100%;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.34);
-}
+
 
 @media (max-width: 420px) {
   #npIdCardModal .id-card-container {

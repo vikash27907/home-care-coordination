@@ -4,6 +4,11 @@ const isAdmin = currentRole === "admin";
 const isNurse = currentRole === "nurse";
 const isAgent = currentRole === "agent";
 const canEdit = isAdmin || isNurse;
+const canViewCard = isAdmin || isNurse || isAgent;
+const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
+const cardPhone = String(contactInfo.downloadPhone || contactInfo.displayPhone || contactInfo.phone || "").trim();
+const cardEmail = String(contactInfo.displayEmail || contactInfo.email || "").trim();
+const sharePhone = String(contactInfo.sharePhone || cardPhone || "").trim();
 
 const nurseId = nurse && nurse.id ? nurse.id : "";
 const userId = nurse && (nurse.userId || nurse.user_id) ? (nurse.userId || nurse.user_id) : "";
@@ -247,10 +252,14 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       </div>
     </div>
 
-    <% if (canEdit) { %>
+    <% if (canEdit || canViewCard) { %>
       <div class="np-header-actions">
-        <button type="button" class="btn primary" id="npToggleEditBtn">Edit Profile</button>
-        <button type="button" class="btn" id="npViewIdCardBtn">View Card</button>
+        <% if (canEdit) { %>
+          <button type="button" class="btn primary" id="npToggleEditBtn">Edit Profile</button>
+        <% } %>
+        <% if (canViewCard) { %>
+          <button type="button" class="btn" id="npViewIdCardBtn">View Card</button>
+        <% } %>
       </div>
     <% } %>
   </article>
@@ -261,12 +270,17 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
 
       <%- include("../partials/nurse-card-image", {
         nurse,
-        cardId: "nurse-id-card"
+        cardId: "nurse-id-card",
+        contactContext: {
+          ...contactInfo,
+          downloadPhone: cardPhone,
+          displayEmail: cardEmail
+        }
       }) %>
 
       <div class="card-actions">
         <button type="button" class="btn primary" id="download-card">Download Image</button>
-        <button type="button" class="btn" id="share-card">Share Image</button>
+        <button type="button" class="btn" id="share-card">Share</button>
       </div>
     </div>
   </div>
@@ -1570,6 +1584,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   const avatarPhotoInput = document.getElementById("npProfilePhotoInput");
   const avatarPhotoForm = document.getElementById("npProfilePhotoForm");
   const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
+  const shareContactPhone = <%- JSON.stringify(sharePhone) %>;
   const cardFileName = <%- JSON.stringify(`${String(profileSlug || fullName || "nurse-card").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nurse-card"}.png`) %>;
 
   let selectedSkills = new Set();
@@ -1848,6 +1863,33 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     link.remove();
     window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
   };
+  const getShareUrl = () => publicProfileUrl ? `${window.location.origin}${publicProfileUrl}` : window.location.href;
+  const buildWhatsAppMessage = () => {
+    const shareUrl = getShareUrl();
+    const lines = [
+      "Hello,",
+      "",
+      "I am sharing a nurse profile:",
+      "",
+      <%- JSON.stringify(fullName || "Nurse") %>
+    ];
+
+    if (shareUrl) {
+      lines.push("", "View Profile:", shareUrl);
+    }
+    if (shareContactPhone) {
+      lines.push("", `Contact: ${shareContactPhone}`);
+    }
+
+    return lines.join("\n");
+  };
+  const openWhatsAppShare = (message) => {
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const popup = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      window.location.href = whatsappUrl;
+    }
+  };
 
   if (editButton) {
     editButton.addEventListener("click", () => {
@@ -1898,7 +1940,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
         shareCardButton.disabled = true;
         const blob = await exportIdCardBlob();
         const fileName = getIdCardFileName();
-        const shareUrl = publicProfileUrl ? `${window.location.origin}${publicProfileUrl}` : "";
+        const message = buildWhatsAppMessage();
 
         if (typeof File !== "undefined" && typeof navigator.share === "function") {
           const file = new File([blob], fileName, { type: "image/png" });
@@ -1906,25 +1948,15 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
             await navigator.share({
               files: [file],
               title: <%- JSON.stringify(`${fullName || "Nurse"} | Nurse Card`) %>,
-              text: shareUrl || "Prisha Home Care nurse card"
+              text: message
             });
             return;
           }
         }
 
+        openWhatsAppShare(message);
         downloadBlob(blob, fileName);
-
-        if (shareUrl && navigator.clipboard && navigator.clipboard.writeText) {
-          try {
-            await navigator.clipboard.writeText(shareUrl);
-            window.alert("Image sharing is not available here. The card was downloaded and the public profile link was copied.");
-            return;
-          } catch (error) {
-            // Fall through to the generic fallback message.
-          }
-        }
-
-        window.alert("Image sharing is not available on this device. The card has been downloaded instead.");
+        window.alert("WhatsApp was opened with the nurse profile message. This browser cannot attach the generated card image directly, so the card image was downloaded as well.");
       } catch (error) {
         if (error && error.name === "AbortError") return;
         window.alert("Unable to share the card image right now.");

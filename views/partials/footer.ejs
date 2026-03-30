@@ -13,7 +13,7 @@
     >
       💬 Help
     </a>
-    <% const assetVersion = process.env.NODE_ENV === 'production' ? '1.0.0' : Date.now(); %>
+    <% const assetVersion = typeof res !== "undefined" && res.locals && typeof res.locals.assetVersion !== "undefined" ? res.locals.assetVersion : (process.env.NODE_ENV === "production" ? "1.0.0" : Date.now()); %>
     <script src="/app.js?v=<%= assetVersion %>"></script>
   </body>
 </html>

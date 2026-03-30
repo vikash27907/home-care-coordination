@@ -1,162 +1,170 @@
-<% const nurseName=String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse" ).trim(); const
-  nurseId=Number.parseInt((nurse && nurse.id) || 0, 10); const profileSlug=String((nurse && (nurse.profileSlug ||
-  nurse.profile_slug)) || "" ).trim(); const profileUrl=profileSlug ? `/nurse/${profileSlug}` : "" ; const
-  cardDomId=String(typeof cardId==="string" && cardId.trim() ? cardId.trim() : "nurseCard" ); const
-  logoSrc="/images/prisha-logo.png" ; const imageSrc=String( (nurse && ( nurse.profileImageUrl ||
-  nurse.profile_image_url || nurse.profileImagePath || nurse.profile_image_path )) || "/images/default-avatar.png"
-  ).trim(); const qualificationLabel=String( ((Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [])
-  .map((item)=> (item && typeof item === "object" ? item.name : item))
-  .map((item) => String(item || "").trim())
-  .find(Boolean))
+<%
+const nurseName = String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse").trim();
+const nurseId = Number.parseInt((nurse && nurse.id) || 0, 10);
+const profileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "").trim();
+const profileUrl = profileSlug ? `/nurse/${profileSlug}` : "";
+const cardDomId = String(typeof cardId === "string" && cardId.trim() ? cardId.trim() : "nurseCard");
+const logoSrc = "/images/prisha-logo.png";
+const imageSrc = String(
+  (nurse && (
+    nurse.profileImageUrl
+    || nurse.profile_image_url
+    || nurse.profileImagePath
+    || nurse.profile_image_path
+  )) || "/images/default-avatar.png"
+).trim();
+const qualificationLabel = String(
+  (
+    (Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [])
+      .map((item) => (item && typeof item === "object" ? item.name : item))
+      .map((item) => String(item || "").trim())
+      .find(Boolean)
+  )
   || (nurse && (
-  nurse.qualificationPrimary
-  || nurse.qualificationsText
-  || nurse.qualification
+    nurse.qualificationPrimary
+    || nurse.qualificationsText
+    || nurse.qualification
   ))
   || "GNM"
-  ).trim();
-  const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
-  const experienceLabel = String(
+).trim();
+const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
+const experienceLabel = String(
   (nurse && (
-  nurse.experienceText
-  || nurse.experienceLabel
+    nurse.experienceText
+    || nurse.experienceLabel
   )) || ""
-  ).trim() || `${experienceYears} Years`;
-  const genderLabel = String((nurse && nurse.gender) || "").trim() || "Not Specified";
-  const skillItems = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
-  const skillsLabel = skillItems
+).trim() || `${experienceYears} Years`;
+const genderLabel = String((nurse && nurse.gender) || "").trim() || "Not Specified";
+const skillItems = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
+const skillsLabel = skillItems
   .map((item) => String(item || "").trim())
   .filter(Boolean)
   .slice(0, 4)
   .join(", ") || "Patient Care, Elder Care";
-  const verifiedLabel = "Prisha Home Care";
-  const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").trim() || `PHCN-${String(nurseId ||
-  "000").padStart(3, "0")}`;
-  const canOpenProfile = Boolean(profileUrl);
-  const showQrCode = canOpenProfile && nurseId > 0;
-  const downloadFileName = `${String(profileSlug || nurseName || "nurse-card")
+const verifiedLabel = "Prisha Home Care";
+const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").trim()
+  || `PHCN-${String(nurseId || "000").padStart(3, "0")}`;
+const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
+const cardPhone = String(contactInfo.downloadPhone || contactInfo.displayPhone || contactInfo.phone || "9138913355").trim() || "9138913355";
+const cardEmail = String(contactInfo.displayEmail || contactInfo.email || "info@prishahomecare.com").trim() || "info@prishahomecare.com";
+const canOpenProfile = Boolean(profileUrl);
+const showQrCode = canOpenProfile && nurseId > 0;
+const downloadFileName = `${String(profileSlug || nurseName || "nurse-card")
   .trim()
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "-")
   .replace(/^-+|-+$/g, "") || "nurse-card"}.png`;
-  %>
+%>
 
-  <div class="card-wrapper nurse-card-image-shell">
-    <article id="<%= cardDomId %>" class="card-fixed nurse-card-image nurse-card-image--replica"
-      data-card-file-name="<%= downloadFileName %>" <% if (canOpenProfile) { %>
+<div class="card-wrapper nurse-card-image-shell">
+  <article
+    id="<%= cardDomId %>"
+    class="card-fixed nurse-card-image nurse-card-image--replica"
+    data-card-file-name="<%= downloadFileName %>"
+    <% if (canOpenProfile) { %>
       data-card-url="<%= profileUrl %>"
-        data-card-target="_blank"
-        role="link"
-        tabindex="0"
-        aria-label="Open public profile for <%= nurseName %>"
-          <% } %>
-            >
-            <div class="nurse-card-image__corner-dots" aria-hidden="true"></div>
-            <div class="nurse-card-image__ecg" aria-hidden="true">
-              <svg viewBox="0 0 320 90" fill="none" preserveAspectRatio="none">
-                <path d="M0 48h58l10-28 12 56 18-40 10 24 14-18 9 21 16-44 14 29H320" />
-              </svg>
-            </div>
+      data-card-target="_blank"
+      role="link"
+      tabindex="0"
+      aria-label="Open public profile for <%= nurseName %>"
+    <% } %>
+  >
+    <div class="nurse-card-image__corner-dots" aria-hidden="true"></div>
+    <div class="nurse-card-image__ecg" aria-hidden="true">
+      <svg viewBox="0 0 320 90" fill="none" preserveAspectRatio="none">
+        <path d="M0 48h58l10-28 12 56 18-40 10 24 14-18 9 21 16-44 14 29H320" />
+      </svg>
+    </div>
 
-            <header class="nurse-card-image__header">
-              <div class="nurse-card-image__brand">
-                <img src="<%= logoSrc %>" alt="Prisha Home Care" class="nurse-card-image__logo"
-                  onerror="this.style.display='none';" />
-                <div class="nurse-card-image__brand-copy">
-                  <strong>Prisha</strong>
-                  <span>Home Care</span>
-                </div>
-              </div>
-            </header>
+    <header class="nurse-card-image__header">
+      <div class="nurse-card-image__brand">
+        <img src="<%= logoSrc %>" alt="Prisha Home Care" class="nurse-card-image__logo" onerror="this.style.display='none';" />
+        <div class="nurse-card-image__brand-copy">
+          <strong>Prisha</strong>
+          <span>Home Care</span>
+        </div>
+      </div>
+    </header>
 
-            <div class="nurse-card-image__id-strip">
-              <span class="nurse-card-image__id-label">Nurse ID</span>
-              <strong>
-                <%= uniqueId %>
-              </strong>
-              <span class="nurse-card-image__tick" aria-label="Verified profile">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M12 2.5l2.7 1.4 3-.2 1 2.8 2.4 1.8-.8 3 .8 3-2.4 1.8-1 2.8-3-.2-2.7 1.4-2.7-1.4-3 .2-1-2.8-2.4-1.8.8-3-.8-3 2.4-1.8 1-2.8 3 .2L12 2.5z"
-                    fill="currentColor" />
-                  <path d="M8.6 12.4l2.3 2.3 4.8-5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"
-                    stroke-linejoin="round" />
-                </svg>
-              </span>
-            </div>
+    <div class="nurse-card-image__id-strip">
+      <span class="nurse-card-image__id-label">Nurse ID</span>
+      <strong><%= uniqueId %></strong>
+      <span class="nurse-card-image__tick" aria-label="Verified profile">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M12 2.5l2.7 1.4 3-.2 1 2.8 2.4 1.8-.8 3 .8 3-2.4 1.8-1 2.8-3-.2-2.7 1.4-2.7-1.4-3 .2-1-2.8-2.4-1.8.8-3-.8-3 2.4-1.8 1-2.8 3 .2L12 2.5z"
+            fill="currentColor"
+          />
+          <path d="M8.6 12.4l2.3 2.3 4.8-5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </span>
+    </div>
 
-            <section class="nurse-card-image__portrait-card" aria-label="<%= nurseName %> photo">
-              <img src="<%= imageSrc %>" alt="<%= nurseName %> profile photo" class="nurse-card-image__photo"
-                onerror="this.onerror=null;this.src='/images/default-avatar.png';" />
-            </section>
+    <section class="nurse-card-image__portrait-card" aria-label="<%= nurseName %> photo">
+      <img
+        src="<%= imageSrc %>"
+        alt="<%= nurseName %> profile photo"
+        class="nurse-card-image__photo"
+        onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+      />
+    </section>
 
-            <section class="nurse-card-image__qr-section">
-              <% if (showQrCode) { %>
-                <a href="<%= profileUrl %>" target="_blank" rel="noopener noreferrer" class="nurse-card-image__qr-link"
-                  data-card-action aria-label="Open public profile for <%= nurseName %>">
-                  <img src="/api/nurse/<%= nurseId %>/qr" alt="QR code for <%= nurseName %> public profile"
-                    loading="lazy" />
-                  <span>Scan Profile</span>
-                </a>
-                <% } else { %>
-                  <div class="nurse-card-image__qr-link is-disabled" aria-hidden="true">
-                    <div class="nurse-card-image__qr-placeholder">QR</div>
-                    <span>Scan Profile</span>
-                  </div>
-                  <% } %>
-            </section>
+    <section class="nurse-card-image__qr-section">
+      <% if (showQrCode) { %>
+        <a
+          href="<%= profileUrl %>"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="nurse-card-image__qr-link"
+          data-card-action
+          aria-label="Open public profile for <%= nurseName %>"
+        >
+          <img src="/api/nurse/<%= nurseId %>/qr" alt="QR code for <%= nurseName %> public profile" loading="lazy" />
+          <span>Scan Profile</span>
+        </a>
+      <% } else { %>
+        <div class="nurse-card-image__qr-link is-disabled" aria-hidden="true">
+          <div class="nurse-card-image__qr-placeholder">QR</div>
+          <span>Scan Profile</span>
+        </div>
+      <% } %>
+    </section>
 
-            <section class="nurse-card-image__details-panel">
-              <dl class="nurse-card-image__detail-list">
-                <div class="nurse-card-image__detail-row nurse-card-image__detail-row--name">
-                  <dt>Name:</dt>
-                  <dd>
-                    <%= nurseName %>
-                  </dd>
-                </div>
-                <div class="nurse-card-image__detail-row">
-                  <dt>Qualification:</dt>
-                  <dd>
-                    <%= qualificationLabel %>
-                  </dd>
-                </div>
-                <div class="nurse-card-image__detail-row">
-                  <dt>Experience:</dt>
-                  <dd>
-                    <%= experienceLabel %>
-                  </dd>
-                </div>
-                <div class="nurse-card-image__detail-row nurse-card-image__detail-row--skills">
-                  <dt>Skills:</dt>
-                  <dd>
-                    <%= skillsLabel %>
-                  </dd>
-                </div>
-                <div class="nurse-card-image__detail-row">
-                  <dt>Gender:</dt>
-                  <dd>
-                    <%= genderLabel %>
-                  </dd>
-                </div>
-                <div class="nurse-card-image__detail-row nurse-card-image__detail-row--verify">
-                  <dt>Verified By:</dt>
-                  <dd><strong>
-                      <%= verifiedLabel %>
-                    </strong></dd>
-                </div>
-              </dl>
-            </section>
+    <section class="nurse-card-image__details-panel">
+      <dl class="nurse-card-image__detail-list">
+        <div class="nurse-card-image__detail-row nurse-card-image__detail-row--name">
+          <dt>Name:</dt>
+          <dd><%= nurseName %></dd>
+        </div>
+        <div class="nurse-card-image__detail-row">
+          <dt>Qualification:</dt>
+          <dd><%= qualificationLabel %></dd>
+        </div>
+        <div class="nurse-card-image__detail-row">
+          <dt>Experience:</dt>
+          <dd><%= experienceLabel %></dd>
+        </div>
+        <div class="nurse-card-image__detail-row nurse-card-image__detail-row--skills">
+          <dt>Skills:</dt>
+          <dd><%= skillsLabel %></dd>
+        </div>
+        <div class="nurse-card-image__detail-row">
+          <dt>Gender:</dt>
+          <dd><%= genderLabel %></dd>
+        </div>
+        <div class="nurse-card-image__detail-row nurse-card-image__detail-row--verify">
+          <dt>Verified By:</dt>
+          <dd><strong><%= verifiedLabel %></strong></dd>
+        </div>
+      </dl>
+    </section>
 
-            <footer class="nurse-card-image__footer">
-              <span class="nurse-card-image__footer-item">
-                <b>&#128222;</b>
-                <em>9138913355</em>
-              </span>
-              <span class="nurse-card-image__footer-divider"></span>
-              <span class="nurse-card-image__footer-item">
-                <b>&#9993;</b>
-                <em>prishahomecare.com</em>
-              </span>
-            </footer>
-    </article>
-  </div>
+    <footer class="nurse-card-image__footer">
+      <div class="nurse-card-image__footer-content">
+        <span class="nurse-card-image__footer-item">Phone: <%= cardPhone %></span>
+        <span class="nurse-card-image__footer-divider">|</span>
+        <span class="nurse-card-image__footer-item">Email: <%= cardEmail %></span>
+      </div>
+    </footer>
+  </article>
+</div>

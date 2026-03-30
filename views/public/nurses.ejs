@@ -1,11 +1,11 @@
 <%- include("../partials/head", { title }) %>
 
-<section class="dashboard-header">
+<section class="dashboard-header" data-reveal>
   <h1>Find Nurses</h1>
   <p>Only public profile details are shown. Contact details are never public.</p>
 </section>
 
-<form method="GET" action="/nurses" class="filter-row">
+<form method="GET" action="/nurses" class="filter-row" data-reveal>
   <label>
     Visibility
     <select name="show">

@@ -45,10 +45,20 @@ const availabilityValue = String(
 ).trim() || (isActive ? "Available" : "Unavailable");
 const languages = Array.isArray(nurse && nurse.languages) ? nurse.languages.filter(Boolean) : [];
 const skills = Array.isArray(nurse && nurse.skills) ? nurse.skills.filter(Boolean) : [];
-const rawPhoneNumber = String((nurse && (nurse.phoneNumber || nurse.phone_number)) || "").trim();
+const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
+const rawPhoneNumber = String(
+  (contactInfo.phone || contactInfo.displayPhone || contactPhone)
+  || (nurse && (nurse.phoneNumber || nurse.phone_number))
+  || ""
+).trim();
 const normalizedPhoneDigits = rawPhoneNumber.replace(/\D/g, "").slice(-10);
 const formattedPhoneNumber = normalizedPhoneDigits ? `+91 ${normalizedPhoneDigits.slice(0, 5)} ${normalizedPhoneDigits.slice(5)}` : rawPhoneNumber;
-const whatsappLink = String((nurse && nurse.whatsappLink) || "").trim();
+const contactLink = String(
+  contactInfo.telHref
+  || contactHref
+  || (normalizedPhoneDigits ? `tel:+91${normalizedPhoneDigits}` : "")
+).trim();
+const contactButtonLabel = String(contactInfo.buttonLabel || contactButtonText || "Contact").trim() || "Contact";
 const documents = Array.isArray(nurse && nurse.documents)
   ? nurse.documents
   : [
@@ -277,15 +287,15 @@ function skillIconName(skill) {
           <strong><%= formattedPhoneNumber || "Phone not shared" %></strong>
         </div>
 
-        <% if (whatsappLink) { %>
-          <a href="<%= whatsappLink %>" target="_blank" rel="noopener noreferrer" class="nurse-card-base__whatsapp-btn">
-            <%- icon("whatsapp", "nurse-card-base__pill-icon") %>
-            <span>WhatsApp</span>
+        <% if (contactLink) { %>
+          <a href="<%= contactLink %>" class="nurse-card-base__whatsapp-btn">
+            <%- icon("phone", "nurse-card-base__pill-icon") %>
+            <span><%= contactButtonLabel %></span>
           </a>
         <% } else { %>
           <button type="button" class="nurse-card-base__whatsapp-btn is-disabled" disabled>
-            <%- icon("whatsapp", "nurse-card-base__pill-icon") %>
-            <span>WhatsApp</span>
+            <%- icon("phone", "nurse-card-base__pill-icon") %>
+            <span><%= contactButtonLabel %></span>
           </button>
         <% } %>
       </section>

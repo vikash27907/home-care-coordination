@@ -1,5 +1,4 @@
-<%- include("../partials/head", { title }) %>
-<link rel="stylesheet" href="/css/agent-profile.css">
+<%- include("../partials/head", { title, extraStylesheets: ["/css/agent-profile.css"] }) %>
 <% const agentReferralUserId = (currentUser && currentUser.id) || (session && session.user && session.user.id) || ""; %>
 
 <div class="agent-profile">
@@ -7,7 +6,7 @@
     <img src="/images/patient-care.svg" alt="Agent cover" />
   </div>
 
-  <div class="profile-header">
+  <div class="profile-header" data-reveal>
     <div class="avatar">
       <img src="<%= (session && session.user && session.user.profileImageUrl) ? session.user.profileImageUrl : '/images/default-avatar.png' %>" alt="Agent avatar" />
     </div>
@@ -22,13 +21,13 @@
       </div>
 
       <div class="profile-actions">
-        <a class="btn-primary" href="tel:<%= (agent && agent.phoneNumber) || '' %>">Contact</a>
-        <button class="btn-secondary" type="button">Share</button>
+        <a class="btn btn-primary" href="tel:<%= (agent && agent.phoneNumber) || '' %>">Contact</a>
+        <button class="btn btn-secondary" type="button">Share</button>
       </div>
     </div>
   </div>
 
-  <div class="stats">
+  <div class="stats" data-reveal>
     <div class="stat">
       <h3><%= stats && typeof stats.nursesManaged !== 'undefined' ? stats.nursesManaged : 12 %></h3>
       <p>Nurses Managed</p>
@@ -45,16 +44,16 @@
     </div>
   </div>
 
-  <div class="profile-section quick-actions">
+  <div class="profile-section quick-actions" data-reveal>
     <h2>Quick Actions</h2>
     <div class="quick-actions__grid">
-      <a href="/nurse/register?ref_agent=<%= agentReferralUserId %>" class="btn-primary">+ Add Nurse</a>
-      <a href="/request-care" class="btn-success">+ Add Job</a>
-      <a href="/agent/dashboard?tab=staff" class="btn-outline-primary">View Staff</a>
+      <a href="/nurse/register?ref_agent=<%= agentReferralUserId %>" class="btn btn-primary">+ Add Nurse</a>
+      <a href="/request-care" class="btn btn-success">+ Add Job</a>
+      <a href="/agent/dashboard?tab=staff" class="btn btn-outline-primary">View Staff</a>
     </div>
   </div>
 
-  <div class="profile-section">
+  <div class="profile-section" data-reveal>
     <h2>About</h2>
     <p>
       Experienced healthcare coordinator connecting trained nurses
@@ -62,38 +61,33 @@
     </p>
   </div>
 
-  <div class="profile-section">
+  <div class="profile-section" data-reveal>
     <h2>Nurse Network</h2>
 
     <div class="nurse-grid">
       <% if (featuredNurses && featuredNurses.length) { %>
         <% featuredNurses.forEach((nurse) => { %>
-          <div class="nurse-card">
-            <img src="/images/nurse.svg" alt="Nurse" />
-            <h4><%= nurse.fullName || 'Nurse' %></h4>
-            <p><%= typeof nurse.experienceYears === 'number' ? nurse.experienceYears : 0 %> Years Experience</p>
-            <a class="nurse-view-btn" href="/agent/nurses/<%= nurse.id %>">View</a>
-          </div>
+          <%- include("../partials/nurse-directory-card", {
+            nurse,
+            href: `/agent/nurses/${nurse.id}`,
+            mode: "compact",
+            showRequestButton: false,
+            showUtilityButtons: false,
+            showDeleteButton: false
+          }) %>
         <% }) %>
       <% } else { %>
-        <div class="nurse-card">
+        <div class="agent-network-card" data-reveal>
           <img src="/images/nurse.svg" alt="Nurse" />
-          <h4>ICU Nurse</h4>
-          <p>7 Years Experience</p>
-          <button type="button">View</button>
-        </div>
-
-        <div class="nurse-card">
-          <img src="/images/nurse.svg" alt="Nurse" />
-          <h4>Elder Care Nurse</h4>
-          <p>5 Years Experience</p>
-          <button type="button">View</button>
+          <h4>No featured nurses yet</h4>
+          <p>Approved nurses from this account will appear here automatically.</p>
+          <a class="btn btn-outline-primary" href="/nurse/register?ref_agent=<%= agentReferralUserId %>">Add Nurse</a>
         </div>
       <% } %>
     </div>
   </div>
 
-  <div class="profile-section">
+  <div class="profile-section" data-reveal>
     <h2>Contact</h2>
 
     <div class="contact-card">
@@ -102,7 +96,7 @@
       <p><strong>Region:</strong> <%= (agent && (agent.workingRegion || agent.region)) || 'Delhi NCR' %></p>
 
       <a
-        class="btn-primary"
+        class="btn btn-primary"
         target="_blank"
         rel="noopener noreferrer"
         href="https://wa.me/919138913355?text=Hello%20I%20am%20viewing%20the%20agent%20profile"

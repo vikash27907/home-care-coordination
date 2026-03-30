@@ -1,5 +1,9 @@
 function normalizePhone(phone) {
-  return String(phone || "").replace(/\D/g, "").slice(-10);
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 10) {
+    return "";
+  }
+  return digits.slice(-10);
 }
 
 module.exports = { normalizePhone };

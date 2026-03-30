@@ -1,8 +1,7 @@
-<%- include("../partials/head", { title }) %>
-<link rel="stylesheet" href="/css/agent-dashboard-tabs.css">
+<%- include("../partials/head", { title, extraStylesheets: ["/css/agent-dashboard-tabs.css"] }) %>
 
 <section class="agent-hub container py-4">
-  <div class="agent-hub__header mb-4">
+  <div class="agent-hub__header mb-4" data-reveal>
     <div>
       <p class="agent-hub__eyebrow">Operations Console</p>
       <h1>Agent Dashboard</h1>
@@ -49,7 +48,7 @@
       <% } else { %>
         <% jobs.forEach((job) => { %>
           <div class="col-12 col-md-6">
-            <article class="card shadow-sm h-100">
+            <article class="card shadow-sm h-100" data-reveal>
               <div class="card-body">
                 <div class="card-copy">
                   <h3 class="card-title"><%= job.patient_name %></h3>
