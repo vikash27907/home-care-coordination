@@ -142,8 +142,19 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS medical_fit_url TEXT,
       ADD COLUMN IF NOT EXISTS unique_id VARCHAR(20),
       ADD COLUMN IF NOT EXISTS profile_slug TEXT,
-      ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT true,
+      ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS claimed_by_nurse BOOLEAN DEFAULT FALSE
+    `);
+
+    await pool.query(`
+      ALTER TABLE nurses
+      ALTER COLUMN public_profile_enabled SET DEFAULT false
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET public_profile_enabled = FALSE
+      WHERE public_profile_enabled IS NULL
     `);
 
     await pool.query(`
@@ -170,6 +181,13 @@ async function initializeDatabase() {
         ELSE 'Unavailable'
       END
       WHERE NULLIF(BTRIM(COALESCE(availability_label, '')), '') IS NULL
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET profile_status = 'approved'
+      WHERE LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND LOWER(COALESCE(profile_status, '')) <> 'approved'
     `);
 
     await pool.query(`
@@ -200,7 +218,8 @@ async function initializeDatabase() {
           EXECUTE '
             UPDATE nurses
             SET public_profile_enabled = admin_visible
-            WHERE public_profile_enabled IS DISTINCT FROM admin_visible
+            WHERE public_profile_enabled IS NULL
+              AND admin_visible IS NOT NULL
           ';
         END IF;
       END $$;

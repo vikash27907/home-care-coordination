@@ -89,10 +89,35 @@ function resolveNursePublicVisibility(row) {
   if (typeof row.public_profile_enabled === 'boolean') {
     return row.public_profile_enabled;
   }
+  return false;
+}
+
+function resolveNurseAdminVisibility(row) {
   if (typeof row.admin_visible === 'boolean') {
     return row.admin_visible;
   }
+  return true;
+}
+
+function resolveNurseListingVisibility(row) {
+  if (typeof row.public_profile_enabled === 'boolean') {
+    return row.public_profile_enabled;
+  }
   return false;
+}
+
+function resolveNurseProfileStatus(row) {
+  const explicitProfileStatus = String(row.profile_status || '').trim().toLowerCase();
+  if (explicitProfileStatus) {
+    return explicitProfileStatus;
+  }
+
+  const legacyStatus = String(row.status || '').trim().toLowerCase();
+  if (legacyStatus === 'approved' || legacyStatus === 'rejected' || legacyStatus === 'pending') {
+    return legacyStatus;
+  }
+
+  return 'draft';
 }
 
 function normalizeAgentStatus(value) {
@@ -326,6 +351,7 @@ function transformNurseFromDB(row) {
     experienceMonths: Number.parseInt(row.experience_months, 10) || 0,
     currentStatus: row.current_status || '',
     availabilityLabel: row.availability_label || row.current_status || (row.is_available === false ? 'Unavailable' : 'Available'),
+    isAvailable: row.is_available !== false,
     dutyType: row.duty_type || '',
     workLocations: row.work_locations || [],
     currentAddress: row.current_address || row.address || '',
@@ -343,7 +369,9 @@ function transformNurseFromDB(row) {
     publicBio: row.public_bio || '',
     uniqueId: row.unique_id || '',
     profileSlug: row.profile_slug || '',
-    publicProfileEnabled: row.public_profile_enabled !== false,
+    profileStatus: resolveNurseProfileStatus(row),
+    adminVisible: resolveNurseAdminVisibility(row),
+    publicProfileEnabled: resolveNurseListingVisibility(row),
     claimedByNurse: row.claimed_by_nurse === true,
     isPublic: resolveNursePublicVisibility(row),
     userIsDeleted: row.user_is_deleted === true,
@@ -776,7 +804,7 @@ async function createNurse(nurse) {
   try {
     const uniqueId = nurse.uniqueId || await generateNurseId(pool);
     const profileSlug = nurse.profileSlug || generateSlug(nurse.fullName, uniqueId);
-    const publicProfileEnabled = nurse.publicProfileEnabled !== false;
+    const publicProfileEnabled = nurse.publicProfileEnabled === true;
     const normalizedStatus = normalizeNurseStatus(nurse.status);
     const hasExplicitId = Number.isInteger(nurse.id);
     const result = hasExplicitId

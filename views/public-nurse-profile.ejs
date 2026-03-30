@@ -8,12 +8,14 @@
 
     <%- include("partials/nurse-card-base", {
       nurse,
-      contactContext,
+      contactContext: {
+        ...contactContext,
+        contactLabel: contactOwner === "agent" ? `Contact via ${contactName}` : "Contact via Prisha Home Care"
+      },
       mode: "full",
       showQrCode: false,
       showContact: true
     }) %>
-
   </div>
 </section>
 <%- include("partials/footer") %>

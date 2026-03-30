@@ -1264,10 +1264,12 @@ function buildPublicNurse(nurse) {
       : null,
     gender: nurse.gender || "Not specified",
     profileImageUrl: nurse.profileImageUrl || "",
-    phoneNumber: String(nurse.phoneNumber || nurse.phone_number || "").trim(),
     publicBio: nurse.publicBio || "",
     uniqueId: nurse.uniqueId || "",
     profileSlug: nurse.profileSlug || "",
+    profileStatus: nurse.profileStatus || nurse.profile_status || "",
+    adminVisible: nurse.adminVisible === true,
+    publicProfileEnabled: nurse.publicProfileEnabled === true,
     publicUrl: nurse.profileSlug ? `/nurse/${encodeURIComponent(nurse.profileSlug)}` : `/nurses/${nurse.id}`,
     isAvailable: nurse.isAvailable !== false,
     currentStatus: nurse.currentStatus || nurse.current_status || availabilityLabel,
@@ -1323,8 +1325,6 @@ function buildPublicNurseProfileView(nurse) {
   const experienceYears = Number.parseInt(nurse.experienceYears, 10) || 0;
   const languages = Array.isArray(nurse.languages) ? nurse.languages.filter(Boolean) : [];
   const skills = Array.isArray(nurse.skills) ? nurse.skills.filter(Boolean) : [];
-  const phoneNumber = String(nurse.phoneNumber || nurse.phone_number || "").trim();
-  const normalizedPhone = normalizePhone(phoneNumber);
   const availabilityLabel = String(
     nurse.availabilityLabel
     || nurse.availability_label
@@ -1356,6 +1356,9 @@ function buildPublicNurseProfileView(nurse) {
     profileImageUrl: nurse.profileImageUrl || nurse.profileImagePath || "",
     uniqueId: nurse.uniqueId || "",
     profileSlug: nurse.profileSlug || "",
+    profileStatus: nurse.profileStatus || nurse.profile_status || "",
+    adminVisible: nurse.adminVisible === true,
+    publicProfileEnabled: nurse.publicProfileEnabled === true,
     publicUrl: nurse.profileSlug ? `/nurse/${encodeURIComponent(nurse.profileSlug)}` : `/nurses/${nurse.id}`,
     isAvailable: nurse.isAvailable !== false,
     currentStatus: nurse.currentStatus || availabilityLabel,
@@ -1367,8 +1370,6 @@ function buildPublicNurseProfileView(nurse) {
       : null,
     languages,
     skills,
-    phoneNumber,
-    whatsappLink: normalizedPhone ? `https://wa.me/91${normalizedPhone}` : "",
     aadhaarCardUrl: String(
       nurse.aadhaarCardUrl
       || nurse.aadharImageUrl
@@ -1407,34 +1408,53 @@ function buildPublicNurseProfileView(nurse) {
   };
 }
 
-function buildNurseContactContext(nurse, viewer) {
+function buildNurseContactContext(nurse, viewer, options = {}) {
   const viewerRole = String((viewer && viewer.role) || "").trim().toLowerCase() || "public";
   const viewerId = Number.parseInt((viewer && viewer.id) || 0, 10);
   const nurseUserId = Number.parseInt((nurse && (nurse.userId || nurse.user_id)) || 0, 10);
   const nursePhone = String((nurse && (nurse.phoneNumber || nurse.phone_number)) || "").trim();
-  const agentPhone = String((viewer && viewer.phoneNumber) || "").trim();
+  const forceCompanyContact = options && options.forceCompanyContact === true;
+  const companyName = String((options && options.companyName) || "Prisha Home Care").trim() || "Prisha Home Care";
+  const profileUrl = String((options && options.profileUrl) || "").trim();
+  const nurseName = String((nurse && (nurse.fullName || nurse.full_name)) || "this nurse").trim() || "this nurse";
+  const nurseUniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").trim();
   const isOwner = viewerRole === "nurse"
     && Number.isInteger(viewerId)
     && Number.isInteger(nurseUserId)
     && viewerId === nurseUserId;
+  const canViewDirectNurseContact = !forceCompanyContact && (viewerRole === "admin" || viewerRole === "agent" || isOwner);
 
   let selectedPhone = COMPANY_PHONE;
   let phoneSource = "company";
 
-  if (isOwner && nursePhone) {
+  if (canViewDirectNurseContact && nursePhone) {
     selectedPhone = nursePhone;
     phoneSource = "nurse";
-  } else if (viewerRole === "agent" && agentPhone) {
-    selectedPhone = agentPhone;
-    phoneSource = "agent";
   }
 
   const normalizedPhone = normalizePhone(selectedPhone);
+  const companyPhoneDigits = normalizePhone(COMPANY_PHONE);
+  const companyPhoneIntl = companyPhoneDigits ? `91${companyPhoneDigits}` : "";
+  const publicInquiryMessage = [
+    `Hello ${companyName},`,
+    `I am interested in nurse ${nurseName}${nurseUniqueId ? ` (ID: ${nurseUniqueId})` : ""}.`,
+    "Please assist me.",
+    `Profile: ${profileUrl || "Not available"}`
+  ].join("\n");
+  const whatsappHref = phoneSource === "company" && companyPhoneIntl
+    ? `https://wa.me/${companyPhoneIntl}?text=${encodeURIComponent(publicInquiryMessage)}`
+    : (normalizedPhone ? `https://wa.me/91${normalizedPhone}` : "");
 
   return {
     viewerRole,
     isOwner,
     phoneSource,
+    usesCompanyContact: phoneSource === "company",
+    companyName,
+    nurseName,
+    nurseId: nurseUniqueId,
+    profileUrl,
+    inquiryMessage: publicInquiryMessage,
     displayPhone: selectedPhone,
     displayEmail: COMPANY_EMAIL,
     downloadPhone: selectedPhone,
@@ -1442,7 +1462,9 @@ function buildNurseContactContext(nurse, viewer) {
     phone: selectedPhone,
     email: COMPANY_EMAIL,
     telHref: normalizedPhone ? `tel:+91${normalizedPhone}` : "",
-    whatsappHref: normalizedPhone ? `https://wa.me/91${normalizedPhone}` : "",
+    whatsappHref,
+    actionHref: phoneSource === "company" ? whatsappHref : (normalizedPhone ? `tel:+91${normalizedPhone}` : ""),
+    openInNewTab: phoneSource === "company",
     buttonLabel: "Contact"
   };
 }

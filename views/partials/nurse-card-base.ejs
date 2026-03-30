@@ -54,11 +54,15 @@ const rawPhoneNumber = String(
 const normalizedPhoneDigits = rawPhoneNumber.replace(/\D/g, "").slice(-10);
 const formattedPhoneNumber = normalizedPhoneDigits ? `+91 ${normalizedPhoneDigits.slice(0, 5)} ${normalizedPhoneDigits.slice(5)}` : rawPhoneNumber;
 const contactLink = String(
-  contactInfo.telHref
+  contactInfo.actionHref
+  || contactInfo.whatsappHref
+  || contactInfo.telHref
   || contactHref
   || (normalizedPhoneDigits ? `tel:+91${normalizedPhoneDigits}` : "")
 ).trim();
+const openContactInNewTab = contactInfo.openInNewTab === true || /^https?:\/\//i.test(contactLink);
 const contactButtonLabel = String(contactInfo.buttonLabel || contactButtonText || "Contact").trim() || "Contact";
+const contactLabel = String(contactInfo.contactLabel || "").trim();
 const documents = Array.isArray(nurse && nurse.documents)
   ? nurse.documents
   : [
@@ -284,11 +288,20 @@ function skillIconName(skill) {
       <section class="nurse-card-base__contact-row">
         <div class="nurse-card-base__phone-card">
           <span class="nurse-card-base__phone-icon"><%- icon("phone", "nurse-card-base__pill-icon") %></span>
-          <strong><%= formattedPhoneNumber || "Phone not shared" %></strong>
+          <div class="nurse-card-base__phone-copy">
+            <% if (contactLabel) { %>
+              <span class="nurse-card-base__phone-note"><%= contactLabel %></span>
+            <% } %>
+            <strong><%= formattedPhoneNumber || "Phone not shared" %></strong>
+          </div>
         </div>
 
         <% if (contactLink) { %>
-          <a href="<%= contactLink %>" class="nurse-card-base__whatsapp-btn">
+          <a
+            href="<%= contactLink %>"
+            class="nurse-card-base__whatsapp-btn"
+            <%= openContactInNewTab ? 'target="_blank" rel="noopener noreferrer"' : '' %>
+          >
             <%- icon("phone", "nurse-card-base__pill-icon") %>
             <span><%= contactButtonLabel %></span>
           </a>

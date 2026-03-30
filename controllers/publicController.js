@@ -194,6 +194,147 @@ function createPublicController() {
     validateServiceSchedule,
   } = runtime;
 
+  async function resolveAgentByIdentifier(agentIdentifier) {
+    const rawIdentifier = String(agentIdentifier || "").trim();
+    if (!rawIdentifier) {
+      return null;
+    }
+
+    const numericId = Number.parseInt(rawIdentifier, 10);
+    if (String(numericId) === rawIdentifier && Number.isInteger(numericId) && numericId > 0) {
+      const agentById = await getAgentById(numericId);
+      if (agentById) {
+        return agentById;
+      }
+    }
+
+    const normalizedIdentifier = normalizeEmail(rawIdentifier);
+    const compactIdentifier = rawIdentifier.toUpperCase().replace(/-/g, "");
+    const slugIdentifier = rawIdentifier.toLowerCase();
+    const agents = await getAgents();
+
+    return agents.find((agent) => {
+      const uniqueId = String(agent.uniqueId || "").trim().toUpperCase().replace(/-/g, "");
+      const profileSlug = String(agent.profileSlug || "").trim().toLowerCase();
+      const normalizedEmail = normalizeEmail(agent.email);
+
+      return (uniqueId && uniqueId === compactIdentifier)
+        || (profileSlug && profileSlug === slugIdentifier)
+        || (normalizedIdentifier && normalizedEmail === normalizedIdentifier);
+    }) || null;
+  }
+
+  function buildLeadWhatsAppHref(phoneDigits, contactName, nurseName, nurseId, profileUrl) {
+    const normalizedDigits = normalizePhoneValue(phoneDigits);
+    if (!normalizedDigits) {
+      return "";
+    }
+
+    const whatsappPhone = normalizedDigits.startsWith("91") ? normalizedDigits : `91${normalizedDigits}`;
+    const message = [
+      `Hello ${contactName},`,
+      `I am interested in nurse ${nurseName}${nurseId ? ` (ID: ${nurseId})` : ""}.`,
+      "Please assist me.",
+      `Profile: ${profileUrl}`
+    ].join("\n");
+
+    return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
+  }
+
+  async function buildPublicNurseProfilePageModel(req, nurse, options = {}) {
+    const ratingsResult = await pool.query(
+      `SELECT
+          COALESCE(ROUND(AVG(rating)::numeric, 1), 0)::numeric(3,1) AS average_rating,
+          COUNT(*)::int AS review_count
+       FROM care_request_ratings
+       WHERE nurse_id = $1`,
+      [nurse.id]
+    );
+    const ratingRow = ratingsResult.rows[0] || {};
+    const publicNurse = {
+      ...buildPublicNurseProfileView(nurse),
+      ratingAverage: Number.parseFloat(ratingRow.average_rating) || 0,
+      reviewCount: Number.parseInt(ratingRow.review_count, 10) || 0
+    };
+    const isVerified = nurse.status === "Approved";
+    const profileUrl = new URL(req.originalUrl || publicNurse.publicUrl, `${getAppBaseUrl(req)}/`).toString();
+    const defaultContactContext = buildNurseContactContext(nurse, req.currentUser, {
+      forceCompanyContact: true,
+      profileUrl
+    });
+
+    let contactOwner = "company";
+    let contactName = "Prisha Home Care";
+    let contactPhone = normalizePhoneValue(COMPANY_PHONE) || COMPANY_PHONE;
+    let contactContext = {
+      ...defaultContactContext
+    };
+
+    if (options.agent) {
+      const agent = options.agent;
+      const agentPhone = normalizePhoneValue(agent.phoneNumber || agent.phone_number || "");
+      const agentName = String(agent.fullName || agent.full_name || agent.companyName || "Assigned Agent").trim() || "Assigned Agent";
+      const whatsappHref = buildLeadWhatsAppHref(
+        agentPhone,
+        agentName,
+        publicNurse.fullName,
+        publicNurse.uniqueId,
+        profileUrl
+      );
+
+      contactOwner = "agent";
+      contactName = agentName;
+      contactPhone = agentPhone || contactPhone;
+      contactContext = {
+        ...defaultContactContext,
+        phoneSource: "agent",
+        usesCompanyContact: false,
+        companyName: agentName,
+        nurseName: publicNurse.fullName,
+        nurseId: publicNurse.uniqueId,
+        profileUrl,
+        displayPhone: contactPhone,
+        downloadPhone: contactPhone,
+        sharePhone: contactPhone,
+        phone: contactPhone,
+        telHref: contactPhone ? `tel:+91${contactPhone}` : "",
+        whatsappHref,
+        actionHref: whatsappHref || (contactPhone ? `tel:+91${contactPhone}` : ""),
+        openInNewTab: Boolean(whatsappHref),
+        buttonLabel: "Contact"
+      };
+    }
+
+    publicNurse.phoneNumber = contactPhone;
+    publicNurse.whatsappLink = contactContext.whatsappHref;
+
+    return {
+      publicNurse,
+      isVerified,
+      contactContext,
+      contactOwner,
+      contactName
+    };
+  }
+
+  function isApprovedProfileStatus(value) {
+    return String(value || "").trim().toLowerCase() === "approved";
+  }
+
+  function isNurseDirectProfileVisible(nurse) {
+    if (!nurse) {
+      return false;
+    }
+
+    const profileStatus = nurse.profileStatus || nurse.profile_status || "";
+    const adminVisible = nurse.adminVisible === true;
+    return adminVisible && isApprovedProfileStatus(profileStatus);
+  }
+
+  function isNurseListedPublicly(nurse) {
+    return isNurseDirectProfileVisible(nurse) && nurse.publicProfileEnabled === true;
+  }
+
 router.get("/health", (req, res) => {
   res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
 });
@@ -211,7 +352,7 @@ router.get("/nurses", async (req, res) => {
   const nursesFromDb = await getNurses();
 
   const nurses = nursesFromDb
-    .filter((nurse) => nurse.status === "Approved" && nurse.isPublic === true)
+    .filter((nurse) => isNurseListedPublicly(nurse))
     .filter((nurse) => (includeUnavailable ? true : nurse.isAvailable !== false))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .map((nurse) => buildPublicNurse(nurse));
@@ -230,7 +371,7 @@ router.get("/nurses/:id", async (req, res) => {
   }
 
   const nurse = await getNurseById(nurseId);
-  const isVisiblePublicly = nurse && nurse.status === "Approved" && nurse.isPublic === true;
+  const isVisiblePublicly = isNurseDirectProfileVisible(nurse);
   if (!isVisiblePublicly) {
     return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
   }
@@ -238,6 +379,50 @@ router.get("/nurses/:id", async (req, res) => {
   return res.render("public/nurse-profile", {
     title: `${nurse.fullName} | Public Nurse Profile`,
     nurse: buildPublicNurse(nurse)
+  });
+});
+
+router.get("/agent/:agentIdentifier/nurse/:slug([a-z0-9-]+-phcn-?[0-9]+)", async (req, res) => {
+  const agentIdentifier = String(req.params.agentIdentifier || "").trim();
+  const slug = String(req.params.slug || "").trim();
+  if (!agentIdentifier || !slug) {
+    return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+  }
+
+  const [agent, nurse] = await Promise.all([
+    resolveAgentByIdentifier(agentIdentifier),
+    getNurseByProfileSlug(slug)
+  ]);
+
+  const isVisiblePublicly = isNurseDirectProfileVisible(nurse);
+  const agentHasContactPhone = agent && Boolean(normalizePhoneValue(agent.phoneNumber || agent.phone_number || ""));
+  const agentCanAccessNurse = agent
+    && isApprovedAgentStatus(agent.status)
+    && nurse
+    && agentHasContactPhone
+    && nurseHasAgent(nurse, agent.email);
+
+  if (!agent || !isVisiblePublicly || !agentCanAccessNurse) {
+    return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+  }
+
+  const {
+    publicNurse,
+    isVerified,
+    contactContext,
+    contactOwner,
+    contactName
+  } = await buildPublicNurseProfilePageModel(req, nurse, { agent });
+
+  return res.render("public-nurse-profile", {
+    title: publicNurse.fullName,
+    metaTitle: `${publicNurse.fullName} | ${isVerified ? "Verified" : "Verification Pending"} Nurse | Prisha Home Care`,
+    metaDescription: `View the public profile for ${publicNurse.fullName} at Prisha Home Care.`,
+    nurse: publicNurse,
+    isVerified,
+    contactContext,
+    contactOwner,
+    contactName
   });
 });
 
@@ -251,23 +436,18 @@ router.get("/nurse/:slug([a-z0-9-]+-phcn-?[0-9]+)", async (req, res) => {
   if (!nurse) {
     return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
   }
+  const isVisiblePublicly = isNurseDirectProfileVisible(nurse);
+  if (!isVisiblePublicly) {
+    return res.status(404).render("shared/not-found", { title: "Nurse Not Found" });
+  }
 
-  const ratingsResult = await pool.query(
-    `SELECT
-        COALESCE(ROUND(AVG(rating)::numeric, 1), 0)::numeric(3,1) AS average_rating,
-        COUNT(*)::int AS review_count
-     FROM care_request_ratings
-     WHERE nurse_id = $1`,
-    [nurse.id]
-  );
-  const ratingRow = ratingsResult.rows[0] || {};
-  const publicNurse = {
-    ...buildPublicNurseProfileView(nurse),
-    ratingAverage: Number.parseFloat(ratingRow.average_rating) || 0,
-    reviewCount: Number.parseInt(ratingRow.review_count, 10) || 0
-  };
-  const isVerified = nurse.status === "Approved";
-  const contactContext = buildNurseContactContext(nurse, req.currentUser);
+  const {
+    publicNurse,
+    isVerified,
+    contactContext,
+    contactOwner,
+    contactName
+  } = await buildPublicNurseProfilePageModel(req, nurse);
 
   return res.render("public-nurse-profile", {
     title: publicNurse.fullName,
@@ -275,7 +455,9 @@ router.get("/nurse/:slug([a-z0-9-]+-phcn-?[0-9]+)", async (req, res) => {
     metaDescription: `View the public profile for ${publicNurse.fullName} at Prisha Home Care.`,
     nurse: publicNurse,
     isVerified,
-    contactContext
+    contactContext,
+    contactOwner,
+    contactName
   });
 });
 
@@ -286,7 +468,8 @@ router.get("/api/nurse/:id/qr", async (req, res) => {
   }
 
   const nurse = await getNurseById(nurseId);
-  if (!nurse || !nurse.profileSlug) {
+  const isVisiblePublicly = isNurseDirectProfileVisible(nurse);
+  if (!nurse || !nurse.profileSlug || !isVisiblePublicly) {
     return res.status(404).send("Not found");
   }
 
@@ -300,13 +483,13 @@ router.get("/api/nurse/:id/qr", async (req, res) => {
 router.get("/request-care", async (req, res) => {
   const preferredNurseId = Number.parseInt(req.query.nurseId, 10);
   const user = req.session?.user || null;
-  let preferredNurse = null;
-  if (!Number.isNaN(preferredNurseId)) {
-    const nurse = await getNurseById(preferredNurseId);
-    const isVisiblePublicly = nurse && nurse.status === "Approved" && nurse.isPublic === true;
-    if (isVisiblePublicly && nurse.isAvailable !== false) {
-      preferredNurse = buildPublicNurse(nurse);
-    }
+    let preferredNurse = null;
+    if (!Number.isNaN(preferredNurseId)) {
+      const nurse = await getNurseById(preferredNurseId);
+      const isVisiblePublicly = isNurseDirectProfileVisible(nurse);
+      if (isVisiblePublicly && nurse.isAvailable !== false) {
+        preferredNurse = buildPublicNurse(nurse);
+      }
   }
 
   try {

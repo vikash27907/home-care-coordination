@@ -1917,6 +1917,21 @@ a {
   color: #24476c;
 }
 
+.nurse-card-base--health .nurse-card-base__phone-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nurse-card-base--health .nurse-card-base__phone-note {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4c6c90;
+  line-height: 1.2;
+}
+
 .nurse-card-base--health .nurse-card-base__phone-card strong {
   font-size: clamp(1.1rem, 3vw, 1.45rem);
 }
