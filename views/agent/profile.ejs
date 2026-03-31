@@ -1,8 +1,7 @@
 <%- include("../partials/head", { title, extraStylesheets: ["/css/agent-profile.css"] }) %>
-<% const agentReferralUserId = (currentUser && currentUser.id) || (session && session.user && session.user.id) || ""; %>
 
-<div class="agent-profile">
-  <div class="cover">
+<section class="agent-profile" data-agent-profile>
+  <div class="cover" data-reveal>
     <img src="/images/patient-care.svg" alt="Agent cover" />
   </div>
 
@@ -12,53 +11,105 @@
     </div>
 
     <div class="profile-info">
-      <h1><%= (agent && agent.fullName) || (currentUser && currentUser.fullName) || "Agent Name" %></h1>
-      <p>Healthcare Staffing Partner</p>
+      <p class="agent-profile__eyebrow">Agent Profile</p>
+      <h1><%= (agent && agent.fullName) || "Agent" %></h1>
+      <p><%= (agent && agent.companyName) || "Healthcare Staffing Partner" %></p>
 
       <div class="profile-meta">
-        <span>?? <%= (agent && (agent.workingRegion || agent.region)) || "Service Region" %></span>
-        <span>?? <%= (agent && agent.phoneNumber) || "Phone" %></span>
+        <span>Region: <strong><%= (agent && (agent.workingRegion || agent.region)) || "Not shared" %></strong></span>
+        <span>Phone: <strong><%= (agent && agent.phoneNumber) || "Not shared" %></strong></span>
+        <span>Status: <strong><%= (agent && agent.status) || "pending" %></strong></span>
       </div>
 
       <div class="profile-actions">
-        <a class="btn btn-primary" href="tel:<%= (agent && agent.phoneNumber) || '' %>">Contact</a>
-        <button class="btn btn-secondary" type="button">Share</button>
+        <% if (agent && agent.phoneNumber) { %>
+          <a class="btn btn-primary" href="tel:+91<%= String(agent.phoneNumber).replace(/\D/g, '') %>">Call</a>
+        <% } %>
+        <button class="btn btn-secondary" type="button" data-agent-share="<%= profileShareUrl || '' %>">Share</button>
+        <button class="btn btn-outline-primary" type="button" id="agentProfileEditToggle">Edit Profile</button>
       </div>
     </div>
   </div>
 
   <div class="stats" data-reveal>
     <div class="stat">
-      <h3><%= stats && typeof stats.nursesManaged !== 'undefined' ? stats.nursesManaged : 12 %></h3>
+      <h3><%= stats && typeof stats.nursesManaged !== "undefined" ? stats.nursesManaged : 0 %></h3>
       <p>Nurses Managed</p>
     </div>
-
     <div class="stat">
-      <h3><%= stats && typeof stats.completedJobs !== 'undefined' ? stats.completedJobs : 85 %></h3>
+      <h3><%= stats && typeof stats.completedJobs !== "undefined" ? stats.completedJobs : 0 %></h3>
       <p>Completed Jobs</p>
     </div>
-
     <div class="stat">
-      <h3><%= stats && stats.rating ? stats.rating : '4.8' %></h3>
-      <p>Rating</p>
+      <h3><%= stats && typeof stats.approvedNurses !== "undefined" ? stats.approvedNurses : 0 %></h3>
+      <p>Approved Nurses</p>
     </div>
   </div>
+
+  <form class="agent-profile-form profile-section" method="POST" action="/agent/profile/update" id="agentProfileForm" data-reveal>
+    <div class="agent-profile-form__header">
+      <div>
+        <h2>Profile Details</h2>
+        <p>Update your public-facing coordination details. Changes reflect immediately after saving.</p>
+      </div>
+      <div class="agent-profile-form__badges">
+        <span class="agent-mini-stat">Pending Nurses: <strong><%= stats && typeof stats.pendingNurses !== "undefined" ? stats.pendingNurses : 0 %></strong></span>
+        <span class="agent-mini-stat">Rejected Nurses: <strong><%= stats && typeof stats.rejectedNurses !== "undefined" ? stats.rejectedNurses : 0 %></strong></span>
+      </div>
+    </div>
+
+    <div class="agent-profile-form__grid">
+      <label>
+        Full Name
+        <input name="fullName" type="text" value="<%= (agent && agent.fullName) || '' %>" required />
+      </label>
+
+      <label>
+        Email
+        <input name="email" type="email" value="<%= (agent && agent.email) || (currentUser && currentUser.email) || '' %>" required />
+      </label>
+
+      <label>
+        Phone Number
+        <input
+          name="phoneNumber"
+          type="tel"
+          value="<%= (agent && agent.phoneNumber) || '' %>"
+          maxlength="10"
+          pattern="[6-9][0-9]{9}"
+          inputmode="numeric"
+          required
+        />
+      </label>
+
+      <label>
+        Working Region
+        <input name="workingRegion" type="text" value="<%= (agent && (agent.workingRegion || agent.region)) || '' %>" required />
+      </label>
+
+      <label class="agent-profile-form__span-2">
+        Company / Brand Name
+        <input name="companyName" type="text" value="<%= (agent && agent.companyName) || '' %>" placeholder="Shown to nurses and public leads where applicable" />
+      </label>
+    </div>
+
+    <div class="agent-profile-form__actions">
+      <button type="button" class="btn btn-secondary" id="agentProfileCancelBtn">Reset</button>
+      <button type="submit" class="btn btn-primary" id="agentProfileSaveBtn">
+        <span class="btn-text">Save Changes</span>
+        <span class="btn-spinner" aria-hidden="true"></span>
+      </button>
+    </div>
+  </form>
 
   <div class="profile-section quick-actions" data-reveal>
     <h2>Quick Actions</h2>
     <div class="quick-actions__grid">
-      <a href="/nurse/register?ref_agent=<%= agentReferralUserId %>" class="btn btn-primary">+ Add Nurse</a>
-      <a href="/request-care" class="btn btn-success">+ Add Job</a>
+      <a href="/agent/nurses/new" class="btn btn-primary">+ Add Nurse</a>
+      <a href="/agent/jobs/new" class="btn btn-success">+ Add Job</a>
       <a href="/agent/dashboard?tab=staff" class="btn btn-outline-primary">View Staff</a>
+      <a href="/agent/dashboard?tab=jobs" class="btn btn-outline-primary">View Jobs</a>
     </div>
-  </div>
-
-  <div class="profile-section" data-reveal>
-    <h2>About</h2>
-    <p>
-      Experienced healthcare coordinator connecting trained nurses
-      with families needing home care services.
-    </p>
   </div>
 
   <div class="profile-section" data-reveal>
@@ -70,6 +121,7 @@
           <%- include("../partials/nurse-directory-card", {
             nurse,
             href: `/agent/nurses/${nurse.id}`,
+            hrefLabel: "Manage Nurse",
             mode: "compact",
             showRequestButton: false,
             showUtilityButtons: false,
@@ -81,31 +133,22 @@
           <img src="/images/nurse.svg" alt="Nurse" />
           <h4>No featured nurses yet</h4>
           <p>Approved nurses from this account will appear here automatically.</p>
-          <a class="btn btn-outline-primary" href="/nurse/register?ref_agent=<%= agentReferralUserId %>">Add Nurse</a>
+          <a class="btn btn-outline-primary" href="/agent/nurses/new">Add Nurse</a>
         </div>
       <% } %>
     </div>
   </div>
 
   <div class="profile-section" data-reveal>
-    <h2>Contact</h2>
-
+    <h2>Contact Summary</h2>
     <div class="contact-card">
-      <p><strong>Phone:</strong> <%= (agent && agent.phoneNumber) || '98XXXXXXX' %></p>
-      <p><strong>Email:</strong> <%= (agent && agent.email) || (currentUser && currentUser.email) || 'agent@email.com' %></p>
-      <p><strong>Region:</strong> <%= (agent && (agent.workingRegion || agent.region)) || 'Delhi NCR' %></p>
-
-      <a
-        class="btn btn-primary"
-        target="_blank"
-        rel="noopener noreferrer"
-        href="https://wa.me/919138913355?text=Hello%20I%20am%20viewing%20the%20agent%20profile"
-      >
-        WhatsApp
-      </a>
+      <p><strong>Phone:</strong> <%= (agent && agent.phoneNumber) || 'Not shared' %></p>
+      <p><strong>Email:</strong> <%= (agent && agent.email) || (currentUser && currentUser.email) || 'Not shared' %></p>
+      <p><strong>Region:</strong> <%= (agent && (agent.workingRegion || agent.region)) || 'Not shared' %></p>
+      <p><strong>Company:</strong> <%= (agent && agent.companyName) || 'Prisha Home Care Partner' %></p>
     </div>
   </div>
-</div>
+</section>
 
 <script src="/js/agent-profile.js"></script>
 <%- include("../partials/footer") %>

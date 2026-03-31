@@ -1418,32 +1418,58 @@ function buildNurseContactContext(nurse, viewer, options = {}) {
   const profileUrl = String((options && options.profileUrl) || "").trim();
   const nurseName = String((nurse && (nurse.fullName || nurse.full_name)) || "this nurse").trim() || "this nurse";
   const nurseUniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").trim();
+  const agentContact = options && options.agent && typeof options.agent === "object" ? options.agent : null;
+  const agentName = String(
+    (agentContact && (agentContact.companyName || agentContact.fullName || agentContact.full_name || agentContact.email))
+    || "Assigned Agent"
+  ).trim() || "Assigned Agent";
+  const agentPhone = String(
+    (options && options.agentPhone)
+    || (agentContact && (agentContact.phoneNumber || agentContact.phone_number))
+    || ""
+  ).trim();
   const isOwner = viewerRole === "nurse"
     && Number.isInteger(viewerId)
     && Number.isInteger(nurseUserId)
     && viewerId === nurseUserId;
-  const canViewDirectNurseContact = !forceCompanyContact && (viewerRole === "admin" || viewerRole === "agent" || isOwner);
+  const normalizedAgentPhone = normalizePhone(agentPhone);
+  const normalizedNursePhone = normalizePhone(nursePhone);
+  const normalizedCompanyPhone = normalizePhone(COMPANY_PHONE);
 
   let selectedPhone = COMPANY_PHONE;
+  let contactName = companyName;
   let phoneSource = "company";
 
-  if (canViewDirectNurseContact && nursePhone) {
-    selectedPhone = nursePhone;
-    phoneSource = "nurse";
+  if (!forceCompanyContact) {
+    if (viewerRole === "agent" && normalizedAgentPhone) {
+      selectedPhone = agentPhone;
+      contactName = agentName;
+      phoneSource = "agent";
+    } else if (isOwner && normalizedNursePhone) {
+      selectedPhone = nursePhone;
+      contactName = nurseName;
+      phoneSource = "nurse";
+    }
   }
 
   const normalizedPhone = normalizePhone(selectedPhone);
-  const companyPhoneDigits = normalizePhone(COMPANY_PHONE);
-  const companyPhoneIntl = companyPhoneDigits ? `91${companyPhoneDigits}` : "";
-  const publicInquiryMessage = [
-    `Hello ${companyName},`,
+  const inquiryMessage = [
+    `Hello ${contactName},`,
+    "",
     `I am interested in nurse ${nurseName}${nurseUniqueId ? ` (ID: ${nurseUniqueId})` : ""}.`,
-    "Please assist me.",
-    `Profile: ${profileUrl || "Not available"}`
-  ].join("\n");
-  const whatsappHref = phoneSource === "company" && companyPhoneIntl
-    ? `https://wa.me/${companyPhoneIntl}?text=${encodeURIComponent(publicInquiryMessage)}`
-    : (normalizedPhone ? `https://wa.me/91${normalizedPhone}` : "");
+    profileUrl ? "" : null,
+    profileUrl ? `Profile: ${profileUrl}` : null,
+    "",
+    "Please assist me with the next steps."
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+  const whatsappDigits = normalizedPhone || normalizedCompanyPhone;
+  const whatsappHref = whatsappDigits
+    ? `https://wa.me/91${whatsappDigits}?text=${encodeURIComponent(inquiryMessage)}`
+    : "";
+  const telHref = normalizedPhone ? `tel:+91${normalizedPhone}` : "";
+  const actionHref = whatsappHref || telHref;
 
   return {
     viewerRole,
@@ -1451,20 +1477,21 @@ function buildNurseContactContext(nurse, viewer, options = {}) {
     phoneSource,
     usesCompanyContact: phoneSource === "company",
     companyName,
+    contactName,
     nurseName,
     nurseId: nurseUniqueId,
     profileUrl,
-    inquiryMessage: publicInquiryMessage,
+    inquiryMessage,
     displayPhone: selectedPhone,
     displayEmail: COMPANY_EMAIL,
-    downloadPhone: selectedPhone,
+    downloadPhone: phoneSource === "company" ? COMPANY_PHONE : selectedPhone,
     sharePhone: selectedPhone,
     phone: selectedPhone,
     email: COMPANY_EMAIL,
-    telHref: normalizedPhone ? `tel:+91${normalizedPhone}` : "",
+    telHref,
     whatsappHref,
-    actionHref: phoneSource === "company" ? whatsappHref : (normalizedPhone ? `tel:+91${normalizedPhone}` : ""),
-    openInNewTab: phoneSource === "company",
+    actionHref,
+    openInNewTab: Boolean(whatsappHref),
     buttonLabel: "Contact"
   };
 }
@@ -1928,6 +1955,8 @@ async function getAgentRecordForUser(userId) {
       companyName: row.company_name || "",
       workingRegion: row.working_region || row.region || "",
       region: row.working_region || row.region || "",
+      uniqueId: row.unique_id || "",
+      profileSlug: row.profile_slug || "",
       status: normalizeAgentStatusInput(row.status) || "pending",
       createdByAgentEmail: row.created_by_agent_email || "",
       createdAt: row.created_at

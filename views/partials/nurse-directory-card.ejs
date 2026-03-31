@@ -1,10 +1,12 @@
 <%
 const nurseName = nurse.fullName || "Nurse";
 const profileHref = typeof href === "string" ? href.trim() : "";
+const shareHref = typeof shareUrl === "string" ? shareUrl.trim() : profileHref;
 const showRequest = typeof showRequestButton !== "undefined" && showRequestButton === true;
 const showDeleteAction = typeof showDeleteButton !== "undefined" && showDeleteButton === true;
 const showUtilityActions = typeof showUtilityButtons === "undefined" ? Boolean(profileHref) : showUtilityButtons === true;
 const resolvedCardMode = String(typeof mode !== "undefined" ? mode : "compact").trim().toLowerCase() === "id" ? "id" : "compact";
+const profileButtonLabel = String(typeof hrefLabel !== "undefined" ? hrefLabel : "View Profile").trim() || "View Profile";
 const profileSlug = String(nurse.profileSlug || nurse.profile_slug || "").trim();
 const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName || "nurse-card")
   .trim()
@@ -33,13 +35,13 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
   <% if (profileHref || (showRequest && nurse.isAvailable) || showUtilityActions || showDeleteAction) { %>
   <div class="cta-row nurse-actions nurse-card__actions">
     <% if (profileHref) { %>
-    <a href="<%= profileHref %>" class="btn primary" data-card-action>View Profile</a>
+    <a href="<%= profileHref %>" class="btn primary" data-card-action><%= profileButtonLabel %></a>
     <% } %>
     <% if (showRequest && nurse.isAvailable) { %>
     <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary" data-card-action>Request This Nurse</a>
     <% } %>
-    <% if (showUtilityActions && profileHref) { %>
-    <button type="button" class="btn" data-card-action data-share-url="<%= profileHref %>" data-share-title="<%= nurseName %> | Nurse Profile">Share</button>
+    <% if (showUtilityActions && shareHref) { %>
+    <button type="button" class="btn" data-card-action data-share-url="<%= shareHref %>" data-share-title="<%= nurseName %> | Nurse Profile">Share</button>
     <button type="button" class="btn" data-card-action data-download-card>Download</button>
     <% } %>
     <% if (showDeleteAction) { %>

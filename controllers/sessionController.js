@@ -483,35 +483,159 @@ router.get("/admin/profile", requireRole("admin"), (req, res) => {
 
 router.get("/agent/profile", requireRole("agent"), loadAgentProfile, (req, res) => {
   const agentEmail = normalizeEmail(req.currentUser.email);
-  const store = readNormalizedStore();
 
-  const nurses = store.nurses
-    .filter((item) => !isStoreUserDeleted(store, item.userId) && nurseHasAgent(item, agentEmail))
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return Promise.all([
+    getNurses(),
+    pool.query(
+      `SELECT COUNT(*)::int AS completed_jobs
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       WHERE LOWER(COALESCE(p.agent_email, '')) = LOWER($1)
+         AND cr.status = 'completed'`,
+      [agentEmail]
+    )
+  ])
+    .then(([nurses, completedJobsResult]) => {
+      const ownedNurses = nurses
+        .filter((item) => nurseHasAgent(item, agentEmail))
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      const featuredNurses = ownedNurses
+        .filter((nurse) => String(nurse.status || "").toLowerCase() === "approved")
+        .slice(0, 3);
+      const completedJobs = Number.parseInt(completedJobsResult.rows[0]?.completed_jobs, 10) || 0;
+      const approvalBreakdown = ownedNurses.reduce((acc, nurse) => {
+        const key = String(nurse.status || "Pending").trim().toLowerCase();
+        if (key === "approved") acc.approved += 1;
+        else if (key === "rejected") acc.rejected += 1;
+        else acc.pending += 1;
+        return acc;
+      }, { approved: 0, pending: 0, rejected: 0 });
 
-  const requests = store.patients
-    .filter((item) => normalizeEmail(item.agentEmail) === agentEmail)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      return res.render("agent/profile", {
+        title: "Agent Profile",
+        agent: req.agentRecord,
+        stats: {
+          nursesManaged: ownedNurses.length,
+          completedJobs,
+          rating: "4.8",
+          approvedNurses: approvalBreakdown.approved,
+          pendingNurses: approvalBreakdown.pending,
+          rejectedNurses: approvalBreakdown.rejected
+        },
+        featuredNurses,
+        profileShareUrl: ""
+      });
+    })
+    .catch((error) => {
+      console.error("Agent profile load error:", error);
+      return res.render("agent/profile", {
+        title: "Agent Profile",
+        agent: req.agentRecord,
+        stats: {
+          nursesManaged: 0,
+          completedJobs: 0,
+          rating: "4.8",
+          approvedNurses: 0,
+          pendingNurses: 0,
+          rejectedNurses: 0
+        },
+        featuredNurses: [],
+        profileShareUrl: ""
+      });
+    });
+});
 
-  const completedJobs = requests.filter((request) => {
-    const status = String(request.status || "").trim().toLowerCase();
-    return status === "closed" || status === "completed";
-  }).length;
+router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, async (req, res) => {
+  const fullName = String(req.body.fullName || "").trim();
+  const emailInput = String(req.body.email || "").trim();
+  const phoneInput = String(req.body.phoneNumber || "").trim();
+  const companyName = String(req.body.companyName || "").trim();
+  const workingRegion = String(req.body.workingRegion || "").trim();
 
-  const featuredNurses = nurses
-    .filter((nurse) => String(nurse.status || "").toLowerCase() === "approved")
-    .slice(0, 2);
+  if (!fullName || !emailInput || !phoneInput || !workingRegion) {
+    setFlash(req, "error", "Please complete all required profile fields.");
+    return res.redirect("/agent/profile");
+  }
 
-  return res.render("agent/profile", {
-    title: "Agent Profile",
-    agent: req.agentRecord,
-    stats: {
-      nursesManaged: nurses.length,
-      completedJobs,
-      rating: "4.8"
-    },
-    featuredNurses
-  });
+  const emailValidation = validateEmail(emailInput);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect("/agent/profile");
+  }
+
+  const phoneValidation = validateIndiaPhone(phoneInput);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
+    return res.redirect("/agent/profile");
+  }
+
+  const normalizedEmailInput = emailValidation.value;
+  const normalizedPhoneInput = normalizePhone(phoneValidation.value);
+
+  try {
+    const duplicateEmailResult = await pool.query(
+      `SELECT 1
+       FROM users
+       WHERE LOWER(COALESCE(email, '')) = LOWER($1)
+         AND id <> $2
+       UNION
+       SELECT 1
+       FROM agents
+       WHERE LOWER(COALESCE(email, '')) = LOWER($1)
+         AND user_id <> $2
+       LIMIT 1`,
+      [normalizedEmailInput, req.currentUser.id]
+    );
+    if (duplicateEmailResult.rowCount > 0) {
+      setFlash(req, "error", "That email address is already in use.");
+      return res.redirect("/agent/profile");
+    }
+
+    const duplicatePhoneResult = await pool.query(
+      `SELECT 1
+       FROM users
+       WHERE phone_number = $1
+         AND id <> $2
+       UNION
+       SELECT 1
+       FROM agents
+       WHERE phone_number = $1
+         AND user_id <> $2
+       LIMIT 1`,
+      [normalizedPhoneInput, req.currentUser.id]
+    );
+    if (duplicatePhoneResult.rowCount > 0) {
+      setFlash(req, "error", "That phone number is already in use.");
+      return res.redirect("/agent/profile");
+    }
+
+    const [updatedUser, updatedAgent] = await Promise.all([
+      updateUser(req.currentUser.id, {
+        email: normalizedEmailInput,
+        phoneNumber: normalizedPhoneInput
+      }),
+      updateAgent(req.agentRecord.id, {
+        fullName,
+        email: normalizedEmailInput,
+        phoneNumber: normalizedPhoneInput,
+        companyName,
+        workingRegion
+      })
+    ]);
+
+    if (!updatedUser || !updatedAgent) {
+      throw new Error("Unable to save your profile right now.");
+    }
+
+    const refreshedUser = await getUserById(req.currentUser.id);
+    req.session.user = await getSessionUserPayload(refreshedUser);
+    setFlash(req, "success", "Profile updated successfully.");
+    return res.redirect("/agent/profile");
+  } catch (error) {
+    console.error("Agent profile update error:", error);
+    setFlash(req, "error", error.message || "Unable to save your profile right now.");
+    return res.redirect("/agent/profile");
+  }
 });
 
 router.get("/user/profile", requireAuth, (req, res) => {

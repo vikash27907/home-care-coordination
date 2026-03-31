@@ -1,109 +1,209 @@
 <%- include("../partials/head", { title, extraStylesheets: ["/css/agent-dashboard-tabs.css"] }) %>
 
+<%
+  const totalJobs = Array.isArray(jobs) ? jobs.length : 0;
+  const totalStaff = Array.isArray(staff) ? staff.length : 0;
+  const pendingJobApprovals = (jobs || []).filter((job) => String(job.visibility_status || "").toLowerCase() === "pending").length;
+  const activeJobs = (jobs || []).filter((job) => String(job.status || "").toLowerCase() === "active").length;
+  const approvedStaff = (staff || []).filter((nurse) => String(nurse.status || "").toLowerCase() === "approved").length;
+  const pendingStaff = (staff || []).filter((nurse) => String(nurse.status || "").toLowerCase() === "pending").length;
+  const rejectedStaff = (staff || []).filter((nurse) => String(nurse.status || "").toLowerCase() === "rejected").length;
+%>
+
 <section class="agent-hub container py-4">
   <div class="agent-hub__header mb-4" data-reveal>
     <div>
       <p class="agent-hub__eyebrow">Operations Console</p>
       <h1>Agent Dashboard</h1>
-      <p class="agent-hub__intro">Manage care requests and your nurse roster from one unified dashboard.</p>
+      <p class="agent-hub__intro">Manage your profile, nurse roster, care requests, and approval visibility from one place.</p>
     </div>
-    <% if (agent && agent.status && agent.status !== "approved") { %>
-      <span class="badge bg-secondary">Status: <%= agent.status %></span>
+    <div class="agent-hub__header-actions">
+      <a href="/agent/profile" class="btn btn-secondary">Profile</a>
+      <a href="<%= activeTab === 'staff' ? '/agent/nurses/new' : '/agent/jobs/new' %>" class="btn btn-primary">
+        <%= activeTab === 'staff' ? '+ Add Nurse' : '+ Add Job' %>
+      </a>
+    </div>
+  </div>
+
+  <% if (agent && agent.status && agent.status !== "approved") { %>
+    <div class="agent-banner agent-banner--warning" data-reveal>
+      <strong>Approval Status:</strong> <%= agent.status %>. Some actions stay limited until your account is approved.
+    </div>
+  <% } %>
+
+  <div class="agent-kpi-grid mb-4" data-reveal>
+    <% if (activeTab === "jobs") { %>
+      <article class="agent-kpi-card">
+        <span>Total Jobs</span>
+        <strong><%= totalJobs %></strong>
+      </article>
+      <article class="agent-kpi-card">
+        <span>Pending Approval</span>
+        <strong><%= pendingJobApprovals %></strong>
+      </article>
+      <article class="agent-kpi-card">
+        <span>Active Jobs</span>
+        <strong><%= activeJobs %></strong>
+      </article>
+      <article class="agent-kpi-card">
+        <span>Available Nurses</span>
+        <strong><%= assignableNurses ? assignableNurses.length : 0 %></strong>
+      </article>
+    <% } else { %>
+      <article class="agent-kpi-card">
+        <span>Total Nurses</span>
+        <strong><%= totalStaff %></strong>
+      </article>
+      <article class="agent-kpi-card">
+        <span>Approved</span>
+        <strong><%= approvedStaff %></strong>
+      </article>
+      <article class="agent-kpi-card">
+        <span>Pending</span>
+        <strong><%= pendingStaff %></strong>
+      </article>
+      <article class="agent-kpi-card">
+        <span>Rejected</span>
+        <strong><%= rejectedStaff %></strong>
+      </article>
     <% } %>
   </div>
 
   <ul class="nav nav-pills mb-4" aria-label="Agent dashboard tabs">
     <li class="nav-item">
-      <a
-        class="nav-link <%= activeTab === 'jobs' ? 'active' : '' %>"
-        href="/agent/dashboard?tab=jobs"
-      >
-        My Jobs
-      </a>
+      <a class="nav-link <%= activeTab === 'jobs' ? 'active' : '' %>" href="/agent/dashboard?tab=jobs">My Jobs</a>
     </li>
     <li class="nav-item">
-      <a
-        class="nav-link <%= activeTab === 'staff' ? 'active' : '' %>"
-        href="/agent/dashboard?tab=staff"
-      >
-        My Staff
-      </a>
+      <a class="nav-link <%= activeTab === 'staff' ? 'active' : '' %>" href="/agent/dashboard?tab=staff">My Staff</a>
     </li>
   </ul>
 
   <% if (activeTab === "jobs") { %>
-    <div class="section-head d-flex justify-content-between align-items-center mb-3">
+    <div class="section-head agent-section-head mb-3">
       <div>
-        <h2>Patient Requests</h2>
-        <p class="text-muted">Current care requests mapped to your account.</p>
+        <h2>Care Requests</h2>
+        <p class="text-muted">Each job stays scoped to your account, and approval state is shown alongside the live service status.</p>
       </div>
-      <a href="/request-care" class="btn btn-primary">+ Add Job</a>
+      <a href="/agent/jobs/new" class="btn btn-primary">+ Add Job</a>
     </div>
 
-    <div class="row g-3">
+    <div class="agent-job-grid">
       <% if (!jobs.length) { %>
-        <div class="col-12">
-          <div class="empty-state">No jobs added yet.</div>
+        <div class="empty-state">
+          <h3>No jobs yet</h3>
+          <p>Create your first care request and assign from your approved nurse roster.</p>
+          <a href="/agent/jobs/new" class="btn btn-primary">Create Job</a>
         </div>
       <% } else { %>
         <% jobs.forEach((job) => { %>
-          <div class="col-12 col-md-6">
-            <article class="card shadow-sm h-100" data-reveal>
-              <div class="card-body">
-                <div class="card-copy">
-                  <h3 class="card-title"><%= job.patient_name %></h3>
-                  <p class="text-muted mb-1"><strong>Service:</strong> <%= job.service_required %></p>
-                  <p class="text-muted mb-1">ID: <%= job.request_code %></p>
-                  <p class="text-muted mb-2"><strong>City:</strong> <%= job.address %></p>
-                  <span class="badge bg-secondary"><%= job.status %></span>
-                </div>
-                <% if (!job.assigned_nurse_id) { %>
-                  <% if (assignableNurses && assignableNurses.length) { %>
-                    <form method="POST" action="/agent/requests/<%= job.id %>/actions" class="assign-form">
-                      <input type="hidden" name="action" value="assign" />
-                      <label class="assign-form__label" for="nurse-<%= job.id %>">Assign Nurse</label>
-                      <select id="nurse-<%= job.id %>" name="nurseId" class="assign-form__select" required>
-                        <option value="">Select a nurse</option>
-                        <% assignableNurses.forEach((nurse) => { %>
-                          <option value="<%= nurse.id %>"><%= nurse.full_name %> (<%= nurse.unique_id %>)</option>
-                        <% }) %>
-                      </select>
-                      <button type="submit" class="btn btn-primary btn-sm">Assign Nurse</button>
-                    </form>
-                  <% } else { %>
-                    <p class="text-muted mb-0">No available nurses in your roster right now.</p>
-                  <% } %>
+          <article class="agent-job-card card shadow-sm" data-reveal>
+            <div class="agent-job-card__top">
+              <div>
+                <h3><%= job.patient_name %></h3>
+                <p><strong><%= job.service_required %></strong></p>
+              </div>
+              <div class="agent-job-card__badges">
+                <span class="status-pill <%= String(job.visibility_status || '').toLowerCase() === 'approved' ? 'status-pill--success' : (String(job.visibility_status || '').toLowerCase() === 'rejected' ? 'status-pill--danger' : 'status-pill--warning') %>">
+                  Approval: <%= job.visibility_status || "pending" %>
+                </span>
+                <span class="status-pill status-pill--neutral">Status: <%= job.status %></span>
+              </div>
+            </div>
+
+            <div class="agent-job-card__meta">
+              <span><strong>ID:</strong> <%= job.request_code %></span>
+              <span><strong>City:</strong> <%= job.address %></span>
+              <span><strong>Phone:</strong> <%= job.patient_phone || "-" %></span>
+              <span><strong>Duration:</strong> <%= job.duration || "-" %></span>
+              <span><strong>Budget:</strong> Rs. <%= Number(job.budget || 0).toLocaleString("en-IN") %></span>
+              <span><strong>Payment:</strong> <%= job.payment_status || "pending" %></span>
+            </div>
+
+            <% if (job.notes) { %>
+              <p class="agent-job-card__notes"><%= job.notes %></p>
+            <% } %>
+
+            <% if (job.assigned_nurse_id) { %>
+              <div class="agent-job-card__assignment">
+                <span class="status-pill status-pill--success">Assigned Nurse</span>
+                <p><strong><%= job.assigned_nurse_name %></strong> <%= job.assigned_nurse_code ? `(${job.assigned_nurse_code})` : "" %></p>
+              </div>
+            <% } %>
+
+            <div class="agent-job-card__actions">
+              <% if (job.canAssign) { %>
+                <% if (assignableNurses && assignableNurses.length) { %>
+                  <form method="POST" action="/agent/requests/<%= job.id %>/actions" class="assign-form agent-inline-form">
+                    <input type="hidden" name="action" value="assign" />
+                    <label class="assign-form__label" for="nurse-<%= job.id %>">Assign Nurse</label>
+                    <select id="nurse-<%= job.id %>" name="nurseId" class="assign-form__select" required>
+                      <option value="">Select a nurse</option>
+                      <% assignableNurses.forEach((nurse) => { %>
+                        <option value="<%= nurse.id %>"><%= nurse.full_name %> (<%= nurse.unique_id %>)</option>
+                      <% }) %>
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Assign Nurse</button>
+                  </form>
                 <% } else { %>
-                  <div class="assigned-note">
-                    <span class="badge bg-secondary">Assigned</span>
-                    <p class="text-muted mb-0"><strong>Nurse:</strong> <%= job.assigned_nurse_name %></p>
-                  </div>
+                  <p class="text-muted mb-0">No approved and available nurses are ready in your roster.</p>
+                <% } %>
+              <% } %>
+
+              <div class="agent-job-card__action-row">
+                <% if (job.canStart) { %>
+                  <form method="POST" action="/agent/requests/<%= job.id %>/actions" class="agent-inline-form">
+                    <input type="hidden" name="action" value="start" />
+                    <button type="submit" class="btn btn-success btn-sm">Start Job</button>
+                  </form>
+                <% } %>
+
+                <% if (job.canComplete) { %>
+                  <form method="POST" action="/agent/requests/<%= job.id %>/actions" class="agent-inline-form">
+                    <input type="hidden" name="action" value="complete" />
+                    <button type="submit" class="btn btn-success btn-sm">Complete Job</button>
+                  </form>
+                <% } %>
+
+                <% if (job.canEdit) { %>
+                  <a href="/agent/jobs/<%= job.id %>/edit" class="btn btn-secondary btn-sm">Edit</a>
+                <% } %>
+
+                <% if (job.canDelete) { %>
+                  <form method="POST" action="/agent/jobs/<%= job.id %>/delete" class="agent-inline-form" onsubmit="return confirm('Delete this job?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                  </form>
                 <% } %>
               </div>
-            </article>
-          </div>
+            </div>
+          </article>
         <% }) %>
       <% } %>
     </div>
   <% } %>
 
   <% if (activeTab === "staff") { %>
-    <div class="section-head d-flex justify-content-between align-items-center mb-3">
+    <div class="section-head agent-section-head mb-3">
       <div>
-        <h2>Your Nurses</h2>
-        <p class="text-muted">Only nurses mapped to your account are shown here.</p>
+        <h2>Your Nurse Roster</h2>
+        <p class="text-muted">Internal management links stay private, while sharing uses the agent-branded public nurse link.</p>
       </div>
-      <a href="/nurse/register?ref_agent=<%= user && user.id ? user.id : '' %>" class="btn btn-primary">+ Add Nurse</a>
+      <a href="/agent/nurses/new" class="btn btn-primary">+ Add Nurse</a>
     </div>
 
     <div class="nurse-cards-grid">
       <% if (!staff.length) { %>
-        <div class="empty-state">No nurses added yet.</div>
+        <div class="empty-state">
+          <h3>No nurses added yet</h3>
+          <p>Add your first nurse and track approval progress here.</p>
+          <a href="/agent/nurses/new" class="btn btn-primary">Add Nurse</a>
+        </div>
       <% } else { %>
         <% staff.forEach((nurse) => { %>
           <%- include("../partials/nurse-directory-card", {
             nurse,
-            href: nurse.publicUrl,
+            href: nurse.dashboardUrl,
+            hrefLabel: "Manage Nurse",
+            shareUrl: nurse.publicUrl,
             mode: "compact",
             showRequestButton: false,
             showStatus: true,
@@ -114,5 +214,20 @@
     </div>
   <% } %>
 </section>
+
+<script>
+  (() => {
+    const forms = document.querySelectorAll("form");
+    forms.forEach((form) => {
+      form.addEventListener("submit", () => {
+        const button = form.querySelector('button[type="submit"]');
+        if (!button) return;
+        button.disabled = true;
+        button.dataset.originalLabel = button.textContent;
+        button.textContent = "Working...";
+      });
+    });
+  })();
+</script>
 
 <%- include("../partials/footer") %>

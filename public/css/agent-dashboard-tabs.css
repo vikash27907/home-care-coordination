@@ -1,12 +1,20 @@
-.agent-hub {
-  width: min(100%, 1040px);
+.agent-hub,
+.agent-job-shell {
+  width: min(100%, 1120px);
 }
 
-.agent-hub__header {
+.agent-hub__header,
+.agent-job-shell__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.agent-hub__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .agent-hub__eyebrow {
@@ -24,6 +32,46 @@
   color: var(--muted);
 }
 
+.agent-banner {
+  margin-bottom: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid transparent;
+}
+
+.agent-banner--warning {
+  background: #fff7e6;
+  border-color: #f3d28f;
+  color: #8a5a00;
+}
+
+.agent-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.agent-kpi-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.05rem 1.1rem;
+  border-radius: 22px;
+  border: 1px solid #d8e7f3;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 255, 0.98));
+  box-shadow: 0 14px 28px rgba(15, 42, 71, 0.06);
+}
+
+.agent-kpi-card span {
+  color: #56718b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.agent-kpi-card strong {
+  color: #123a5f;
+  font-size: clamp(1.5rem, 2vw, 1.95rem);
+}
+
 .nav {
   margin: 0;
   padding: 0;
@@ -34,10 +82,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-}
-
-.nav-item {
-  margin: 0;
 }
 
 .nav-link {
@@ -62,17 +106,118 @@
   box-shadow: 0 14px 26px rgba(30, 136, 229, 0.2);
 }
 
-.section-head {
+.agent-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 1rem;
 }
 
-.agent-hub .card {
-  height: 100%;
+.agent-job-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
 }
 
-.assign-form {
+.agent-job-card {
   display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+  border-radius: 24px;
+}
+
+.agent-job-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.agent-job-card__top h3 {
+  margin: 0;
+}
+
+.agent-job-card__top p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+}
+
+.agent-job-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 34px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.status-pill--neutral {
+  background: #edf5fc;
+  color: #19476f;
+}
+
+.status-pill--success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pill--warning {
+  background: #fff4d6;
+  color: #9a5a00;
+}
+
+.status-pill--danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.agent-job-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 1rem;
+  color: #294a67;
+  font-size: 0.94rem;
+}
+
+.agent-job-card__notes {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: #f8fbfe;
+  color: #28435d;
+  border: 1px solid #d8e7f3;
+}
+
+.agent-job-card__assignment {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.agent-job-card__assignment p {
+  margin: 0;
+}
+
+.agent-job-card__actions {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.agent-job-card__action-row,
+.agent-inline-form,
+.assign-form {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
+  align-items: center;
 }
 
 .assign-form__label {
@@ -81,9 +226,208 @@
   color: var(--ink);
 }
 
-.assigned-note {
+.assign-form__select {
+  min-height: 42px;
+  min-width: 230px;
+  border-radius: 14px;
+  border: 1px solid #c6dae8;
+  padding: 0.65rem 0.8rem;
+  background: #fff;
+}
+
+.agent-job-form {
+  margin-top: 1rem;
+  padding: 1.35rem;
+  border-radius: 28px;
+}
+
+.agent-job-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.agent-job-form__grid label {
   display: grid;
   gap: 0.45rem;
+  font-weight: 700;
+  color: #1d3954;
+}
+
+.agent-job-form__grid input,
+.agent-job-form__grid select,
+.agent-job-form__grid textarea {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 16px;
+  border: 1px solid #c9d9e7;
+  background: #f9fbfd;
+  padding: 0.8rem 0.95rem;
+  color: #14334d;
+  font: inherit;
+}
+
+.agent-job-form__grid textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.agent-job-form__grid input:focus,
+.agent-job-form__grid select:focus,
+.agent-job-form__grid textarea:focus {
+  outline: none;
+  border-color: #0f7fcf;
+  box-shadow: 0 0 0 3px rgba(15, 127, 207, 0.14);
+  background: #fff;
+}
+
+.agent-job-form__span-2 {
+  grid-column: 1 / -1;
+}
+
+.agent-job-form__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.agent-job-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.agent-nurse-form__helper {
+  color: #5d748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.agent-password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.agent-password-field input {
+  padding-right: 5.8rem;
+}
+
+.agent-password-toggle {
+  position: absolute;
+  right: 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: #e9f3fb;
+  color: #16456d;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.agent-password-toggle:hover {
+  background: #d5e9f7;
+}
+
+.agent-form-fieldset {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #d8e7f3;
+  border-radius: 20px;
+  background: #fbfdff;
+}
+
+.agent-form-fieldset legend {
+  padding: 0 0.35rem;
+  color: #163a5e;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.agent-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.agent-option-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.agent-option-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 52px;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #d5e6f3;
+  border-radius: 18px;
+  background: #fff;
+  color: #1f4261;
+  font-weight: 700;
+}
+
+.agent-option-chip input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #0f7fcf;
+}
+
+.agent-referral-panel {
+  margin-top: 1rem;
+  padding: 1.2rem;
+  border-radius: 24px;
+}
+
+.agent-referral-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.agent-referral-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid #d8e7f3;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 250, 255, 0.98));
+}
+
+.agent-referral-card strong {
+  color: #153c61;
+}
+
+.agent-referral-card code {
+  color: #0f5d9a;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.btn-spinner {
+  display: none;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: agent-dashboard-spin 0.8s linear infinite;
+}
+
+.is-loading .btn-text {
+  display: none;
+}
+
+.is-loading .btn-spinner {
+  display: inline-block;
 }
 
 .agent-hub .nurse-cards-grid {
@@ -92,7 +436,8 @@
   gap: 1rem;
 }
 
-.agent-hub .nurse-card {
+.agent-hub .nurse-card,
+.agent-hub .card {
   height: 100%;
 }
 
@@ -105,14 +450,63 @@
   cursor: not-allowed;
 }
 
+@keyframes agent-dashboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .agent-kpi-grid,
+  .agent-job-form__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .agent-hub__header,
-  .section-head {
+  .agent-job-shell__header,
+  .agent-section-head,
+  .agent-job-card__top,
+  .agent-job-form__actions {
     flex-direction: column;
     align-items: stretch;
   }
 
+  .agent-hub__header-actions,
+  .agent-job-card__badges,
+  .agent-job-form__meta {
+    justify-content: flex-start;
+  }
+
+  .agent-kpi-grid,
+  .agent-job-grid,
+  .agent-job-form__grid,
+  .agent-job-card__meta,
   .agent-hub .nurse-cards-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 1fr;
+  }
+
+  .assign-form,
+  .agent-job-card__action-row,
+  .agent-job-form__actions {
+    align-items: stretch;
+  }
+
+  .assign-form__select,
+  .agent-inline-form,
+  .assign-form .btn,
+  .agent-job-card__action-row .btn,
+  .agent-job-form__actions .btn,
+  .agent-hub__header-actions .btn {
+    width: 100%;
+  }
+
+  .agent-password-field input {
+    padding-right: 5.2rem;
+  }
+
+  .agent-referral-panel {
+    padding: 1rem;
   }
 }

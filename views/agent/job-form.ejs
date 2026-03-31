@@ -1,0 +1,130 @@
+<%- include("../partials/head", { title, extraStylesheets: ["/css/agent-dashboard-tabs.css"] }) %>
+
+<section class="agent-job-shell container py-4">
+  <div class="agent-job-shell__header" data-reveal>
+    <div>
+      <p class="agent-hub__eyebrow">Job Management</p>
+      <h1><%= formMode === "edit" ? "Edit Job" : "Create Job" %></h1>
+      <p class="agent-hub__intro">
+        <%= formMode === "edit"
+          ? "Update the patient, care schedule, and preferred nurse details. Edited jobs move back to pending approval."
+          : "Add a new patient care request under your dashboard. Newly created jobs go to pending approval until reviewed." %>
+      </p>
+    </div>
+    <a href="<%= cancelHref %>" class="btn btn-secondary">Back to Dashboard</a>
+  </div>
+
+  <form method="POST" action="<%= formAction %>" class="agent-job-form card shadow-sm" id="agentJobForm" data-reveal>
+    <div class="agent-job-form__grid">
+      <label>
+        Patient Name
+        <input name="fullName" type="text" value="<%= job.fullName || '' %>" required />
+      </label>
+
+      <label>
+        Patient Email
+        <input name="email" type="email" value="<%= job.email || '' %>" required />
+      </label>
+
+      <label>
+        Phone Number
+        <input
+          name="phoneNumber"
+          type="tel"
+          value="<%= job.phoneNumber || '' %>"
+          maxlength="10"
+          inputmode="numeric"
+          pattern="[6-9][0-9]{9}"
+          placeholder="10-digit mobile number"
+          required
+        />
+      </label>
+
+      <label>
+        City
+        <input name="city" type="text" value="<%= job.city || '' %>" required />
+      </label>
+
+      <label class="agent-job-form__span-2">
+        Service Schedule
+        <select name="serviceSchedule" required>
+          <option value="">Select service schedule</option>
+          <% serviceScheduleOptions.forEach((item) => { %>
+            <option value="<%= item.value %>" <%= job.serviceSchedule === item.value ? "selected" : "" %>><%= item.label %></option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label>
+        Duration Value
+        <input name="durationValue" type="number" min="1" value="<%= job.durationValue || '' %>" required />
+      </label>
+
+      <label>
+        Duration Unit
+        <select name="durationUnit" required>
+          <option value="days" <%= job.durationUnit === "days" ? "selected" : "" %>>Days</option>
+          <option value="weeks" <%= job.durationUnit === "weeks" ? "selected" : "" %>>Weeks</option>
+          <option value="months" <%= job.durationUnit === "months" || !job.durationUnit ? "selected" : "" %>>Months</option>
+        </select>
+      </label>
+
+      <label>
+        Budget (INR)
+        <input name="budget" type="number" min="1" step="100" value="<%= job.budget || '' %>" required />
+      </label>
+
+      <label class="agent-job-form__span-2">
+        Preferred Nurse
+        <select name="preferredNurseId">
+          <option value="">No preference</option>
+          <% assignableNurses.forEach((nurse) => { %>
+            <option value="<%= nurse.id %>" <%= String(job.preferredNurseId || '') === String(nurse.id) ? "selected" : "" %>>
+              <%= nurse.full_name %> (<%= nurse.unique_id %>)
+            </option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label class="agent-job-form__span-2">
+        Patient Condition / Care Notes
+        <textarea name="notes" rows="4" placeholder="Add patient condition, shift notes, or special instructions"><%= job.notes || '' %></textarea>
+      </label>
+    </div>
+
+    <% if (formMode === "edit") { %>
+      <div class="agent-job-form__meta">
+        <span class="status-pill status-pill--neutral">Request ID: <%= job.requestCode || "-" %></span>
+        <span class="status-pill <%= String(job.status || 'open').toLowerCase() === 'active' ? 'status-pill--success' : 'status-pill--neutral' %>">
+          Lifecycle: <%= job.status || "open" %>
+        </span>
+        <span class="status-pill <%= String(job.visibilityStatus || 'pending').toLowerCase() === 'approved' ? 'status-pill--success' : (String(job.visibilityStatus || 'pending').toLowerCase() === 'rejected' ? 'status-pill--danger' : 'status-pill--warning') %>">
+          Approval: <%= job.visibilityStatus || "pending" %>
+        </span>
+      </div>
+    <% } %>
+
+    <div class="agent-job-form__actions">
+      <a href="<%= cancelHref %>" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary" id="agentJobSubmitBtn">
+        <span class="btn-text"><%= formMode === "edit" ? "Save Changes" : "Create Job" %></span>
+        <span class="btn-spinner" aria-hidden="true"></span>
+      </button>
+    </div>
+  </form>
+</section>
+
+<script>
+  (() => {
+    const form = document.getElementById("agentJobForm");
+    const submitButton = document.getElementById("agentJobSubmitBtn");
+    if (!form || !submitButton) return;
+
+    form.addEventListener("submit", () => {
+      submitButton.disabled = true;
+      submitButton.classList.add("is-loading");
+    });
+  })();
+</script>
+
+<%- include("../partials/footer") %>

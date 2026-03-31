@@ -236,6 +236,190 @@ function getAgentNurseOwnershipSql(alias, emailParamRef, userIdParamRef) {
   )`;
 }
 
+function normalizeAssignmentCommentInput(value) {
+  const comment = String(value || "").trim();
+  return comment || null;
+}
+
+function assertCareRequestTransition(currentStatus, nextStatus) {
+  if (!normalizeCareRequestStatusInput(currentStatus)) {
+    throw new Error("Invalid current lifecycle state.");
+  }
+  if (!normalizeCareRequestStatusInput(nextStatus)) {
+    throw new Error("Invalid lifecycle transition target.");
+  }
+  if (!canTransitionCareRequestStatus(currentStatus, nextStatus)) {
+    throw new Error(`Cannot transition request from ${currentStatus} to ${nextStatus}.`);
+  }
+}
+
+function buildCareRequestLifecycleActor(req, fallbackRole = "system") {
+  return {
+    userId: req && req.currentUser && Number.isInteger(req.currentUser.id) ? req.currentUser.id : null,
+    role: req && req.currentUser && req.currentUser.role ? req.currentUser.role : fallbackRole
+  };
+}
+
+async function insertCareRequestLifecycleLog(client, payload) {
+  const metadata = payload && typeof payload.metadata === "object" && payload.metadata !== null
+    ? payload.metadata
+    : {};
+
+  await client.query(
+    `INSERT INTO care_request_lifecycle_logs (
+        request_id,
+        event_type,
+        previous_status,
+        next_status,
+        previous_payment_status,
+        next_payment_status,
+        assigned_nurse_id,
+        comment,
+        changed_by_user_id,
+        changed_by_role,
+        metadata
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,
+    [
+      payload.requestId,
+      payload.eventType || "status_update",
+      payload.previousStatus || null,
+      payload.nextStatus || null,
+      payload.previousPaymentStatus || null,
+      payload.nextPaymentStatus || null,
+      typeof payload.assignedNurseId === "number" ? payload.assignedNurseId : null,
+      payload.comment || null,
+      typeof payload.changedByUserId === "number" ? payload.changedByUserId : null,
+      payload.changedByRole || "system",
+      JSON.stringify(metadata)
+    ]
+  );
+}
+
+async function upsertCareRequestEarnings(client, requestId, actor, note) {
+  const detailsResult = await client.query(
+    `SELECT
+        cr.id,
+        cr.patient_id,
+        cr.assigned_nurse_id,
+        COALESCE(
+          p.nurse_amount,
+          NULLIF(cr.budget_max, 0),
+          NULLIF(cr.budget_min, 0),
+          p.budget,
+          0
+        ) AS gross_amount,
+        COALESCE(p.commission_amount, 0) AS platform_fee,
+        COALESCE(p.referral_commission_amount, 0) AS referral_fee,
+        p.nurse_net_amount
+     FROM care_requests cr
+     LEFT JOIN patients p ON p.id = cr.patient_id
+     WHERE cr.id = $1
+     LIMIT 1`,
+    [requestId]
+  );
+  const details = detailsResult.rows[0];
+  if (!details || !details.assigned_nurse_id) {
+    return null;
+  }
+
+  const grossAmount = Number.parseFloat(details.gross_amount) || 0;
+  const platformFee = Number.parseFloat(details.platform_fee) || 0;
+  const referralFee = Number.parseFloat(details.referral_fee) || 0;
+  const rawNetAmount = details.nurse_net_amount !== null && typeof details.nurse_net_amount !== "undefined"
+    ? Number.parseFloat(details.nurse_net_amount) || 0
+    : grossAmount - platformFee - referralFee;
+  const netAmount = Math.max(Number(rawNetAmount.toFixed(2)), 0);
+
+  const earningsUpsertResult = await client.query(
+    `INSERT INTO care_request_earnings (
+        request_id,
+        nurse_id,
+        patient_id,
+        gross_amount,
+        platform_fee,
+        referral_fee,
+        net_amount,
+        payout_status,
+        notes,
+        generated_by_user_id,
+        generated_at,
+        updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,NOW(),NOW())
+      ON CONFLICT (request_id)
+      DO UPDATE SET
+        nurse_id = EXCLUDED.nurse_id,
+        patient_id = EXCLUDED.patient_id,
+        gross_amount = EXCLUDED.gross_amount,
+        platform_fee = EXCLUDED.platform_fee,
+        referral_fee = EXCLUDED.referral_fee,
+        net_amount = EXCLUDED.net_amount,
+        notes = EXCLUDED.notes,
+        generated_by_user_id = EXCLUDED.generated_by_user_id,
+        updated_at = NOW()
+      RETURNING *`,
+    [
+      requestId,
+      details.assigned_nurse_id,
+      details.patient_id || null,
+      Number(grossAmount.toFixed(2)),
+      Number(platformFee.toFixed(2)),
+      Number(referralFee.toFixed(2)),
+      netAmount,
+      note || "Earnings generated on completion.",
+      actor && typeof actor.userId === "number" ? actor.userId : null
+    ]
+  );
+
+  const earnings = earningsUpsertResult.rows[0] || null;
+  if (earnings) {
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "earnings_generated",
+      previousStatus: null,
+      nextStatus: null,
+      previousPaymentStatus: null,
+      nextPaymentStatus: null,
+      assignedNurseId: details.assigned_nurse_id,
+      comment: note || "Earnings generated/updated for completed request.",
+      changedByUserId: actor && typeof actor.userId === "number" ? actor.userId : null,
+      changedByRole: actor && actor.role ? actor.role : "system",
+      metadata: {
+        earningsId: earnings.id,
+        grossAmount: earnings.gross_amount,
+        platformFee: earnings.platform_fee,
+        referralFee: earnings.referral_fee,
+        netAmount: earnings.net_amount
+      }
+    });
+  }
+
+  return earnings;
+}
+
+function buildAgentScopedPublicNurseUrl(agentRecord, nurse) {
+  const nurseProfileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "").trim();
+  const agentIdentifier = String(
+    (agentRecord && (agentRecord.profileSlug || agentRecord.uniqueId || agentRecord.email || agentRecord.id))
+    || ""
+  ).trim();
+
+  if (agentIdentifier && nurseProfileSlug) {
+    return `/agent/${encodeURIComponent(agentIdentifier)}/nurse/${encodeURIComponent(nurseProfileSlug)}`;
+  }
+  if (nurseProfileSlug) {
+    return `/nurse/${encodeURIComponent(nurseProfileSlug)}`;
+  }
+  return nurse && nurse.id ? `/nurses/${nurse.id}` : "";
+}
+
+function normalizeAgentDashboardList(value) {
+  return toArray(value)
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+}
+
 router.get("/agent", requireRole("agent"), (req, res) => {
   return res.redirect("/agent/dashboard");
 });
@@ -261,8 +445,16 @@ router.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (re
               COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
               COALESCE(NULLIF(p.city, ''), '-') AS address,
               COALESCE(cr.status, 'open') AS status,
+              COALESCE(cr.visibility_status, 'pending') AS visibility_status,
+              COALESCE(cr.payment_status, 'pending') AS payment_status,
+              COALESCE(p.phone_number, '') AS patient_phone,
+              COALESCE(p.service_schedule, '') AS service_schedule,
+              COALESCE(p.duration, CONCAT(COALESCE(cr.duration_value, 0)::text, ' ', COALESCE(cr.duration_unit, 'months'))) AS duration,
+              COALESCE(NULLIF(p.notes, ''), '') AS notes,
+              COALESCE(NULLIF(p.budget, 0), NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), 0)::numeric(12,2) AS budget,
               cr.assigned_nurse_id,
               COALESCE(NULLIF(assigned_nurse.full_name, ''), '-') AS assigned_nurse_name,
+              COALESCE(NULLIF(assigned_nurse.unique_id, ''), CONCAT('PHCN-', LPAD(assigned_nurse.id::text, 3, '0'))) AS assigned_nurse_code,
               cr.created_at
            FROM care_requests cr
            LEFT JOIN patients p ON p.id = cr.patient_id
@@ -287,7 +479,15 @@ router.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (re
         )
       ]);
 
-      jobs = jobsResult.rows;
+      jobs = jobsResult.rows.map((row) => ({
+        ...row,
+        budget: Number.parseFloat(row.budget) || 0,
+        canEdit: !["active", "completed", "cancelled"].includes(String(row.status || "").toLowerCase()),
+        canDelete: !["active", "completed"].includes(String(row.status || "").toLowerCase()),
+        canAssign: String(row.status || "").toLowerCase() === "open",
+        canStart: ["assigned", "payment_pending"].includes(String(row.status || "").toLowerCase()) && Boolean(row.assigned_nurse_id),
+        canComplete: String(row.status || "").toLowerCase() === "active"
+      }));
       assignableNurses = nursesResult.rows;
     }
 
@@ -320,7 +520,14 @@ router.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (re
         [agentEmail, agentUserId]
       );
 
-      staff = staffResult.rows.map((row) => buildAgentDashboardNurse(row));
+      staff = staffResult.rows.map((row) => {
+        const nurse = buildAgentDashboardNurse(row);
+        return {
+          ...nurse,
+          dashboardUrl: `/agent/nurses/${nurse.id}`,
+          publicUrl: buildAgentScopedPublicNurseUrl(req.agentRecord, nurse)
+        };
+      });
     }
 
     return res.render("agent/dashboard", {
@@ -330,6 +537,12 @@ router.get("/agent/dashboard", requireRole("agent"), loadAgentProfile, async (re
       jobs,
       assignableNurses,
       staff,
+      stats: {
+        totalJobs: jobs.length,
+        pendingApprovals: jobs.filter((job) => String(job.visibility_status || "").toLowerCase() === "pending").length,
+        activeJobs: jobs.filter((job) => String(job.status || "").toLowerCase() === "active").length,
+        approvedNurses: staff.filter((nurse) => String(nurse.status || "").toLowerCase() === "approved").length
+      },
       activeTab
     });
   } catch (error) {
@@ -1044,73 +1257,577 @@ router.post("/agent/requests/:id/actions", requireRole("agent"), requireApproved
   }
 });
 
-router.get("/agent/patients/new", requireRole("agent"), requireApprovedAgent, (req, res) => {
-  return res.render("agent/add-patient", { title: "Add Patient" });
+async function loadAgentAssignableNurses(agentEmail, agentUserId) {
+  const nursesResult = await pool.query(
+    `SELECT
+        n.id,
+        n.full_name,
+        COALESCE(NULLIF(n.unique_id, ''), CONCAT('PHCN-', LPAD(n.id::text, 3, '0'))) AS unique_id
+     FROM nurses n
+     LEFT JOIN users u ON u.id = n.user_id
+     WHERE (u.id IS NULL OR COALESCE(u.is_deleted, FALSE) = FALSE)
+       AND LOWER(COALESCE(n.status, 'pending')) = 'approved'
+       AND COALESCE(n.is_available, TRUE) = TRUE
+       AND ${getAgentNurseOwnershipSql("n", "$1", "$2")}
+     ORDER BY n.created_at DESC`,
+    [agentEmail, agentUserId]
+  );
+
+  return nursesResult.rows;
+}
+
+async function renderAgentJobForm(req, res, options = {}) {
+  const agentEmail = normalizeEmail(req.currentUser.email);
+  const assignableNurses = await loadAgentAssignableNurses(agentEmail, req.currentUser.id);
+  const job = options.job || {};
+
+  return res.render("agent/job-form", {
+    title: options.title || "Add Job",
+    formMode: options.formMode || "create",
+    formAction: options.formAction || "/agent/jobs/new",
+    cancelHref: options.cancelHref || "/agent/dashboard?tab=jobs",
+    job: {
+      id: job.id || null,
+      fullName: job.fullName || "",
+      email: job.email || "",
+      phoneNumber: job.phoneNumber || "",
+      city: job.city || "",
+      serviceSchedule: job.serviceSchedule || "",
+      durationValue: job.durationValue || "",
+      durationUnit: job.durationUnit || "months",
+      budget: job.budget || "",
+      notes: job.notes || "",
+      preferredNurseId: job.preferredNurseId || "",
+      requestCode: job.requestCode || "",
+      status: job.status || "open",
+      visibilityStatus: job.visibilityStatus || "pending"
+    },
+    assignableNurses
+  });
+}
+
+async function resolvePreferredAgentNurse(agentEmail, agentUserId, preferredNurseId) {
+  if (!Number.isInteger(preferredNurseId) || preferredNurseId <= 0) {
+    return null;
+  }
+
+  const nurseResult = await pool.query(
+    `SELECT n.id, n.full_name
+     FROM nurses n
+     LEFT JOIN users u ON u.id = n.user_id
+     WHERE n.id = $2
+       AND (u.id IS NULL OR COALESCE(u.is_deleted, FALSE) = FALSE)
+       AND LOWER(COALESCE(n.status, 'pending')) = 'approved'
+       AND COALESCE(n.is_available, TRUE) = TRUE
+       AND ${getAgentNurseOwnershipSql("n", "$1", "$3")}
+     LIMIT 1`,
+    [agentEmail, preferredNurseId, agentUserId]
+  );
+
+  return nurseResult.rows[0] || null;
+}
+
+router.get("/agent/jobs/new", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  try {
+    return await renderAgentJobForm(req, res, {
+      title: "Add Job",
+      formMode: "create",
+      formAction: "/agent/jobs/new"
+    });
+  } catch (error) {
+    console.error("Agent job form load error:", error);
+    setFlash(req, "error", "Unable to load the job form right now.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  }
+});
+
+router.post("/agent/jobs/new", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const fullName = String(req.body.fullName || "").trim();
+  const emailInput = String(req.body.email || "").trim();
+  const phoneInput = String(req.body.phoneNumber || "").trim();
+  const city = String(req.body.city || "").trim();
+  const serviceSchedule = String(req.body.serviceSchedule || "").trim();
+  const durationUnit = String(req.body.durationUnit || "").trim();
+  const durationValue = Number.parseInt(req.body.durationValue, 10);
+  const budget = Number.parseFloat(req.body.budget);
+  const notes = String(req.body.notes || "").trim();
+  const preferredNurseId = Number.parseInt(req.body.preferredNurseId, 10);
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  if (!fullName || !emailInput || !phoneInput || !city || !serviceSchedule) {
+    setFlash(req, "error", "Please complete all required job fields.");
+    return res.redirect("/agent/jobs/new");
+  }
+
+  const emailValidation = validateEmail(emailInput);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect("/agent/jobs/new");
+  }
+
+  const phoneValidation = validateIndiaPhone(phoneInput);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
+    return res.redirect("/agent/jobs/new");
+  }
+
+  const scheduleValidation = validateServiceSchedule(serviceSchedule);
+  if (!scheduleValidation.valid) {
+    setFlash(req, "error", scheduleValidation.error);
+    return res.redirect("/agent/jobs/new");
+  }
+
+  if (!["days", "weeks", "months"].includes(durationUnit) || Number.isNaN(durationValue) || durationValue < 1) {
+    setFlash(req, "error", "Please enter a valid duration.");
+    return res.redirect("/agent/jobs/new");
+  }
+
+  if (Number.isNaN(budget) || budget <= 0) {
+    setFlash(req, "error", "Please enter a valid budget.");
+    return res.redirect("/agent/jobs/new");
+  }
+
+  let createdPatient = null;
+  try {
+    const preferredNurse = await resolvePreferredAgentNurse(
+      agentEmail,
+      req.currentUser.id,
+      Number.isNaN(preferredNurseId) ? null : preferredNurseId
+    );
+    if (!Number.isNaN(preferredNurseId) && preferredNurseId > 0 && !preferredNurse) {
+      setFlash(req, "error", "Preferred nurse must be approved and part of your roster.");
+      return res.redirect("/agent/jobs/new");
+    }
+
+    const requestCode = await generateUniquePublicRequestCode();
+    const editToken = await generateUniqueCareRequestEditToken();
+    const duration = `${durationValue} ${durationUnit}`;
+    const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((item) => item.value === serviceSchedule)?.label || serviceSchedule;
+    createdPatient = await createPatient({
+      id: nextId(readStore(), "patient"),
+      requestId: requestCode,
+      userId: null,
+      fullName,
+      email: emailValidation.value,
+      phoneNumber: phoneValidation.value,
+      city,
+      serviceSchedule,
+      duration,
+      durationUnit,
+      durationValue,
+      budget,
+      notes,
+      status: "New",
+      agentEmail,
+      nurseId: null,
+      nurseAmount: null,
+      commissionType: "Percent",
+      commissionValue: 0,
+      commissionAmount: 0,
+      nurseNetAmount: null,
+      referrerNurseId: null,
+      referralCommissionPercent: 0,
+      referralCommissionAmount: 0,
+      preferredNurseId: preferredNurse ? preferredNurse.id : null,
+      preferredNurseName: preferredNurse ? preferredNurse.full_name : "",
+      transferMarginType: "Percent",
+      transferMarginValue: 0,
+      transferMarginAmount: 0,
+      lastTransferredAt: "",
+      lastTransferredBy: "",
+      createdAt: now()
+    });
+
+    if (!createdPatient) {
+      throw new Error("Unable to create the patient record.");
+    }
+
+    const careRequestResult = await pool.query(
+      `INSERT INTO care_requests (
+          patient_id,
+          request_code,
+          edit_token,
+          visibility_status,
+          care_type,
+          duration_value,
+          duration_unit,
+          budget_min,
+          budget_max,
+          marketplace_ready,
+          status,
+          payment_status,
+          nurse_notified
+        )
+       VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, FALSE, 'open', 'pending', FALSE)
+      RETURNING id, status, payment_status, assigned_nurse_id`,
+      [
+        createdPatient.id,
+        requestCode,
+        editToken,
+        notes || serviceScheduleLabel || "General care support required",
+        durationValue,
+        durationUnit,
+        budget,
+        budget
+      ]
+    );
+
+    try {
+      await insertCareRequestLifecycleLog(pool, {
+        requestId: careRequestResult.rows[0].id,
+        eventType: "created_by_agent",
+        previousStatus: null,
+        nextStatus: careRequestResult.rows[0].status,
+        previousPaymentStatus: null,
+        nextPaymentStatus: careRequestResult.rows[0].payment_status,
+        assignedNurseId: careRequestResult.rows[0].assigned_nurse_id,
+        comment: "Care request created from agent dashboard.",
+        changedByUserId: req.currentUser.id,
+        changedByRole: req.currentUser.role,
+        metadata: {
+          source: "agent_dashboard_create"
+        }
+      });
+    } catch (logError) {
+      console.error("Agent care request lifecycle log error:", logError);
+    }
+
+    setFlash(req, "success", "Job created successfully.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  } catch (error) {
+    console.error("Agent job create error:", error);
+    if (createdPatient && createdPatient.id) {
+      try {
+        await deletePatient(createdPatient.id);
+      } catch (cleanupError) {
+        console.error("Agent job create cleanup error:", cleanupError);
+      }
+    }
+    setFlash(req, "error", error.message || "Unable to create the job right now.");
+    return res.redirect("/agent/jobs/new");
+  }
+});
+
+router.get("/agent/jobs/:id/edit", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  if (Number.isNaN(requestId) || requestId <= 0) {
+    setFlash(req, "error", "Invalid job.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT
+          cr.id,
+          cr.status,
+          cr.visibility_status,
+          COALESCE(cr.request_code, p.request_id, CONCAT('CR-', cr.id::text)) AS request_code,
+          COALESCE(NULLIF(p.full_name, ''), '') AS full_name,
+          COALESCE(NULLIF(p.email, ''), '') AS email,
+          COALESCE(NULLIF(p.phone_number, ''), '') AS phone_number,
+          COALESCE(NULLIF(p.city, ''), '') AS city,
+          COALESCE(NULLIF(p.service_schedule, ''), '') AS service_schedule,
+          COALESCE(p.duration_value, cr.duration_value) AS duration_value,
+          COALESCE(NULLIF(p.duration_unit, ''), cr.duration_unit, 'months') AS duration_unit,
+          COALESCE(NULLIF(p.budget, 0), NULLIF(cr.budget_max, 0), NULLIF(cr.budget_min, 0), 0) AS budget,
+          COALESCE(NULLIF(p.notes, ''), '') AS notes,
+          p.preferred_nurse_id
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       WHERE cr.id = $1
+         AND LOWER(COALESCE(p.agent_email, '')) = LOWER($2)
+       LIMIT 1`,
+      [requestId, agentEmail]
+    );
+
+    const job = result.rows[0];
+    if (!job) {
+      setFlash(req, "error", "Job not found.");
+      return res.redirect("/agent/dashboard?tab=jobs");
+    }
+    if (["active", "completed", "cancelled"].includes(String(job.status || "").toLowerCase())) {
+      setFlash(req, "error", "This job is locked and cannot be edited.");
+      return res.redirect("/agent/dashboard?tab=jobs");
+    }
+
+    return await renderAgentJobForm(req, res, {
+      title: "Edit Job",
+      formMode: "edit",
+      formAction: `/agent/jobs/${requestId}/update`,
+      job: {
+        id: job.id,
+        fullName: job.full_name,
+        email: job.email,
+        phoneNumber: job.phone_number,
+        city: job.city,
+        serviceSchedule: job.service_schedule,
+        durationValue: job.duration_value || "",
+        durationUnit: job.duration_unit || "months",
+        budget: Number.parseFloat(job.budget) || "",
+        notes: job.notes,
+        preferredNurseId: job.preferred_nurse_id || "",
+        requestCode: job.request_code,
+        status: job.status,
+        visibilityStatus: job.visibility_status || "pending"
+      }
+    });
+  } catch (error) {
+    console.error("Agent job edit form error:", error);
+    setFlash(req, "error", "Unable to load the job right now.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  }
+});
+
+router.post("/agent/jobs/:id/update", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const fullName = String(req.body.fullName || "").trim();
+  const emailInput = String(req.body.email || "").trim();
+  const phoneInput = String(req.body.phoneNumber || "").trim();
+  const city = String(req.body.city || "").trim();
+  const serviceSchedule = String(req.body.serviceSchedule || "").trim();
+  const durationUnit = String(req.body.durationUnit || "").trim();
+  const durationValue = Number.parseInt(req.body.durationValue, 10);
+  const budget = Number.parseFloat(req.body.budget);
+  const notes = String(req.body.notes || "").trim();
+  const preferredNurseId = Number.parseInt(req.body.preferredNurseId, 10);
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  if (Number.isNaN(requestId) || requestId <= 0) {
+    setFlash(req, "error", "Invalid job.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  }
+  if (!fullName || !emailInput || !phoneInput || !city || !serviceSchedule) {
+    setFlash(req, "error", "Please complete all required job fields.");
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  }
+
+  const emailValidation = validateEmail(emailInput);
+  if (!emailValidation.valid) {
+    setFlash(req, "error", emailValidation.error);
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  }
+  const phoneValidation = validateIndiaPhone(phoneInput);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  }
+  const scheduleValidation = validateServiceSchedule(serviceSchedule);
+  if (!scheduleValidation.valid) {
+    setFlash(req, "error", scheduleValidation.error);
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  }
+  if (!["days", "weeks", "months"].includes(durationUnit) || Number.isNaN(durationValue) || durationValue < 1) {
+    setFlash(req, "error", "Please enter a valid duration.");
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  }
+  if (Number.isNaN(budget) || budget <= 0) {
+    setFlash(req, "error", "Please enter a valid budget.");
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  }
+
+  let client;
+  try {
+    const preferredNurse = await resolvePreferredAgentNurse(
+      agentEmail,
+      req.currentUser.id,
+      Number.isNaN(preferredNurseId) ? null : preferredNurseId
+    );
+    if (!Number.isNaN(preferredNurseId) && preferredNurseId > 0 && !preferredNurse) {
+      setFlash(req, "error", "Preferred nurse must be approved and part of your roster.");
+      return res.redirect(`/agent/jobs/${requestId}/edit`);
+    }
+
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const currentRequestResult = await client.query(
+      `SELECT cr.id, cr.patient_id, cr.status, cr.payment_status, cr.assigned_nurse_id
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       WHERE cr.id = $1
+         AND LOWER(COALESCE(p.agent_email, '')) = LOWER($2)
+       LIMIT 1
+       FOR UPDATE`,
+      [requestId, agentEmail]
+    );
+    const currentRequest = currentRequestResult.rows[0];
+    if (!currentRequest) {
+      throw new Error("Job not found.");
+    }
+    if (["active", "completed", "cancelled"].includes(String(currentRequest.status || "").toLowerCase())) {
+      throw new Error("This job is locked and cannot be edited.");
+    }
+
+    const duration = `${durationValue} ${durationUnit}`;
+    const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((item) => item.value === serviceSchedule)?.label || serviceSchedule;
+
+    await client.query(
+      `UPDATE patients
+       SET full_name = $1,
+           email = $2,
+           phone_number = $3,
+           city = $4,
+           service_schedule = $5,
+           duration = $6,
+           duration_unit = $7,
+           duration_value = $8,
+           budget = $9,
+           notes = $10,
+           preferred_nurse_id = $11,
+           preferred_nurse_name = $12
+       WHERE id = $13`,
+      [
+        fullName,
+        emailValidation.value,
+        phoneValidation.value,
+        city,
+        serviceSchedule,
+        duration,
+        durationUnit,
+        durationValue,
+        budget,
+        notes,
+        preferredNurse ? preferredNurse.id : null,
+        preferredNurse ? preferredNurse.full_name : "",
+        currentRequest.patient_id
+      ]
+    );
+
+    await client.query(
+      `UPDATE care_requests
+       SET care_type = $2,
+           duration_value = $3,
+           duration_unit = $4,
+           budget_min = $5,
+           budget_max = $6,
+           visibility_status = 'pending'
+       WHERE id = $1`,
+      [
+        requestId,
+        notes || serviceScheduleLabel || "General care support required",
+        durationValue,
+        durationUnit,
+        budget,
+        budget
+      ]
+    );
+
+    await insertCareRequestLifecycleLog(client, {
+      requestId,
+      eventType: "agent_details_updated",
+      previousStatus: currentRequest.status,
+      nextStatus: currentRequest.status,
+      previousPaymentStatus: currentRequest.payment_status,
+      nextPaymentStatus: currentRequest.payment_status,
+      assignedNurseId: currentRequest.assigned_nurse_id,
+      comment: "Care request details updated by agent.",
+      changedByUserId: req.currentUser.id,
+      changedByRole: req.currentUser.role,
+      metadata: {
+        source: "agent_dashboard_edit"
+      }
+    });
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Job updated successfully.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Agent job update rollback error:", rollbackError);
+      }
+    }
+    console.error("Agent job update error:", error);
+    setFlash(req, "error", error.message || "Unable to update the job right now.");
+    return res.redirect(`/agent/jobs/${requestId}/edit`);
+  } finally {
+    if (client) client.release();
+  }
+});
+
+router.post("/agent/jobs/:id/delete", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const requestId = Number.parseInt(req.params.id, 10);
+  const agentEmail = normalizeEmail(req.currentUser.email);
+
+  if (Number.isNaN(requestId) || requestId <= 0) {
+    setFlash(req, "error", "Invalid job.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const requestResult = await client.query(
+      `SELECT cr.id, cr.patient_id, cr.status
+       FROM care_requests cr
+       JOIN patients p ON p.id = cr.patient_id
+       WHERE cr.id = $1
+         AND LOWER(COALESCE(p.agent_email, '')) = LOWER($2)
+       LIMIT 1
+       FOR UPDATE`,
+      [requestId, agentEmail]
+    );
+    const requestRow = requestResult.rows[0];
+    if (!requestRow) {
+      throw new Error("Job not found.");
+    }
+    if (["active", "completed"].includes(String(requestRow.status || "").toLowerCase())) {
+      throw new Error("Active or completed jobs cannot be deleted.");
+    }
+
+    await client.query("DELETE FROM care_requests WHERE id = $1", [requestId]);
+
+    if (Number.isInteger(requestRow.patient_id)) {
+      const patientUsageResult = await client.query(
+        "SELECT 1 FROM care_requests WHERE patient_id = $1 LIMIT 1",
+        [requestRow.patient_id]
+      );
+      if (!patientUsageResult.rows.length) {
+        await client.query("DELETE FROM patients WHERE id = $1", [requestRow.patient_id]);
+      }
+    }
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Job removed successfully.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Agent job delete rollback error:", rollbackError);
+      }
+    }
+    console.error("Agent job delete error:", error);
+    setFlash(req, "error", error.message || "Unable to remove the job right now.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  } finally {
+    if (client) client.release();
+  }
+});
+
+router.get("/agent/patients/new", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  try {
+    return await renderAgentJobForm(req, res, {
+      title: "Add Job",
+      formMode: "create",
+      formAction: "/agent/jobs/new"
+    });
+  } catch (error) {
+    console.error("Legacy add patient form load error:", error);
+    setFlash(req, "error", "Unable to load the job form right now.");
+    return res.redirect("/agent/dashboard?tab=jobs");
+  }
 });
 
 router.post("/agent/patients/new", requireRole("agent"), requireApprovedAgent, async (req, res) => {
-  const fullName = String(req.body.fullName || "").trim();
-  const email = normalizeEmail(req.body.email);
-  const phoneNumber = String(req.body.phoneNumber || "").trim();
-  const city = String(req.body.city || "").trim();
-  const careRequirement = String(req.body.careRequirement || "").trim();
-  const durationType = String(req.body.durationType || "").trim();
-  const budget = Number(req.body.budget);
-
-  if (!fullName || !email || !phoneNumber || !city || !careRequirement || !durationType) {
-    setFlash(req, "error", "Please complete all required patient fields.");
-    return res.redirect("/agent/patients/new");
-  }
-  if (!normalizePhone(phoneNumber)) {
-    setFlash(req, "error", "Please enter a valid phone number.");
-    return res.redirect("/agent/patients/new");
-  }
-  if (!budget || isNaN(budget) || budget <= 0) {
-    setFlash(req, "error", "Please enter a valid budget.");
-    return res.redirect("/agent/patients/new");
-  }
-  if (!["Days", "Months", "Years"].includes(durationType)) {
-    setFlash(req, "error", "Please select a valid duration type.");
-    return res.redirect("/agent/patients/new");
-  }
-
-  const store = readStore();
-  const patientId = nextId(store, "patient");
-
-  const patient = {
-    id: patientId,
-    fullName,
-    email,
-    phoneNumber,
-    city,
-    careRequirement,
-    durationType: durationType,
-    budget: budget,
-    status: "New",
-    agentEmail: req.currentUser.email,
-    nurseId: null,
-    nurseAmount: null,
-    commissionType: "Percent",
-    commissionValue: 0,
-    commissionAmount: 0,
-    nurseNetAmount: null,
-    referrerNurseId: null,
-    referralCommissionPercent: 0,
-    referralCommissionAmount: 0,
-    preferredNurseId: null,
-    preferredNurseName: "",
-    transferMarginType: "Percent",
-    transferMarginValue: 0,
-    transferMarginAmount: 0,
-    lastTransferredAt: "",
-    lastTransferredBy: "",
-    createdAt: now()
-  };
-
-  await createPatient(patient);
-
-  setFlash(req, "success", "Patient added successfully.");
-  return res.redirect("/agent");
+  return res.redirect(307, "/agent/jobs/new");
 });
 
 router.post("/agent/patients/:id/financials", requireRole("agent"), requireApprovedAgent, (req, res) => {
@@ -1298,6 +2015,144 @@ router.post("/agent/nurses/new", requireRole("agent"), requireApprovedAgent, asy
   return createNurseUnderAgent(req, res, "/agent/nurses/new");
 });
 
+router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  const nurseId = Number.parseInt(req.params.id, 10);
+  const agentEmail = normalizeEmail(req.currentUser.email);
+  const fullName = String(req.body.fullName || "").trim();
+  const phoneInput = String(req.body.phoneNumber || "").trim();
+  const city = String(req.body.city || "").trim();
+  const workCity = String(req.body.workCity || "").trim();
+  const currentAddress = String(req.body.currentAddress || "").trim();
+  const gender = String(req.body.gender || "").trim();
+  const experienceYears = Number.parseInt(req.body.experienceYears, 10);
+  const currentStatus = normalizeCurrentStatusInput(req.body.current_status || req.body.currentStatus || "");
+  const aadharNumber = String(req.body.aadharNumber || "").replace(/\D/g, "").slice(0, 12);
+  const skills = normalizeAgentDashboardList(req.body.skills);
+  const availability = normalizeAgentDashboardList(req.body.availability || req.body["availability[]"]);
+
+  if (Number.isNaN(nurseId) || nurseId <= 0) {
+    setFlash(req, "error", "Invalid nurse.");
+    return res.redirect("/agent/dashboard?tab=staff");
+  }
+  if (!fullName || !phoneInput || !city) {
+    setFlash(req, "error", "Please complete the required nurse fields.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+
+  const phoneValidation = validateIndiaPhone(phoneInput);
+  if (!phoneValidation.valid) {
+    setFlash(req, "error", phoneValidation.error);
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (!["Male", "Female", "Other", "Not Specified"].includes(gender)) {
+    setFlash(req, "error", "Please choose a valid gender.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (Number.isNaN(experienceYears) || experienceYears < 0 || experienceYears > 60) {
+    setFlash(req, "error", "Experience should be between 0 and 60 years.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (!currentStatus) {
+    setFlash(req, "error", "Please choose a valid current status.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (aadharNumber && aadharNumber.length !== 12) {
+    setFlash(req, "error", "Aadhaar number must contain 12 digits.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const nurseResult = await client.query(
+      `SELECT n.id, n.user_id
+       FROM nurses n
+       WHERE n.id = $3
+         AND ${getAgentNurseOwnershipSql("n", "$1", "$2")}
+       LIMIT 1
+       FOR UPDATE`,
+      [agentEmail, req.currentUser.id, nurseId]
+    );
+    const nurseRow = nurseResult.rows[0];
+    if (!nurseRow) {
+      throw new Error("You can only edit nurses in your own roster.");
+    }
+
+    const normalizedPhoneInput = normalizePhone(phoneValidation.value);
+    const duplicatePhoneResult = await client.query(
+      `SELECT 1
+       FROM users
+       WHERE phone_number = $1
+         AND id <> $2
+       LIMIT 1`,
+      [normalizedPhoneInput, nurseRow.user_id]
+    );
+    if (duplicatePhoneResult.rowCount > 0) {
+      throw new Error("That phone number is already linked to another account.");
+    }
+
+    await client.query(
+      `UPDATE nurses
+       SET full_name = $1,
+           city = $2,
+           work_city = $3,
+           address = $4,
+           gender = $5,
+           experience_years = $6,
+           current_status = $7,
+           availability_label = $8,
+           is_available = $9,
+           availability = $10::text[],
+           skills = $11::text[],
+           aadhar_number = $12
+       WHERE id = $13`,
+      [
+        fullName,
+        city,
+        workCity,
+        currentAddress,
+        gender,
+        experienceYears,
+        currentStatus,
+        currentStatus,
+        currentStatus !== "Not Available",
+        availability,
+        skills,
+        aadharNumber || null,
+        nurseId
+      ]
+    );
+
+    if (Number.isInteger(nurseRow.user_id)) {
+      await client.query(
+        `UPDATE users
+         SET phone_number = $1
+         WHERE id = $2`,
+        [normalizedPhoneInput, nurseRow.user_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    setFlash(req, "success", "Nurse updated successfully.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Agent nurse update rollback error:", rollbackError);
+      }
+    }
+    console.error("Agent nurse update error:", error);
+    setFlash(req, "error", error.message || "Unable to update this nurse right now.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  } finally {
+    if (client) client.release();
+  }
+});
+
 router.get("/agent/nurses/:id", requireRole("agent"), requireApprovedAgent, async (req, res) => {
   const nurseId = Number.parseInt(req.params.id, 10);
   if (Number.isNaN(nurseId)) {
@@ -1318,7 +2173,10 @@ router.get("/agent/nurses/:id", requireRole("agent"), requireApprovedAgent, asyn
     title: "View Nurse",
     nurse,
     role: req.session.user.role,
-    contactContext: buildNurseContactContext(nurse, req.currentUser)
+    contactContext: buildNurseContactContext(nurse, req.currentUser, {
+      agent: req.agentRecord,
+      profileUrl: buildAgentScopedPublicNurseUrl(req.agentRecord, nurse)
+    })
   });
 });
 

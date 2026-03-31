@@ -327,8 +327,10 @@ function createPublicController() {
     }
 
     const profileStatus = nurse.profileStatus || nurse.profile_status || "";
-    const adminVisible = nurse.adminVisible === true;
-    return adminVisible && isApprovedProfileStatus(profileStatus);
+    const isPubliclyEnabled = nurse.publicProfileEnabled === true
+      || nurse.isPublic === true
+      || nurse.adminVisible === true;
+    return isPubliclyEnabled && isApprovedProfileStatus(profileStatus);
   }
 
   function isNurseListedPublicly(nurse) {
@@ -642,6 +644,9 @@ router.post("/request-care", async (req, res) => {
   const serviceScheduleLabel = req.app.locals.serviceScheduleOptions?.find((s) => s.value === serviceSchedule)?.label || serviceSchedule;
   const preferredDate = String(req.body.preferredDate || "").trim();
   const patientCondition = String(req.body.patientCondition || req.body.notes || "").trim();
+  const agentEmail = req.currentUser && req.currentUser.role === "agent"
+    ? normalizeEmail(req.currentUser.email)
+    : "";
 
   // Default status is "Requested"
   const defaultStatus = "New";
@@ -657,7 +662,7 @@ router.post("/request-care", async (req, res) => {
     serviceSchedule,
     notes: req.body.notes || "",
     status: defaultStatus,
-    agentEmail: "",
+    agentEmail,
     nurseId: null,
     nurseAmount: null,
     commissionType: "Percent",
