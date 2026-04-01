@@ -2173,6 +2173,9 @@ router.get("/agent/nurses/:id", requireRole("agent"), requireApprovedAgent, asyn
     title: "View Nurse",
     nurse,
     role: req.session.user.role,
+    canEdit: true,
+    assetsUpdateAction: `/nurse/${nurse.id}/update-assets`,
+    assetsRedirectTo: `/agent/nurses/${nurse.id}`,
     contactContext: buildNurseContactContext(nurse, req.currentUser, {
       agent: req.agentRecord,
       profileUrl: buildAgentScopedPublicNurseUrl(req.agentRecord, nurse)

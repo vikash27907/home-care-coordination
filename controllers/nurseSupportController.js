@@ -194,6 +194,184 @@ function createNurseSupportController() {
     validateServiceSchedule,
   } = runtime;
 
+const UNIFIED_NURSE_ASSET_DIR = path.join(UPLOAD_DIR, "nurse-assets");
+const UNIFIED_NURSE_PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const UNIFIED_NURSE_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024;
+const UNIFIED_NURSE_PROFILE_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const UNIFIED_NURSE_PROFILE_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const UNIFIED_NURSE_DOCUMENT_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf"]);
+const UNIFIED_NURSE_DOCUMENT_ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp"
+]);
+
+fs.mkdirSync(UNIFIED_NURSE_ASSET_DIR, { recursive: true });
+
+function getManagedNurseOwnershipSql(alias, emailParamRef, userIdParamRef) {
+  return `(
+    LOWER(COALESCE(${alias}.agent_email, '')) = LOWER(${emailParamRef})
+    OR EXISTS (
+      SELECT 1
+      FROM unnest(COALESCE(${alias}.agent_emails, ARRAY[]::text[])) AS ae(agent_email)
+      WHERE LOWER(agent_email) = LOWER(${emailParamRef})
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM agent_nurse_roster anr
+      WHERE anr.nurse_id = ${alias}.id
+        AND anr.agent_id = ${userIdParamRef}
+    )
+  )`;
+}
+
+function canEditManagedNurse(currentUser, nurse) {
+  if (!currentUser || !nurse) return false;
+  if (currentUser.role === "admin") return true;
+  if (currentUser.role === "nurse") {
+    return Number(nurse.userId || nurse.user_id) === Number(currentUser.id);
+  }
+  if (currentUser.role === "agent") {
+    return nurseHasAgent(nurse, currentUser.email);
+  }
+  return false;
+}
+
+async function getEditableNurseRecord(currentUser, nurseId, client = pool) {
+  if (!currentUser || !Number.isInteger(nurseId) || nurseId <= 0) {
+    return null;
+  }
+
+  if (currentUser.role === "admin") {
+    const result = await client.query(
+      `SELECT
+          n.id,
+          n.user_id,
+          COALESCE(n.profile_image_url, '') AS profile_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
+          COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url
+       FROM nurses n
+       WHERE n.id = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [nurseId]
+    );
+    return result.rows[0] || null;
+  }
+
+  if (currentUser.role === "nurse") {
+    const result = await client.query(
+      `SELECT
+          n.id,
+          n.user_id,
+          COALESCE(n.profile_image_url, '') AS profile_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
+          COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url
+       FROM nurses n
+       WHERE n.id = $1
+         AND n.user_id = $2
+       LIMIT 1
+       FOR UPDATE`,
+      [nurseId, currentUser.id]
+    );
+    return result.rows[0] || null;
+  }
+
+  if (currentUser.role === "agent") {
+    const result = await client.query(
+      `SELECT
+          n.id,
+          n.user_id,
+          COALESCE(n.profile_image_url, '') AS profile_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
+          COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
+          COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url
+       FROM nurses n
+       WHERE n.id = $1
+         AND ${getManagedNurseOwnershipSql("n", "$2", "$3")}
+       LIMIT 1
+       FOR UPDATE`,
+      [nurseId, normalizeEmail(currentUser.email), currentUser.id]
+    );
+    return result.rows[0] || null;
+  }
+
+  return null;
+}
+
+const unifiedNurseAssetStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UNIFIED_NURSE_ASSET_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const extension = path.extname(String(file.originalname || "")).toLowerCase();
+    const prefix = file.fieldname === "profileImage" ? "nurse-profile" : "nurse-document";
+    cb(null, `${prefix}-${uniqueSuffix}${extension}`);
+  }
+});
+
+const unifiedNurseAssetUpload = multer({
+  storage: unifiedNurseAssetStorage,
+  limits: { fileSize: UNIFIED_NURSE_DOCUMENT_MAX_BYTES },
+  fileFilter: (req, file, cb) => {
+    const extension = path.extname(String(file.originalname || "")).toLowerCase();
+    const mimetype = String(file.mimetype || "").toLowerCase();
+
+    if (file.fieldname === "profileImage") {
+      if (
+        UNIFIED_NURSE_PROFILE_ALLOWED_EXTENSIONS.has(extension)
+        && UNIFIED_NURSE_PROFILE_ALLOWED_MIME_TYPES.has(mimetype)
+      ) {
+        return cb(null, true);
+      }
+      return cb(new Error("Profile image must be JPG, PNG, or WEBP."));
+    }
+
+    if (file.fieldname === "aadhaarDoc") {
+      if (
+        UNIFIED_NURSE_DOCUMENT_ALLOWED_EXTENSIONS.has(extension)
+        && UNIFIED_NURSE_DOCUMENT_ALLOWED_MIME_TYPES.has(mimetype)
+      ) {
+        return cb(null, true);
+      }
+      return cb(new Error("Document must be JPG, PNG, WEBP, or PDF."));
+    }
+
+    return cb(new Error("Unsupported upload field."));
+  }
+}).fields([
+  { name: "profileImage", maxCount: 1 },
+  { name: "aadhaarDoc", maxCount: 1 }
+]);
+
+function unifiedNurseAssetUploadMiddleware(req, res, next) {
+  unifiedNurseAssetUpload(req, res, async (error) => {
+    if (!error) {
+      const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
+      if (profileImageFile && Number(profileImageFile.size || 0) > UNIFIED_NURSE_PROFILE_IMAGE_MAX_BYTES) {
+        await deleteLocalAsset(`/uploads/nurse-assets/${profileImageFile.filename}`);
+        setFlash(req, "error", "Profile image must be 5MB or smaller.");
+        return res.redirect(req.get("referer") || "/nurse/profile");
+      }
+      return next();
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      setFlash(req, "error", "Uploaded file is too large. Maximum allowed size is 5MB.");
+      return res.redirect(req.get("referer") || "/nurse/profile");
+    }
+
+    setFlash(req, "error", error.message || "Unable to upload the selected file right now.");
+    return res.redirect(req.get("referer") || "/nurse/profile");
+  });
+}
+
 router.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
   const store = readNormalizedStore();
   const nurse = await getNurseByUserId(req.currentUser.id);
@@ -222,6 +400,9 @@ router.get("/nurse/profile", requireRole("nurse"), requireApprovedNurse, async (
     title: "Nurse Profile",
     nurse,
     role: req.session.user.role,
+    canEdit: canEditManagedNurse(req.currentUser, nurse),
+    assetsUpdateAction: `/nurse/${nurse.id}/update-assets`,
+    assetsRedirectTo: "/nurse/profile",
     contactContext: buildNurseContactContext(nurse, req.currentUser),
     assignedAgents,
     referredNurses,
@@ -468,6 +649,105 @@ router.post("/nurse/password/change", requireRole("nurse"), requireApprovedNurse
   setFlash(req, "success", "Password updated successfully.");
   return res.redirect("/nurse/profile");
 });
+
+router.post(
+  "/nurse/:id/update-assets",
+  requireAuth,
+  unifiedNurseAssetUploadMiddleware,
+  async (req, res) => {
+    const nurseId = Number.parseInt(req.params.id, 10);
+    const redirectTo = String(req.body.redirectTo || "").startsWith("/")
+      ? String(req.body.redirectTo)
+      : (req.currentUser && req.currentUser.role === "admin"
+        ? `/admin/user/view/nurse/${req.params.id}`
+        : (req.currentUser && req.currentUser.role === "agent"
+          ? `/agent/nurses/${req.params.id}`
+          : "/nurse/profile"));
+    const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
+    const aadhaarDocFile = req.files && req.files.aadhaarDoc ? req.files.aadhaarDoc[0] : null;
+    const nextProfileImageUrl = profileImageFile ? `/uploads/nurse-assets/${profileImageFile.filename}` : "";
+    const nextAadhaarDocUrl = aadhaarDocFile ? `/uploads/nurse-assets/${aadhaarDocFile.filename}` : "";
+    const uploadedAssetUrls = [nextProfileImageUrl, nextAadhaarDocUrl].filter(Boolean);
+
+    if (Number.isNaN(nurseId) || nurseId <= 0) {
+      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+      setFlash(req, "error", "Invalid nurse.");
+      return res.redirect(redirectTo);
+    }
+
+    if (!profileImageFile && !aadhaarDocFile) {
+      setFlash(req, "error", "Please choose a file to upload.");
+      return res.redirect(redirectTo);
+    }
+
+    let client;
+    let updatedNurseUserId = null;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+
+      const editableNurse = await getEditableNurseRecord(req.currentUser, nurseId, client);
+      if (!editableNurse) {
+        throw new Error("Unauthorized");
+      }
+
+      updatedNurseUserId = Number(editableNurse.user_id) || null;
+      const previousProfileImageUrl = String(editableNurse.profile_image_url || "").trim();
+      const previousAadhaarDocUrl = String(
+        editableNurse.aadhar_image_url
+        || editableNurse.aadhaar_image_url
+        || editableNurse.aadhaar_card_url
+        || editableNurse.aadhar_card_url
+        || ""
+      ).trim();
+
+      await client.query(
+        `UPDATE nurses
+         SET profile_image_url = COALESCE($1, profile_image_url),
+             aadhar_image_url = COALESCE($2, aadhar_image_url)
+         WHERE id = $3`,
+        [
+          nextProfileImageUrl || null,
+          nextAadhaarDocUrl || null,
+          nurseId
+        ]
+      );
+
+      await client.query("COMMIT");
+
+      await Promise.all([
+        nextProfileImageUrl && previousProfileImageUrl && previousProfileImageUrl !== nextProfileImageUrl
+          ? deleteLocalAsset(previousProfileImageUrl)
+          : Promise.resolve(),
+        nextAadhaarDocUrl && previousAadhaarDocUrl && previousAadhaarDocUrl !== nextAadhaarDocUrl
+          ? deleteLocalAsset(previousAadhaarDocUrl)
+          : Promise.resolve()
+      ]);
+
+      if (req.currentUser.role === "nurse" && updatedNurseUserId === req.currentUser.id) {
+        const refreshedUser = await getUserById(req.currentUser.id);
+        req.session.user = await getSessionUserPayload(refreshedUser);
+      }
+
+      setFlash(req, "success", "Profile assets updated successfully.");
+      return res.redirect(redirectTo);
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("Unified nurse asset upload rollback error:", rollbackError);
+        }
+      }
+      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+      console.error("Unified nurse asset upload error:", error);
+      setFlash(req, "error", error.message === "Unauthorized" ? "Unauthorized" : (error.message || "Unable to update profile assets right now."));
+      return res.redirect(redirectTo);
+    } finally {
+      if (client) client.release();
+    }
+  }
+);
 
 // Nurse Profile Edit GET route
 router.get("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, async (req, res) => {
@@ -1627,6 +1907,9 @@ router.get("/admin/user/view/:role/:id", requireRole("admin"), async (req, res) 
       title: "View Nurse",
       nurse,
       role: req.session.user.role,
+      canEdit: canEditManagedNurse(req.currentUser, nurse),
+      assetsUpdateAction: `/nurse/${nurse.id}/update-assets`,
+      assetsRedirectTo: `/admin/user/view/nurse/${nurse.id}`,
       contactContext: buildNurseContactContext(nurse, req.currentUser)
     });
   }

@@ -3,7 +3,7 @@ const currentRole = role || 'guest';
 const isAdmin = currentRole === "admin";
 const isNurse = currentRole === "nurse";
 const isAgent = currentRole === "agent";
-const canEdit = isAdmin || isNurse || isAgent;
+const canEditProfile = typeof canEdit !== "undefined" ? Boolean(canEdit) : false;
 const canViewCard = isAdmin || isNurse || isAgent;
 const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
 const cardPhone = String(contactInfo.downloadPhone || contactInfo.displayPhone || contactInfo.phone || "").trim();
@@ -128,6 +128,11 @@ const editAction = isAdmin
 const backLink = isAdmin ? "/admin/nurses" : (isAgent ? "/agent/dashboard?tab=staff" : "");
 const backLabel = isAdmin ? "Back to Nurses" : (isAgent ? "Back to Staff" : "");
 const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
+const unifiedAssetsAction = String((typeof assetsUpdateAction !== "undefined" && assetsUpdateAction) || `/nurse/${nurseId}/update-assets`);
+const unifiedAssetsRedirectTo = String(
+  (typeof assetsRedirectTo !== "undefined" && assetsRedirectTo)
+  || (isAdmin ? `/admin/user/view/nurse/${nurseId}` : (isAgent ? `/agent/nurses/${nurseId}` : "/nurse/profile"))
+);
 %>
 
 <section
@@ -153,83 +158,52 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     </nav>
   <% } %>
 
+  <% if (canEditProfile) { %>
+    <form
+      action="<%= unifiedAssetsAction %>"
+      method="POST"
+      enctype="multipart/form-data"
+      id="npAssetsForm"
+      class="np-hidden-upload-form"
+    >
+      <input type="hidden" name="redirectTo" value="<%= unifiedAssetsRedirectTo %>">
+      <input
+        type="file"
+        id="npProfileAssetInput"
+        name="profileImage"
+        accept="image/jpeg,image/png,image/webp"
+      >
+      <input
+        type="file"
+        id="npAadhaarAssetInput"
+        name="aadhaarDoc"
+        accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
+      >
+    </form>
+  <% } %>
+
   <article class="np-card np-header-card">
     <div class="np-header-left">
-      <% if (isNurse) { %>
-        <div class="np-avatar-menu-shell" id="npAvatarMenuShell">
-          <button
-            type="button"
-            class="np-avatar-button"
-            id="npAvatarMenuTrigger"
-            aria-haspopup="menu"
-            aria-expanded="false"
-          >
-            <span class="np-avatar-wrap">
-              <% if (profileImage) { %>
-                <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
-              <% } else { %>
-                <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
-              <% } %>
-            </span>
-          </button>
-
-          <div class="np-avatar-menu" id="npAvatarMenu" role="menu" aria-hidden="true">
-            <% if (nurse.profileImageUrl || nurse.profileImagePath) { %>
-              <a
-                href="<%= profileImage %>"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="np-avatar-menu-action"
-                role="menuitem"
-              >
-                View Profile Picture
-              </a>
-              <button type="button" class="np-avatar-menu-action" data-avatar-upload="true" role="menuitem">
-                Change Profile Picture
-              </button>
-              <form
-                action="/nurse/profile/delete-photo"
-                method="POST"
-                class="np-avatar-menu-inline-form"
-                onsubmit="return confirm('Delete profile picture?');"
-              >
-                <button type="submit" class="np-avatar-menu-action danger" role="menuitem">
-                  Delete Profile Picture
-                </button>
-              </form>
-            <% } else { %>
-              <button type="button" class="np-avatar-menu-action" data-avatar-upload="true" role="menuitem">
-                Upload Profile Picture
-              </button>
-            <% } %>
-          </div>
-
-          <form
-            action="/nurse/profile/upload-photo"
-            method="POST"
-            enctype="multipart/form-data"
-            id="npProfilePhotoForm"
-            class="np-hidden-upload-form"
-          >
-            <input
-              type="file"
-              id="npProfilePhotoInput"
-              name="profileImage"
-              required
-              accept=".jpg,.jpeg,.png"
-            >
-            <button type="submit">Upload</button>
-          </form>
-        </div>
-      <% } else { %>
-        <div class="np-avatar-wrap">
+      <div class="np-avatar-shell">
+        <div class="np-avatar-wrap <%= canEditProfile ? 'is-editable' : '' %>">
           <% if (profileImage) { %>
             <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
           <% } else { %>
             <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
           <% } %>
+
+          <% if (canEditProfile) { %>
+            <button
+              type="button"
+              class="np-avatar-overlay"
+              data-asset-trigger="profileImage"
+              aria-label="Edit profile image"
+            >
+              Edit
+            </button>
+          <% } %>
         </div>
-      <% } %>
+      </div>
 
       <div class="np-header-copy">
         <h1><%= fullName %></h1>
@@ -254,9 +228,9 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       </div>
     </div>
 
-    <% if (canEdit || canViewCard) { %>
+    <% if (canEditProfile || canViewCard) { %>
       <div class="np-header-actions">
-        <% if (canEdit) { %>
+        <% if (canEditProfile) { %>
           <button type="button" class="btn primary" id="npToggleEditBtn">Edit Profile</button>
         <% } %>
         <% if (canViewCard) { %>
@@ -287,7 +261,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     </div>
   </div>
 
-  <% if (canEdit) { %>
+  <% if (canEditProfile) { %>
   <form
     id="profileForm"
     method="POST"
@@ -315,7 +289,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>Full Name</label>
             <div class="np-view"><%= fullName || "-" %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <input class="np-edit-field" type="text" name="fullName" value="<%= fullName %>">
             <% } %>
           </div>
@@ -331,7 +305,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>Mobile</label>
             <div class="np-view"><%= phone || "-" %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <input class="np-edit-field" type="text" name="phoneNumber" value="<%= phone %>" placeholder="10-digit mobile number">
             <% } %>
           </div>
@@ -339,7 +313,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>Gender</label>
             <div class="np-view"><%= gender || "-" %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <select class="np-edit-field" name="gender">
                 <option value="Not Specified" <%= gender === "Not Specified" ? "selected" : "" %>>Not Specified</option>
                 <option value="Female" <%= gender === "Female" ? "selected" : "" %>>Female</option>
@@ -352,7 +326,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>City</label>
             <div class="np-view"><%= city || "-" %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <input class="np-edit-field" type="text" name="city" value="<%= city %>">
             <% } %>
           </div>
@@ -360,7 +334,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>Work City</label>
             <div class="np-view"><%= workCity || "-" %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <input class="np-edit-field" type="text" name="workCity" value="<%= workCity %>">
             <% } %>
           </div>
@@ -368,7 +342,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field np-span-2">
             <label>Current Address</label>
             <div class="np-view"><%= currentAddress || "-" %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <textarea class="np-edit-field" name="currentAddress" rows="3"><%= currentAddress %></textarea>
             <% } %>
           </div>
@@ -376,7 +350,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>Aadhaar</label>
             <div class="np-view"><%= aadhaarDisplay %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <input
                 class="np-edit-field"
                 type="text"
@@ -390,9 +364,27 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
             <% } %>
           </div>
 
-          <div class="np-field">
-            <label>Aadhaar Document</label>
-            <div class="np-view">
+        </div>
+      </article>
+    </section>
+
+    <section class="np-assets-section">
+      <article class="np-card np-assets-card">
+        <div class="np-section-head">
+          <div>
+            <h2>Documents</h2>
+            <p class="np-muted">Keep identity documents current in one shared place for nurse, agent, and admin updates.</p>
+          </div>
+        </div>
+
+        <div class="np-document-grid">
+          <div class="np-document-card">
+            <div class="np-document-copy">
+              <h3>Aadhaar Document</h3>
+              <p>Upload a clear image or PDF. The latest file is used everywhere this nurse profile is managed.</p>
+            </div>
+
+            <div class="np-document-meta">
               <% if (aadharImageUrl) { %>
                 <a
                   class="np-aadhar-link np-aadhar-view-link"
@@ -400,28 +392,21 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  View Aadhaar Document
+                  View Document
                 </a>
               <% } else { %>
-                <span class="np-doc-missing">Document not uploaded</span>
+                <span class="np-doc-missing">No document uploaded</span>
               <% } %>
             </div>
-            <% if (isNurse) { %>
-              <div class="np-edit-field np-aadhar-upload-wrap">
-                <label class="np-inline-label" for="npAadharImageInput">Aadhaar Card Upload</label>
-                <input
-                  id="npAadharImageInput"
-                  class="np-aadhar-file"
-                  type="file"
-                  name="aadharImage"
-                  accept="image/jpeg,image/png,image/webp"
-                >
-                <span class="np-doc-edit-note">Upload Aadhaar Document</span>
-                <small class="aadhar-warning">
-                  Please upload a clear image of your original Aadhaar card.
-                  Blurry, cropped, or fake documents may lead to account suspension or termination.
-                </small>
-              </div>
+
+            <% if (canEditProfile) { %>
+              <button
+                type="button"
+                class="btn np-document-action"
+                data-asset-trigger="aadhaarDoc"
+              >
+                Upload / Replace
+              </button>
             <% } %>
           </div>
         </div>
@@ -435,7 +420,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           <div class="np-field">
             <label>Experience (Years)</label>
             <div class="np-view"><%= experienceYears %></div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <input class="np-edit-field" type="number" min="0" max="60" name="experienceYears" value="<%= experienceYears %>">
             <% } %>
           </div>
@@ -449,7 +434,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
                 <span>-</span>
               <% } %>
             </div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <select class="np-edit-field" name="current_status" required>
                 <option value="Available for Work" <%= currentStatus === "Available for Work" ? "selected" : "" %>>Available for Work</option>
                 <option value="Currently Working" <%= currentStatus === "Currently Working" ? "selected" : "" %>>Currently Working</option>
@@ -470,7 +455,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
                 <span>-</span>
               <% } %>
             </div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <div id="skillsEditSection" class="edit-mode" style="display: none;">
                 <input class="np-edit-field" type="hidden" name="skills" value="">
                 <div class="np-edit-field np-skill-tags" id="selectedSkillsContainer"></div>
@@ -528,7 +513,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
                 <span>-</span>
               <% } %>
             </div>
-            <% if (canEdit) { %>
+            <% if (canEditProfile) { %>
               <div id="availabilityEditSection" class="edit-mode" style="display: none;">
                 <div id="availabilityTags" class="np-edit-field np-availability-tags"></div>
 
@@ -609,7 +594,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
           </div>
         </div>
 
-        <% if (canEdit) { %>
+        <% if (canEditProfile) { %>
           <input
             type="hidden"
             name="redirectTo"
@@ -663,7 +648,7 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       </article>
     </section>
 
-    <% if (canEdit) { %>
+    <% if (canEditProfile) { %>
       <div class="np-edit-actions" id="npEditActions">
         <button type="button" class="btn" id="npCancelEditBtn">Cancel</button>
         <button type="submit" class="btn primary" form="profileForm">Save</button>
@@ -788,25 +773,12 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   gap: 1rem;
 }
 
-.np-avatar-menu-shell {
-  position: relative;
+.np-avatar-shell {
   display: inline-flex;
 }
 
-.np-avatar-button {
-  border: none;
-  background: transparent;
-  padding: 0;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.np-avatar-button:focus-visible {
-  outline: 2px solid #0f7fcf;
-  outline-offset: 3px;
-}
-
 .np-avatar-wrap {
+  position: relative;
   width: 112px;
   height: 112px;
   border-radius: 50%;
@@ -818,59 +790,43 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   place-items: center;
 }
 
+.np-avatar-wrap.is-editable {
+  cursor: pointer;
+}
+
 .np-avatar {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.np-avatar-menu {
-  display: none;
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  min-width: 220px;
-  background: #ffffff;
-  border: 1px solid #d8e7f3;
-  border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(15, 42, 71, 0.14);
-  padding: 0.35rem;
-  z-index: 20;
-}
-
-.np-avatar-menu-shell:hover .np-avatar-menu,
-.np-avatar-menu-shell.is-open .np-avatar-menu {
-  display: block;
-}
-
-.np-avatar-menu-action {
-  display: block;
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-  border-radius: 8px;
-  padding: 0.52rem 0.6rem;
-  font: inherit;
-  color: #163d62;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.np-avatar-menu-action:hover {
-  background: #edf5fc;
-}
-
-.np-avatar-menu-action.danger {
-  color: #9e1f1f;
-}
-
-.np-avatar-menu-inline-form {
-  margin: 0;
-}
-
 .np-hidden-upload-form {
   display: none;
+}
+
+.np-avatar-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-bottom-left-radius: 999px;
+  border-bottom-right-radius: 999px;
+  background: rgba(10, 25, 41, 0.62);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.np-avatar-wrap.is-editable:hover .np-avatar-overlay,
+.np-avatar-wrap.is-editable:focus-within .np-avatar-overlay {
+  opacity: 1;
 }
 
 .np-avatar-fallback {
@@ -1078,18 +1034,6 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   font: inherit;
 }
 
-.np-aadhar-upload-wrap {
-  display: none;
-  border: 1px dashed #d6e3ef;
-  border-radius: 12px;
-  padding: 0.75rem;
-  background: #f8fbfe;
-}
-
-.np-aadhar-file {
-  width: 100%;
-}
-
 .np-aadhar-link {
   color: #0f5d9b;
   font-size: 0.85rem;
@@ -1115,18 +1059,52 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   font-weight: 600;
 }
 
-.np-doc-edit-note {
-  color: #4e6880;
-  font-size: 0.84rem;
-  font-weight: 600;
+.np-assets-section {
+  display: block;
 }
 
-.aadhar-warning {
-  display: block;
-  margin-top: 6px;
-  font-size: 0.85rem;
-  color: #b91c1c;
-  line-height: 1.4;
+.np-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.np-document-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+
+.np-document-card {
+  display: grid;
+  gap: 0.9rem;
+  border: 1px solid #d9e7f3;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fcfeff, #f6fbff);
+  padding: 1rem;
+}
+
+.np-document-copy h3 {
+  margin: 0 0 0.3rem;
+  color: #11304f;
+}
+
+.np-document-copy p {
+  margin: 0;
+  color: #5b7388;
+}
+
+.np-document-meta {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.np-document-action {
+  width: 100%;
+  justify-content: center;
 }
 
 .nurse-profile-shell.is-editing .np-view {
@@ -1542,6 +1520,10 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     grid-template-columns: 1fr;
   }
 
+  .np-header-actions,
+  .np-document-action {
+    width: 100%;
+  }
 }
 </style>
 
@@ -1580,15 +1562,10 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
   const availabilityTags = document.getElementById("availabilityTags");
   const availabilitySelect = document.getElementById("availabilitySelect");
   const availabilityOptionButtons = shell.querySelectorAll(".availability-option");
-  const aadharNumberInput = profileForm ? profileForm.querySelector('input[name="aadharNumber"]') : null;
-  const aadharImageInput = profileForm ? profileForm.querySelector('input[name="aadharImage"]') : null;
-  const hasExistingAadharImage = shell.getAttribute("data-has-aadhar-image") === "true";
-
-  const avatarMenuShell = document.getElementById("npAvatarMenuShell");
-  const avatarMenuTrigger = document.getElementById("npAvatarMenuTrigger");
-  const avatarMenu = document.getElementById("npAvatarMenu");
-  const avatarPhotoInput = document.getElementById("npProfilePhotoInput");
-  const avatarPhotoForm = document.getElementById("npProfilePhotoForm");
+  const assetForm = document.getElementById("npAssetsForm");
+  const assetProfileInput = document.getElementById("npProfileAssetInput");
+  const assetAadhaarInput = document.getElementById("npAadhaarAssetInput");
+  const assetTriggers = shell.querySelectorAll("[data-asset-trigger]");
   const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
   const shareContactPhone = <%- JSON.stringify(sharePhone) %>;
   const cardFileName = <%- JSON.stringify(`${String(profileSlug || fullName || "nurse-card").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nurse-card"}.png`) %>;
@@ -1806,30 +1783,6 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
     );
     updateAvailabilityUI();
   };
-  const normalizeAadharInput = () => {
-    if (!aadharNumberInput) return "";
-    const digits = String(aadharNumberInput.value || "").replace(/\D/g, "").slice(0, 12);
-    if (aadharNumberInput.value !== digits) {
-      aadharNumberInput.value = digits;
-    }
-    return digits;
-  };
-  const syncAadharImageRequirement = () => {
-    if (!aadharImageInput) return;
-    const aadharDigits = normalizeAadharInput();
-    const shouldRequire = shell.classList.contains("is-editing")
-      && aadharDigits.length === 12
-      && !hasExistingAadharImage;
-    aadharImageInput.required = shouldRequire;
-  };
-
-  const setAvatarMenuState = (isOpen) => {
-    if (!avatarMenuShell || !avatarMenuTrigger || !avatarMenu) return;
-    avatarMenuShell.classList.toggle("is-open", Boolean(isOpen));
-    avatarMenuTrigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    avatarMenu.setAttribute("aria-hidden", isOpen ? "false" : "true");
-  };
-
   const setIdCardModalState = (isOpen) => {
     if (!idCardModal) return;
     idCardModal.classList.toggle("is-open", Boolean(isOpen));
@@ -1907,7 +1860,6 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
       } else if (skillSearchInput) {
         skillSearchInput.value = "";
       }
-      syncAadharImageRequirement();
     });
   }
   if (viewIdCardButton) {
@@ -2012,54 +1964,30 @@ const safeCurrentPath = typeof currentPath === "string" ? currentPath : "";
 
     initializeSelectedAvailabilityFromSelect();
   }
-  if (aadharNumberInput) {
-    aadharNumberInput.addEventListener("input", syncAadharImageRequirement);
-  }
-  if (aadharImageInput) {
-    aadharImageInput.addEventListener("change", syncAadharImageRequirement);
-  }
   if (profileForm) {
     profileForm.addEventListener("submit", () => {
       if (skillSelect) updateHiddenSelect();
       if (availabilitySelect) syncAvailabilitySelect();
-      syncAadharImageRequirement();
     });
   }
 
-  if (avatarMenuShell && avatarMenuTrigger) {
-    avatarMenuTrigger.addEventListener("click", (event) => {
-      event.stopPropagation();
-      setAvatarMenuState(!avatarMenuShell.classList.contains("is-open"));
-    });
-
-    document.addEventListener("click", (event) => {
-      if (!avatarMenuShell.contains(event.target)) {
-        setAvatarMenuState(false);
-      }
-    });
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        setAvatarMenuState(false);
-      }
-    });
-  }
-
-  shell.querySelectorAll("[data-avatar-upload]").forEach((button) => {
+  assetTriggers.forEach((button) => {
     button.addEventListener("click", () => {
-      if (!avatarPhotoInput) return;
-      avatarPhotoInput.value = "";
-      avatarPhotoInput.click();
-      setAvatarMenuState(false);
+      const fieldName = String(button.getAttribute("data-asset-trigger") || "").trim();
+      const input = fieldName === "profileImage" ? assetProfileInput : (fieldName === "aadhaarDoc" ? assetAadhaarInput : null);
+      if (!(input instanceof HTMLInputElement)) return;
+      input.value = "";
+      input.click();
     });
   });
 
-  if (avatarPhotoInput && avatarPhotoForm) {
-    avatarPhotoInput.addEventListener("change", () => {
-      if (avatarPhotoInput.files && avatarPhotoInput.files.length > 0) {
-        avatarPhotoForm.submit();
+  [assetProfileInput, assetAadhaarInput].forEach((input) => {
+    if (!(input instanceof HTMLInputElement) || !assetForm) return;
+    input.addEventListener("change", () => {
+      if (input.files && input.files.length > 0) {
+        assetForm.submit();
       }
     });
-  }
+  });
 })();
 </script>

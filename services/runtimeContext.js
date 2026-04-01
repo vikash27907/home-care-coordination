@@ -1857,6 +1857,13 @@ async function getSessionUserPayload(user) {
     } catch (error) {
       console.error("Error loading nurse profile image for session:", error);
     }
+  } else if (user.role === "agent") {
+    try {
+      const agent = await getAgentRecordForUser(user.id);
+      profileImageUrl = normalizePublicImageUrl((agent && agent.profileImageUrl) || "/images/default-avatar.png");
+    } catch (error) {
+      console.error("Error loading agent profile image for session:", error);
+    }
   }
 
   return {
@@ -1955,6 +1962,9 @@ async function getAgentRecordForUser(userId) {
       companyName: row.company_name || "",
       workingRegion: row.working_region || row.region || "",
       region: row.working_region || row.region || "",
+      profileImageUrl: row.profile_image_url || "",
+      aadhaarDocUrl: row.aadhaar_doc_url || "",
+      aadhaarUrl: row.aadhaar_doc_url || "",
       uniqueId: row.unique_id || "",
       profileSlug: row.profile_slug || "",
       status: normalizeAgentStatusInput(row.status) || "pending",
@@ -2211,6 +2221,9 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   ).trim();
   const currentStatus = normalizeCurrentStatusInput(currentStatusInput);
   const hasEmail = Boolean(emailInput);
+  const isAgentManagedRegistration = Number.isInteger(agentLinkContext.agentUserId)
+    && agentLinkContext.agentUserId > 0;
+  const registrationApprovalStatus = isAgentManagedRegistration ? "Approved" : "Pending";
   const requiresOtpVerification = !creatorAgentEmail
     && hasEmail
     && typeof generatedOtp === "string"
@@ -2294,7 +2307,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     phoneNumber: normalizedPhone,
     passwordHash: bcrypt.hashSync(password, 10),
     role: "nurse",
-    status: "Pending",
+    status: registrationApprovalStatus,
     createdAt: now(),
     emailVerified: false,
     otpCode: requiresOtpVerification ? generatedOtp : "",
@@ -2319,8 +2332,10 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     city,
     gender,
     currentStatus: currentStatus || "Available for Work",
-    claimedByNurse: creatorAgentEmail ? false : true,
-    status: "Pending",
+    claimedByNurse: isAgentManagedRegistration ? false : true,
+    status: registrationApprovalStatus,
+    profileStatus: isAgentManagedRegistration ? "approved" : "draft",
+    publicProfileEnabled: isAgentManagedRegistration,
     profileImagePath: defaultAvatar,
     createdAt: now()
   };

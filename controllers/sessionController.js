@@ -194,6 +194,88 @@ function createSessionController() {
     validateServiceSchedule,
   } = runtime;
 
+const AGENT_UPLOAD_DIR = path.join(UPLOAD_DIR, "agents");
+const AGENT_PROFILE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const AGENT_DOCUMENT_MAX_BYTES = 4 * 1024 * 1024;
+const AGENT_PROFILE_IMAGE_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const AGENT_PROFILE_IMAGE_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const AGENT_DOCUMENT_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf"]);
+const AGENT_DOCUMENT_ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp"
+]);
+
+fs.mkdirSync(AGENT_UPLOAD_DIR, { recursive: true });
+
+const agentProfileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, AGENT_UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const extension = path.extname(String(file.originalname || "")).toLowerCase();
+    const prefix = file.fieldname === "profileImage" ? "agent-profile" : "agent-aadhaar";
+    cb(null, `${prefix}-${uniqueSuffix}${extension}`);
+  }
+});
+
+const agentProfileUpload = multer({
+  storage: agentProfileStorage,
+  limits: { fileSize: AGENT_DOCUMENT_MAX_BYTES },
+  fileFilter: (req, file, cb) => {
+    const extension = path.extname(String(file.originalname || "")).toLowerCase();
+    const mimetype = String(file.mimetype || "").toLowerCase();
+
+    if (file.fieldname === "profileImage") {
+      if (
+        AGENT_PROFILE_IMAGE_ALLOWED_EXTENSIONS.has(extension)
+        && AGENT_PROFILE_IMAGE_ALLOWED_MIME_TYPES.has(mimetype)
+      ) {
+        return cb(null, true);
+      }
+      return cb(new Error("Profile image must be JPG, PNG, or WEBP."));
+    }
+
+    if (file.fieldname === "aadhaarDoc") {
+      if (
+        AGENT_DOCUMENT_ALLOWED_EXTENSIONS.has(extension)
+        && AGENT_DOCUMENT_ALLOWED_MIME_TYPES.has(mimetype)
+      ) {
+        return cb(null, true);
+      }
+      return cb(new Error("Aadhaar document must be JPG, PNG, WEBP, or PDF."));
+    }
+
+    return cb(new Error("Unsupported upload field."));
+  }
+}).fields([
+  { name: "profileImage", maxCount: 1 },
+  { name: "aadhaarDoc", maxCount: 1 }
+]);
+
+function agentProfileUploadMiddleware(req, res, next) {
+  agentProfileUpload(req, res, async (error) => {
+    if (!error) {
+      const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
+      if (profileImageFile && Number(profileImageFile.size || 0) > AGENT_PROFILE_IMAGE_MAX_BYTES) {
+        await deleteLocalAsset(`/uploads/agents/${profileImageFile.filename}`);
+        setFlash(req, "error", "Profile image must be 2MB or smaller.");
+        return res.redirect("/agent/profile");
+      }
+      return next();
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      setFlash(req, "error", "Uploaded file is too large. Aadhaar document must be 4MB or smaller.");
+      return res.redirect("/agent/profile");
+    }
+
+    setFlash(req, "error", error.message || "Unable to upload the selected files right now.");
+    return res.redirect("/agent/profile");
+  });
+}
+
 router.get(["/agent-registration", "/agent/register"], (req, res) => {
   if (req.currentUser) {
     if (req.currentUser.role === "agent") {
@@ -545,26 +627,37 @@ router.get("/agent/profile", requireRole("agent"), loadAgentProfile, (req, res) 
     });
 });
 
-router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, async (req, res) => {
+router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, agentProfileUploadMiddleware, async (req, res) => {
   const fullName = String(req.body.fullName || "").trim();
   const emailInput = String(req.body.email || "").trim();
   const phoneInput = String(req.body.phoneNumber || "").trim();
   const companyName = String(req.body.companyName || "").trim();
   const workingRegion = String(req.body.workingRegion || "").trim();
+  const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
+  const aadhaarDocFile = req.files && req.files.aadhaarDoc ? req.files.aadhaarDoc[0] : null;
+  const nextProfileImageUrl = profileImageFile ? `/uploads/agents/${profileImageFile.filename}` : "";
+  const nextAadhaarDocUrl = aadhaarDocFile ? `/uploads/agents/${aadhaarDocFile.filename}` : "";
+  const previousProfileImageUrl = String(req.agentRecord.profileImageUrl || "").trim();
+  const previousAadhaarDocUrl = String(req.agentRecord.aadhaarDocUrl || req.agentRecord.aadhaarUrl || "").trim();
+  const uploadedAssetUrls = [nextProfileImageUrl, nextAadhaarDocUrl].filter(Boolean);
+  let hasPersistedProfileChanges = false;
 
   if (!fullName || !emailInput || !phoneInput || !workingRegion) {
+    await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
     setFlash(req, "error", "Please complete all required profile fields.");
     return res.redirect("/agent/profile");
   }
 
   const emailValidation = validateEmail(emailInput);
   if (!emailValidation.valid) {
+    await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
     setFlash(req, "error", emailValidation.error);
     return res.redirect("/agent/profile");
   }
 
   const phoneValidation = validateIndiaPhone(phoneInput);
   if (!phoneValidation.valid) {
+    await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
     setFlash(req, "error", phoneValidation.error);
     return res.redirect("/agent/profile");
   }
@@ -587,6 +680,7 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, asy
       [normalizedEmailInput, req.currentUser.id]
     );
     if (duplicateEmailResult.rowCount > 0) {
+      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
       setFlash(req, "error", "That email address is already in use.");
       return res.redirect("/agent/profile");
     }
@@ -605,8 +699,25 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, asy
       [normalizedPhoneInput, req.currentUser.id]
     );
     if (duplicatePhoneResult.rowCount > 0) {
+      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
       setFlash(req, "error", "That phone number is already in use.");
       return res.redirect("/agent/profile");
+    }
+
+    const agentUpdates = {
+      fullName,
+      email: normalizedEmailInput,
+      phoneNumber: normalizedPhoneInput,
+      companyName,
+      workingRegion
+    };
+
+    if (nextProfileImageUrl) {
+      agentUpdates.profileImageUrl = nextProfileImageUrl;
+    }
+
+    if (nextAadhaarDocUrl) {
+      agentUpdates.aadhaarDocUrl = nextAadhaarDocUrl;
     }
 
     const [updatedUser, updatedAgent] = await Promise.all([
@@ -614,24 +725,31 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, asy
         email: normalizedEmailInput,
         phoneNumber: normalizedPhoneInput
       }),
-      updateAgent(req.agentRecord.id, {
-        fullName,
-        email: normalizedEmailInput,
-        phoneNumber: normalizedPhoneInput,
-        companyName,
-        workingRegion
-      })
+      updateAgent(req.agentRecord.id, agentUpdates)
     ]);
 
     if (!updatedUser || !updatedAgent) {
       throw new Error("Unable to save your profile right now.");
     }
+    hasPersistedProfileChanges = true;
+
+    await Promise.all([
+      nextProfileImageUrl && previousProfileImageUrl && previousProfileImageUrl !== nextProfileImageUrl
+        ? deleteLocalAsset(previousProfileImageUrl)
+        : Promise.resolve(),
+      nextAadhaarDocUrl && previousAadhaarDocUrl && previousAadhaarDocUrl !== nextAadhaarDocUrl
+        ? deleteLocalAsset(previousAadhaarDocUrl)
+        : Promise.resolve()
+    ]);
 
     const refreshedUser = await getUserById(req.currentUser.id);
     req.session.user = await getSessionUserPayload(refreshedUser);
     setFlash(req, "success", "Profile updated successfully.");
     return res.redirect("/agent/profile");
   } catch (error) {
+    if (!hasPersistedProfileChanges) {
+      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+    }
     console.error("Agent profile update error:", error);
     setFlash(req, "error", error.message || "Unable to save your profile right now.");
     return res.redirect("/agent/profile");

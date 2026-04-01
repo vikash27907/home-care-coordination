@@ -79,6 +79,9 @@ const AGENT_UPDATE_FIELD_MAP = {
   companyName: 'company_name',
   workingRegion: 'working_region',
   region: 'working_region',
+  profileImageUrl: 'profile_image_url',
+  aadhaarDocUrl: 'aadhaar_doc_url',
+  aadhaarUrl: 'aadhaar_doc_url',
   status: 'status',
   createdByAgentEmail: 'created_by_agent_email',
   uniqueId: 'unique_id',
@@ -128,6 +131,20 @@ function normalizeAgentStatus(value) {
 function normalizeNurseStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return NURSE_ALLOWED_STATUS_LABELS[normalized] || 'Pending';
+}
+
+function normalizeNurseProfileStatus(value, fallbackStatus = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'approved' || normalized === 'rejected' || normalized === 'pending' || normalized === 'draft') {
+    return normalized;
+  }
+
+  const fallback = String(fallbackStatus || '').trim().toLowerCase();
+  if (fallback === 'approved' || fallback === 'rejected') {
+    return fallback;
+  }
+
+  return 'draft';
 }
 
 function normalizeOptionalEmail(value) {
@@ -401,6 +418,9 @@ function transformAgentFromDB(row) {
     companyName: row.company_name || '',
     workingRegion: row.working_region || row.region || '',
     region: row.working_region || row.region || '',
+    profileImageUrl: row.profile_image_url || '',
+    aadhaarDocUrl: row.aadhaar_doc_url || '',
+    aadhaarUrl: row.aadhaar_doc_url || '',
     uniqueId: row.unique_id || '',
     profileSlug: row.profile_slug || '',
     userIsDeleted: row.user_is_deleted === true,
@@ -806,33 +826,34 @@ async function createNurse(nurse) {
     const profileSlug = nurse.profileSlug || generateSlug(nurse.fullName, uniqueId);
     const publicProfileEnabled = nurse.publicProfileEnabled === true;
     const normalizedStatus = normalizeNurseStatus(nurse.status);
+    const normalizedProfileStatus = normalizeNurseProfileStatus(nurse.profileStatus, normalizedStatus);
     const hasExplicitId = Number.isInteger(nurse.id);
     const result = hasExplicitId
       ? await pool.query(`
           INSERT INTO nurses (
             id, user_id, full_name, city, gender, status, profile_image_path,
-            current_status, unique_id, profile_slug, public_profile_enabled, claimed_by_nurse, created_at
+            current_status, unique_id, profile_slug, profile_status, public_profile_enabled, claimed_by_nurse, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING *
         `, [
           nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
           normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
-          nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
+          nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, normalizedProfileStatus, publicProfileEnabled,
           nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
         ])
       : await pool.query(`
           INSERT INTO nurses (
             user_id, full_name, city, gender, status, profile_image_path,
-            current_status, unique_id, profile_slug, public_profile_enabled, claimed_by_nurse, created_at
+            current_status, unique_id, profile_slug, profile_status, public_profile_enabled, claimed_by_nurse, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           RETURNING *
         `, [
           nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
           normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
-          nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, publicProfileEnabled,
+          nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, normalizedProfileStatus, publicProfileEnabled,
           nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
         ]);

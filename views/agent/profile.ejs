@@ -1,4 +1,12 @@
 <%- include("../partials/head", { title, extraStylesheets: ["/css/agent-profile.css"] }) %>
+<%
+  const agentProfileImage = (agent && agent.profileImageUrl)
+    || (session && session.user && session.user.profileImageUrl)
+    || "/images/default-avatar.png";
+  const agentAadhaarDoc = String((agent && (agent.aadhaarDocUrl || agent.aadhaarUrl)) || "").trim();
+  const agentAadhaarDocIsImage = /\.(png|jpe?g|webp)(\?.*)?$/i.test(agentAadhaarDoc);
+  const agentAadhaarDocIsPdf = /\.pdf(\?.*)?$/i.test(agentAadhaarDoc);
+%>
 
 <section class="agent-profile" data-agent-profile>
   <div class="cover" data-reveal>
@@ -7,7 +15,7 @@
 
   <div class="profile-header" data-reveal>
     <div class="avatar">
-      <img src="<%= (session && session.user && session.user.profileImageUrl) ? session.user.profileImageUrl : '/images/default-avatar.png' %>" alt="Agent avatar" />
+      <img src="<%= agentProfileImage %>" alt="Agent avatar" data-agent-avatar />
     </div>
 
     <div class="profile-info">
@@ -46,7 +54,7 @@
     </div>
   </div>
 
-  <form class="agent-profile-form profile-section" method="POST" action="/agent/profile/update" id="agentProfileForm" data-reveal>
+  <form class="agent-profile-form profile-section" method="POST" action="/agent/profile/update" id="agentProfileForm" data-reveal enctype="multipart/form-data">
     <div class="agent-profile-form__header">
       <div>
         <h2>Profile Details</h2>
@@ -56,6 +64,114 @@
         <span class="agent-mini-stat">Pending Nurses: <strong><%= stats && typeof stats.pendingNurses !== "undefined" ? stats.pendingNurses : 0 %></strong></span>
         <span class="agent-mini-stat">Rejected Nurses: <strong><%= stats && typeof stats.rejectedNurses !== "undefined" ? stats.rejectedNurses : 0 %></strong></span>
       </div>
+    </div>
+
+    <div class="agent-upload-grid agent-profile-form__span-2">
+      <section class="agent-upload-card">
+        <div class="agent-upload-card__copy">
+          <p class="agent-upload-card__eyebrow">Profile Image</p>
+          <h3>Photo shown across your account</h3>
+          <p>Upload a clear square image. JPG, PNG, or WEBP up to 2MB.</p>
+        </div>
+
+        <div
+          class="agent-upload-preview agent-upload-preview--avatar"
+          data-preview-shell="profileImage"
+          data-preview-type="image"
+          data-initial-src="<%= agentProfileImage %>"
+        >
+          <img
+            src="<%= agentProfileImage %>"
+            alt="Agent profile preview"
+            class="agent-upload-preview__image"
+            data-preview-image="profileImage"
+            data-agent-avatar
+          />
+        </div>
+
+        <div class="agent-upload-card__actions">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            data-file-trigger="profileImageInput"
+          >
+            <%= agent && agent.profileImageUrl ? "Change Image" : "Upload Image" %>
+          </button>
+          <span class="agent-upload-card__status" data-file-name="profileImage">
+            <%= agent && agent.profileImageUrl ? "Current image uploaded." : "No profile image uploaded yet." %>
+          </span>
+        </div>
+
+        <input
+          id="profileImageInput"
+          type="file"
+          name="profileImage"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          data-file-input="profileImage"
+        />
+      </section>
+
+      <section class="agent-upload-card">
+        <div class="agent-upload-card__copy">
+          <p class="agent-upload-card__eyebrow">Aadhaar / Document</p>
+          <h3>Identity document preview and replacement</h3>
+          <p>Upload JPG, PNG, WEBP, or PDF up to 4MB. Existing file stays visible until you replace it.</p>
+        </div>
+
+        <div
+          class="agent-upload-preview agent-upload-preview--document"
+          data-preview-shell="aadhaarDoc"
+          data-preview-type="<%= agentAadhaarDocIsPdf ? 'pdf' : (agentAadhaarDocIsImage ? 'image' : 'empty') %>"
+          data-initial-src="<%= agentAadhaarDoc %>"
+        >
+          <% if (agentAadhaarDoc && agentAadhaarDocIsImage) { %>
+            <img
+              src="<%= agentAadhaarDoc %>"
+              alt="Uploaded Aadhaar document"
+              class="agent-upload-preview__image agent-upload-preview__image--document"
+              data-preview-image="aadhaarDoc"
+            />
+          <% } else if (agentAadhaarDoc && agentAadhaarDocIsPdf) { %>
+            <iframe
+              src="<%= agentAadhaarDoc %>"
+              title="Uploaded Aadhaar document preview"
+              class="agent-upload-preview__frame"
+              data-preview-frame="aadhaarDoc"
+            ></iframe>
+          <% } else { %>
+            <div class="agent-upload-preview__empty" data-preview-empty="aadhaarDoc">
+              <strong>No document uploaded</strong>
+              <span>Your Aadhaar or ID file preview will appear here.</span>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="agent-upload-card__actions">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            data-file-trigger="aadhaarDocInput"
+          >
+            <%= agentAadhaarDoc ? "Edit Document" : "Upload Document" %>
+          </button>
+          <% if (agentAadhaarDoc) { %>
+            <a class="btn btn-secondary" href="<%= agentAadhaarDoc %>" target="_blank" rel="noopener noreferrer">View Current</a>
+          <% } %>
+          <span class="agent-upload-card__status" data-file-name="aadhaarDoc">
+            <%= agentAadhaarDoc ? "Current document uploaded." : "No document uploaded yet." %>
+          </span>
+        </div>
+
+        <input
+          id="aadhaarDocInput"
+          type="file"
+          name="aadhaarDoc"
+          accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
+          hidden
+          data-file-input="aadhaarDoc"
+        />
+      </section>
     </div>
 
     <div class="agent-profile-form__grid">

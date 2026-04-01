@@ -191,6 +191,75 @@ async function initializeDatabase() {
     `);
 
     await pool.query(`
+      UPDATE nurses
+      SET unique_id = CONCAT('PHCN-', LPAD(id::text, 3, '0'))
+      WHERE NULLIF(BTRIM(COALESCE(unique_id, '')), '') IS NULL
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET profile_slug = CONCAT(
+        COALESCE(
+          NULLIF(
+            BTRIM(
+              REGEXP_REPLACE(
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(LOWER(COALESCE(full_name, '')), '\\s+', '-', 'g'),
+                  '[^a-z0-9-]', '', 'g'
+                ),
+                '-+', '-', 'g'
+              ),
+              '-'
+            ),
+            ''
+          ),
+          'profile'
+        ),
+        '-',
+        LOWER(unique_id)
+      )
+      WHERE NULLIF(BTRIM(COALESCE(profile_slug, '')), '') IS NULL
+    `);
+
+    await pool.query(`
+      UPDATE users u
+      SET status = 'Approved'
+      FROM nurses n
+      WHERE n.user_id = u.id
+        AND (
+          NULLIF(BTRIM(COALESCE(n.agent_email, '')), '') IS NOT NULL
+          OR EXISTS (
+            SELECT 1
+            FROM unnest(COALESCE(n.agent_emails, ARRAY[]::TEXT[])) AS assigned(agent_email)
+            WHERE NULLIF(BTRIM(COALESCE(assigned.agent_email, '')), '') IS NOT NULL
+          )
+        )
+        AND LOWER(COALESCE(u.status, 'pending')) <> 'approved'
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET status = 'Approved',
+          profile_status = 'approved',
+          public_profile_enabled = TRUE,
+          is_verified = TRUE
+      WHERE (
+          NULLIF(BTRIM(COALESCE(agent_email, '')), '') IS NOT NULL
+          OR EXISTS (
+            SELECT 1
+            FROM unnest(COALESCE(agent_emails, ARRAY[]::TEXT[])) AS assigned(agent_email)
+            WHERE NULLIF(BTRIM(COALESCE(assigned.agent_email, '')), '') IS NOT NULL
+          )
+        )
+        AND (
+          LOWER(COALESCE(status, 'pending')) <> 'approved'
+          OR LOWER(COALESCE(profile_status, '')) <> 'approved'
+          OR public_profile_enabled IS DISTINCT FROM TRUE
+          OR COALESCE(is_verified, FALSE) = FALSE
+        )
+    `);
+
+    await pool.query(`
       UPDATE nurses n
       SET claimed_by_nurse = TRUE
       FROM users u
@@ -247,6 +316,8 @@ async function initializeDatabase() {
         phone_number VARCHAR(15),
         company_name VARCHAR(255),
         working_region VARCHAR(100),
+        profile_image_url TEXT,
+        aadhaar_doc_url TEXT,
         status VARCHAR(20) DEFAULT 'pending',
         created_by_agent_email VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -277,6 +348,8 @@ async function initializeDatabase() {
     await pool.query(`
       ALTER TABLE agents
       ADD COLUMN IF NOT EXISTS working_region VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS profile_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS aadhaar_doc_url TEXT,
       ADD COLUMN IF NOT EXISTS unique_id VARCHAR(20),
       ADD COLUMN IF NOT EXISTS profile_slug TEXT
     `);
@@ -306,36 +379,28 @@ async function initializeDatabase() {
     await pool.query(`
       DO $$
       BEGIN
-        IF EXISTS (
+        IF NOT EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'agent_nurse_roster_agent_id_fkey'
             AND conrelid = 'agent_nurse_roster'::regclass
         ) THEN
-          ALTER TABLE agent_nurse_roster DROP CONSTRAINT agent_nurse_roster_agent_id_fkey;
+          ALTER TABLE agent_nurse_roster
+          ADD CONSTRAINT agent_nurse_roster_agent_id_fkey
+          FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE CASCADE;
         END IF;
 
-        IF EXISTS (
+        IF NOT EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'agent_nurse_roster_nurse_id_fkey'
             AND conrelid = 'agent_nurse_roster'::regclass
         ) THEN
-          ALTER TABLE agent_nurse_roster DROP CONSTRAINT agent_nurse_roster_nurse_id_fkey;
+          ALTER TABLE agent_nurse_roster
+          ADD CONSTRAINT agent_nurse_roster_nurse_id_fkey
+          FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE CASCADE;
         END IF;
       END $$;
-    `);
-
-    await pool.query(`
-      ALTER TABLE agent_nurse_roster
-      ADD CONSTRAINT agent_nurse_roster_agent_id_fkey
-      FOREIGN KEY (agent_id) REFERENCES users(id) ON DELETE CASCADE
-    `);
-
-    await pool.query(`
-      ALTER TABLE agent_nurse_roster
-      ADD CONSTRAINT agent_nurse_roster_nurse_id_fkey
-      FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE CASCADE
     `);
 
     await pool.query(`

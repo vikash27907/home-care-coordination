@@ -131,6 +131,111 @@
   gap: 0.65rem;
 }
 
+.agent-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.agent-upload-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(191, 209, 226, 0.8);
+  background: linear-gradient(180deg, #fcfeff, #f2f8fd);
+}
+
+.agent-upload-card__copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.agent-upload-card__copy h3 {
+  margin: 0;
+  color: #14334d;
+  font-size: 1.05rem;
+}
+
+.agent-upload-card__copy p:last-child {
+  margin: 0;
+  color: #5b748b;
+}
+
+.agent-upload-card__eyebrow {
+  margin: 0;
+  color: #0f5d9b;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.agent-upload-preview {
+  overflow: hidden;
+  border-radius: 20px;
+  background: #eaf2fa;
+  border: 1px solid rgba(191, 209, 226, 0.9);
+}
+
+.agent-upload-preview--avatar {
+  width: min(220px, 100%);
+  aspect-ratio: 1;
+}
+
+.agent-upload-preview--document {
+  min-height: 220px;
+}
+
+.agent-upload-preview__image,
+.agent-upload-preview__frame {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+
+.agent-upload-preview__image {
+  object-fit: cover;
+}
+
+.agent-upload-preview__image--document {
+  min-height: 220px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.agent-upload-preview__frame {
+  min-height: 280px;
+  background: #fff;
+}
+
+.agent-upload-preview__empty {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  text-align: center;
+  color: #54708a;
+}
+
+.agent-upload-preview__empty strong {
+  color: #14334d;
+}
+
+.agent-upload-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.agent-upload-card__status {
+  color: #54708a;
+  font-size: 0.92rem;
+}
+
 .agent-mini-stat {
   padding: 0.5rem 0.75rem;
   border-radius: 999px;
@@ -253,7 +358,8 @@
 @media (max-width: 900px) {
   .stats,
   .quick-actions__grid,
-  .agent-profile-form__grid {
+  .agent-profile-form__grid,
+  .agent-upload-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -271,8 +377,14 @@
   }
 
   .profile-actions .btn,
-  .agent-profile-form__actions .btn {
+  .agent-profile-form__actions .btn,
+  .agent-upload-card__actions .btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .agent-upload-preview--avatar {
+    width: 100%;
+    max-width: 240px;
   }
 }
