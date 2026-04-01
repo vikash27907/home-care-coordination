@@ -176,6 +176,9 @@ const qualificationDocuments = qualificationDetails.filter((item) => item.certif
 function isPreviewableImage(url) {
   return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i.test(String(url || "").trim());
 }
+function isPdfDocument(url) {
+  return /\.pdf(\?.*)?$/i.test(String(url || "").trim());
+}
 function maskAadhar(value) {
   if (!value || value.length < 4) return "XXXX-XXXX-XXXX";
   return "XXXX-XXXX-" + value.slice(-4);
@@ -477,12 +480,17 @@ const unifiedAssetsRedirectTo = String(
               <% if (hasAadhaarFront) { %>
                 <a
                   class="np-doc-link"
-                  href="<%= aadhaarFrontUrl %>"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="<%= isPreviewableImage(aadhaarFrontUrl) || isPdfDocument(aadhaarFrontUrl) ? 'javascript:void(0)' : aadhaarFrontUrl %>"
+                  <% if (!(isPreviewableImage(aadhaarFrontUrl) || isPdfDocument(aadhaarFrontUrl))) { %>
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  <% } %>
                   <% if (isPreviewableImage(aadhaarFrontUrl)) { %>
                     data-preview-image="<%= aadhaarFrontUrl %>"
                     data-preview-label="Aadhaar front"
+                  <% } %>
+                  <% if (isPreviewableImage(aadhaarFrontUrl) || isPdfDocument(aadhaarFrontUrl)) { %>
+                    onclick='return openImagePreview(<%- JSON.stringify(aadhaarFrontUrl) %>, "Aadhaar front")'
                   <% } %>
                 >View</a>
               <% } %>
@@ -503,12 +511,17 @@ const unifiedAssetsRedirectTo = String(
               <% if (hasAadhaarBack) { %>
                 <a
                   class="np-doc-link"
-                  href="<%= aadhaarBackUrl %>"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="<%= isPreviewableImage(aadhaarBackUrl) || isPdfDocument(aadhaarBackUrl) ? 'javascript:void(0)' : aadhaarBackUrl %>"
+                  <% if (!(isPreviewableImage(aadhaarBackUrl) || isPdfDocument(aadhaarBackUrl))) { %>
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  <% } %>
                   <% if (isPreviewableImage(aadhaarBackUrl)) { %>
                     data-preview-image="<%= aadhaarBackUrl %>"
                     data-preview-label="Aadhaar back"
+                  <% } %>
+                  <% if (isPreviewableImage(aadhaarBackUrl) || isPdfDocument(aadhaarBackUrl)) { %>
+                    onclick='return openImagePreview(<%- JSON.stringify(aadhaarBackUrl) %>, "Aadhaar back")'
                   <% } %>
                 >View</a>
               <% } %>
@@ -721,12 +734,17 @@ const unifiedAssetsRedirectTo = String(
                   <% if (item.certificateUrl) { %>
                     <a
                       class="np-doc-link"
-                      href="<%= item.certificateUrl %>"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href="<%= isPreviewableImage(item.certificateUrl) || isPdfDocument(item.certificateUrl) ? 'javascript:void(0)' : item.certificateUrl %>"
+                      <% if (!(isPreviewableImage(item.certificateUrl) || isPdfDocument(item.certificateUrl))) { %>
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      <% } %>
                       <% if (isPreviewableImage(item.certificateUrl)) { %>
                         data-preview-image="<%= item.certificateUrl %>"
                         data-preview-label="<%= item.name %> certificate"
+                      <% } %>
+                      <% if (isPreviewableImage(item.certificateUrl) || isPdfDocument(item.certificateUrl)) { %>
+                        onclick='return openImagePreview(<%- JSON.stringify(item.certificateUrl) %>, <%- JSON.stringify(`${item.name} certificate`) %>)'
                       <% } %>
                     >View Document</a>
                   <% } %>

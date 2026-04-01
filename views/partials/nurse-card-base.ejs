@@ -92,6 +92,9 @@ const filledStars = ratingAverage > 0 ? Math.max(1, Math.min(5, Math.round(ratin
 function isPreviewableImage(url) {
   return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i.test(String(url || "").trim());
 }
+function isPdfDocument(url) {
+  return /\.pdf(\?.*)?$/i.test(String(url || "").trim());
+}
 
 function icon(name, className) {
   const cls = className ? ` class="${className}"` : "";
@@ -339,12 +342,17 @@ function skillIconName(skill) {
           : (item.key === "medical-fit" ? "medical" : "certificate"); %>
         <a
           class="nurse-card-base__document is-available"
-          href="<%= item.href %>"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="<%= isPreviewableImage(item.href) || isPdfDocument(item.href) ? 'javascript:void(0)' : item.href %>"
+          <% if (!(isPreviewableImage(item.href) || isPdfDocument(item.href))) { %>
+            target="_blank"
+            rel="noopener noreferrer"
+          <% } %>
           <% if (isPreviewableImage(item.href)) { %>
             data-preview-image="<%= item.href %>"
             data-preview-label="<%= item.label %>"
+          <% } %>
+          <% if (isPreviewableImage(item.href) || isPdfDocument(item.href)) { %>
+            onclick='return openImagePreview(<%- JSON.stringify(item.href) %>, <%- JSON.stringify(item.label) %>)'
           <% } %>
         >
           <span class="nurse-card-base__document-copy">

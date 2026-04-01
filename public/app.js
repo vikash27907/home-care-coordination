@@ -445,6 +445,7 @@ function setupImagePreviewModal() {
   }
 
   const imagePattern = /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i;
+  const pdfPattern = /\.pdf(\?.*)?$/i;
   const isPreviewableImage = (src) => {
     const value = String(src || "").trim();
     return value.startsWith("data:image/") || imagePattern.test(value);
@@ -452,6 +453,10 @@ function setupImagePreviewModal() {
 
   window.openImagePreview = (src, label = "Preview") => {
     const nextSrc = String(src || "").trim();
+    if (pdfPattern.test(nextSrc)) {
+      window.open(nextSrc, "_blank", "noopener,noreferrer");
+      return true;
+    }
     if (!isPreviewableImage(nextSrc)) {
       return false;
     }
