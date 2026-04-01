@@ -39,7 +39,7 @@ const { normalizePhone: normalizePhoneValue } = require("../utils/phone");
 const fs = require("fs");
 
 const COMPANY_PHONE = "9138913355";
-const COMPANY_EMAIL = "info@prishahomecare.com";
+const COMPANY_EMAIL = "prishahomecare@gmail.com";
 
 // ============================================================
 // RATE LIMITING
@@ -1329,6 +1329,31 @@ function buildAgentDashboardNurse(row) {
 
 function buildPublicNurseProfileView(nurse) {
   const qualifications = Array.isArray(nurse.qualifications) ? nurse.qualifications : [];
+  const qualificationDocuments = qualifications
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+
+      const name = String(item.name || "").trim();
+      const href = String(
+        item.certificate_url
+        || item.certificateUrl
+        || item.document_url
+        || item.documentUrl
+        || item.file_url
+        || item.fileUrl
+        || ""
+      ).trim();
+
+      if (!name || !href) return null;
+
+      return {
+        key: `qualification-${index}`,
+        label: name,
+        href,
+        available: true
+      };
+    })
+    .filter(Boolean);
   const qualificationNames = qualifications
     .map((item) => (item && typeof item === "object" ? item.name : item))
     .map((item) => String(item || "").trim())
@@ -1344,22 +1369,67 @@ function buildPublicNurseProfileView(nurse) {
     || "Available"
   ).trim();
   const qualificationPrimary = qualificationNames[0] || "Nursing";
-  const hasAadhaar = Boolean(
-    nurse.aadharImageUrl
-    || nurse.aadhar_image_url
-    || nurse.aadhaarFrontUrl
+  const aadhaarFrontUrl = String(
+    nurse.aadhaarFrontUrl
     || nurse.aadharFrontUrl
     || nurse.aadhaar_front_url
     || nurse.aadhar_front_url
-    || nurse.aadhaarBackUrl
+    || nurse.aadharImageUrl
+    || nurse.aadhar_image_url
+    || nurse.aadhaarImageUrl
+    || nurse.aadhaar_image_url
+    || nurse.aadhaarCardUrl
+    || nurse.aadhaar_card_url
+    || ""
+  ).trim();
+  const aadhaarBackUrl = String(
+    nurse.aadhaarBackUrl
     || nurse.aadharBackUrl
     || nurse.aadhaar_back_url
     || nurse.aadhar_back_url
-    || nurse.aadhaarCardUrl
-    || nurse.aadhaar_card_url
-  );
-  const hasCertificate = qualifications.some((item) => item && typeof item === "object" && item.certificate_url);
+    || ""
+  ).trim();
+  const legacyCertificateUrl = String(nurse.certificateUrl || nurse.certificate_url || "").trim();
   const medicalFitUrl = String(nurse.medicalFitUrl || nurse.medical_fit_url || "").trim();
+  const documents = [];
+
+  if (aadhaarFrontUrl) {
+    documents.push({
+      key: "aadhaar-front",
+      label: "Aadhaar (Front)",
+      href: aadhaarFrontUrl,
+      available: true
+    });
+  }
+
+  if (aadhaarBackUrl) {
+    documents.push({
+      key: "aadhaar-back",
+      label: "Aadhaar (Back)",
+      href: aadhaarBackUrl,
+      available: true
+    });
+  }
+
+  documents.push(...qualificationDocuments);
+
+  if (legacyCertificateUrl && !documents.some((item) => item.href === legacyCertificateUrl)) {
+    documents.push({
+      key: "certificate",
+      label: qualificationDocuments.length ? "Additional Certificate" : "Certificate",
+      href: legacyCertificateUrl,
+      available: true
+    });
+  }
+
+  if (medicalFitUrl) {
+    documents.push({
+      key: "medical-fit",
+      label: "Medical Fit",
+      href: medicalFitUrl,
+      available: true
+    });
+  }
 
   return {
     id: nurse.id,
@@ -1389,57 +1459,14 @@ function buildPublicNurseProfileView(nurse) {
       : null,
     languages,
     skills,
-    aadhaarCardUrl: String(
-      nurse.aadhaarCardUrl
-      || nurse.aadhaarFrontUrl
-      || nurse.aadharFrontUrl
-      || nurse.aadhaar_front_url
-      || nurse.aadhar_front_url
-      || nurse.aadharImageUrl
-      || nurse.aadhar_image_url
-      || nurse.aadhaarBackUrl
-      || nurse.aadharBackUrl
-      || nurse.aadhaar_back_url
-      || nurse.aadhar_back_url
-      || nurse.aadhaar_card_url
-      || ""
-    ).trim(),
-    certificateUrl: String(nurse.certificateUrl || nurse.certificate_url || "").trim(),
+    aadhaarCardUrl: aadhaarFrontUrl,
+    aadhaarFrontUrl,
+    aadhaarBackUrl,
+    certificateUrl: qualificationDocuments.length
+      ? qualificationDocuments[0].href
+      : legacyCertificateUrl,
     medicalFitUrl,
-    documents: [
-      {
-        key: "aadhaar",
-        label: "Aadhaar Card",
-        href: String(
-          nurse.aadhaarCardUrl
-          || nurse.aadhaarFrontUrl
-          || nurse.aadharFrontUrl
-          || nurse.aadhaar_front_url
-          || nurse.aadhar_front_url
-          || nurse.aadharImageUrl
-          || nurse.aadhar_image_url
-          || nurse.aadhaarBackUrl
-          || nurse.aadharBackUrl
-          || nurse.aadhaar_back_url
-          || nurse.aadhar_back_url
-          || nurse.aadhaar_card_url
-          || ""
-        ).trim(),
-        available: hasAadhaar
-      },
-      {
-        key: "certificate",
-        label: "Certificate",
-        href: String(nurse.certificateUrl || nurse.certificate_url || "").trim(),
-        available: hasCertificate || Boolean(nurse.certificateUrl || nurse.certificate_url)
-      },
-      {
-        key: "medical-fit",
-        label: "Medical Fit",
-        href: medicalFitUrl,
-        available: Boolean(medicalFitUrl)
-      }
-    ]
+    documents
   };
 }
 

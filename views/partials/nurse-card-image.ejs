@@ -46,7 +46,7 @@ const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").tr
   || `PHCN-${String(nurseId || "000").padStart(3, "0")}`;
 const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
 const cardPhone = String(contactInfo.downloadPhone || contactInfo.displayPhone || contactInfo.phone || "9138913355").trim() || "9138913355";
-const cardEmail = String(contactInfo.displayEmail || contactInfo.email || "info@prishahomecare.com").trim() || "info@prishahomecare.com";
+const cardEmail = String(contactInfo.displayEmail || contactInfo.email || "prishahomecare@gmail.com").trim() || "prishahomecare@gmail.com";
 const canOpenProfile = Boolean(profileUrl);
 const showQrCode = canOpenProfile && nurseId > 0;
 const downloadFileName = `${String(profileSlug || nurseName || "nurse-card")

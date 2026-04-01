@@ -158,6 +158,10 @@ const aadhaarPrimaryUrl = String(
     || nurse.aadhar_back_url
   )) || ""
 ).trim();
+const hasAadhaarFront = Boolean(aadhaarFrontUrl);
+const hasAadhaarBack = Boolean(aadhaarBackUrl);
+const hasAnyAadhaar = hasAadhaarFront || hasAadhaarBack;
+const qualificationDocuments = qualificationDetails.filter((item) => item.certificateUrl);
 function maskAadhar(value) {
   if (!value || value.length < 4) return "XXXX-XXXX-XXXX";
   return "XXXX-XXXX-" + value.slice(-4);
@@ -422,50 +426,52 @@ const unifiedAssetsRedirectTo = String(
         </div>
       </article>
 
+      <% if (hasAnyAadhaar || canEditProfile) { %>
       <article class="np-card np-doc-section-card">
         <div class="np-section-head">
           <div>
             <h2>Aadhaar Card</h2>
-            <p class="np-muted">Upload front and back images or PDF scans. Both are optional, and the latest files stay synced for nurse, agent, and admin views.</p>
+            <p class="np-muted">Only uploaded Aadhaar files are shown here. Add or replace individual sides whenever needed.</p>
           </div>
         </div>
 
         <div class="np-document-group">
+          <% if (hasAadhaarFront || canEditProfile) { %>
           <div class="np-doc-item">
             <div class="np-doc-copy">
               <span class="np-doc-label">Front Side</span>
-              <span class="np-doc-note"><%= aadhaarFrontUrl ? "Ready to review" : "Not uploaded yet" %></span>
+              <span class="np-doc-note"><%= hasAadhaarFront ? "Uploaded" : "Upload front side" %></span>
             </div>
             <div class="np-doc-actions">
-              <% if (aadhaarFrontUrl) { %>
+              <% if (hasAadhaarFront) { %>
                 <a class="np-doc-link" href="<%= aadhaarFrontUrl %>" target="_blank" rel="noopener noreferrer">View</a>
-              <% } else { %>
-                <span class="np-doc-missing">No file</span>
               <% } %>
               <% if (canEditProfile) { %>
                 <button type="button" class="np-doc-button" data-asset-trigger="aadhaarFront">Upload / Replace</button>
               <% } %>
             </div>
           </div>
+          <% } %>
 
+          <% if (hasAadhaarBack || canEditProfile) { %>
           <div class="np-doc-item">
             <div class="np-doc-copy">
               <span class="np-doc-label">Back Side</span>
-              <span class="np-doc-note"><%= aadhaarBackUrl ? "Ready to review" : "Optional upload" %></span>
+              <span class="np-doc-note"><%= hasAadhaarBack ? "Uploaded" : "Upload back side" %></span>
             </div>
             <div class="np-doc-actions">
-              <% if (aadhaarBackUrl) { %>
+              <% if (hasAadhaarBack) { %>
                 <a class="np-doc-link" href="<%= aadhaarBackUrl %>" target="_blank" rel="noopener noreferrer">View</a>
-              <% } else { %>
-                <span class="np-doc-missing">No file</span>
               <% } %>
               <% if (canEditProfile) { %>
                 <button type="button" class="np-doc-button" data-asset-trigger="aadhaarBack">Upload / Replace</button>
               <% } %>
             </div>
           </div>
+          <% } %>
         </div>
       </article>
+      <% } %>
     </section>
 
     <section class="np-tab-panel np-section-block" id="professional" data-np-section>
@@ -628,27 +634,27 @@ const unifiedAssetsRedirectTo = String(
 
       </article>
 
+      <% if (qualificationDocuments.length || (canEditProfile && qualificationDetails.length)) { %>
       <article class="np-card np-doc-section-card">
         <div class="np-section-head">
           <div>
             <h2>Qualifications & Certificates</h2>
-            <p class="np-muted">Each qualification uses the same shared upload flow, whether it is managed by the nurse, the owning agent, or admin.</p>
+            <p class="np-muted">Qualification documents appear only when a certificate has been uploaded for that qualification.</p>
           </div>
         </div>
 
         <% if (qualificationDetails.length) { %>
           <div class="np-document-group">
             <% qualificationDetails.forEach((item) => { %>
+              <% if (item.certificateUrl || canEditProfile) { %>
               <div class="np-doc-item">
                 <div class="np-doc-copy">
                   <span class="np-doc-label"><%= item.name %></span>
-                  <span class="np-doc-note"><%= item.certificateUrl ? "Document available" : "Upload certificate when ready" %></span>
+                  <span class="np-doc-note"><%= item.certificateUrl ? "Uploaded" : "Upload certificate" %></span>
                 </div>
                 <div class="np-doc-actions">
                   <% if (item.certificateUrl) { %>
                     <a class="np-doc-link" href="<%= item.certificateUrl %>" target="_blank" rel="noopener noreferrer">View Document</a>
-                  <% } else { %>
-                    <span class="np-doc-missing">No file</span>
                   <% } %>
                   <% if (canEditProfile) { %>
                     <button
@@ -662,12 +668,12 @@ const unifiedAssetsRedirectTo = String(
                   <% } %>
                 </div>
               </div>
+              <% } %>
             <% }) %>
           </div>
-        <% } else { %>
-          <p class="np-muted">No qualifications have been added yet.</p>
         <% } %>
       </article>
+      <% } %>
     </section>
 
     <section class="np-tab-panel np-section-block" id="access" data-np-section>

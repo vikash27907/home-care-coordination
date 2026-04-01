@@ -64,7 +64,7 @@ const openContactInNewTab = contactInfo.openInNewTab === true || /^https?:\/\//i
 const contactButtonLabel = String(contactInfo.buttonLabel || contactButtonText || "Contact").trim() || "Contact";
 const contactLabel = String(contactInfo.contactLabel || "").trim();
 const documents = Array.isArray(nurse && nurse.documents)
-  ? nurse.documents
+  ? nurse.documents.filter((item) => item && item.available && item.href)
   : [
     {
       key: "aadhaar",
@@ -84,8 +84,7 @@ const documents = Array.isArray(nurse && nurse.documents)
       href: String((nurse && (nurse.medicalFitUrl || nurse.medical_fit_url)) || "").trim(),
       available: Boolean(nurse && (nurse.medicalFitUrl || nurse.medical_fit_url))
     }
-  ];
-const availableDocument = documents.find((item) => item && item.available && item.href);
+  ].filter((item) => item && item.available && item.href);
 const showQr = typeof showQrCode === "undefined" ? false : showQrCode === true;
 const showContactSection = typeof showContact === "undefined" ? true : showContact === true;
 const filledStars = ratingAverage > 0 ? Math.max(1, Math.min(5, Math.round(ratingAverage))) : 0;
@@ -314,31 +313,27 @@ function skillIconName(skill) {
       </section>
     <% } %>
 
+    <% if (documents.length) { %>
     <section class="nurse-card-base__documents" id="documents">
       <% documents.forEach((item) => { %>
-        <% const iconName = item.key === "aadhaar" ? "aadhaar" : (item.key === "certificate" ? "certificate" : "medical"); %>
+        <% const iconName = item.key && item.key.startsWith("aadhaar")
+          ? "aadhaar"
+          : (item.key === "medical-fit" ? "medical" : "certificate"); %>
         <a
-          class="nurse-card-base__document <%= item.available ? 'is-available' : 'is-missing' %>"
-          href="<%= item.href || '#documents' %>"
-          <%= item.available ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"' %>
+          class="nurse-card-base__document is-available"
+          href="<%= item.href %>"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           <span class="nurse-card-base__document-copy">
             <span class="nurse-card-base__document-icon"><%- icon(iconName, "nurse-card-base__mini-icon") %></span>
             <span><%= item.label %></span>
           </span>
-          <strong><%= item.available ? "OK" : "--" %></strong>
+          <strong>View</strong>
         </a>
       <% }) %>
-
-      <a
-        class="nurse-card-base__document nurse-card-base__document--viewall"
-        href="<%= availableDocument ? availableDocument.href : '#documents' %>"
-        <%= availableDocument ? 'target="_blank" rel="noopener noreferrer"' : '' %>
-      >
-        <span>View All</span>
-        <strong>&rarr;</strong>
-      </a>
     </section>
+    <% } %>
   </div>
 
   <footer class="nurse-card-base__footer">
