@@ -113,6 +113,8 @@ async function initializeDatabase() {
         certificate_url TEXT,
         aadhar_number VARCHAR(20),
         aadhar_image_url TEXT,
+        aadhar_front_url TEXT,
+        aadhar_back_url TEXT,
         current_status VARCHAR(50),
         address TEXT,
         work_city TEXT,
@@ -132,6 +134,8 @@ async function initializeDatabase() {
       ALTER TABLE nurses
       ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(20),
       ADD COLUMN IF NOT EXISTS aadhar_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS aadhar_front_url TEXT,
+      ADD COLUMN IF NOT EXISTS aadhar_back_url TEXT,
       ADD COLUMN IF NOT EXISTS current_status VARCHAR(50),
       ADD COLUMN IF NOT EXISTS height_text TEXT,
       ADD COLUMN IF NOT EXISTS weight_kg INTEGER,
@@ -155,6 +159,13 @@ async function initializeDatabase() {
       UPDATE nurses
       SET public_profile_enabled = FALSE
       WHERE public_profile_enabled IS NULL
+    `);
+
+    await pool.query(`
+      UPDATE nurses
+      SET aadhar_front_url = aadhar_image_url
+      WHERE NULLIF(BTRIM(COALESCE(aadhar_front_url, '')), '') IS NULL
+        AND NULLIF(BTRIM(COALESCE(aadhar_image_url, '')), '') IS NOT NULL
     `);
 
     await pool.query(`
@@ -783,19 +794,49 @@ async function initializeDatabase() {
       END $$;
     `);
     await pool.query(`
-      ALTER TABLE care_requests
-      ADD CONSTRAINT care_requests_status_check
-      CHECK (status IN ('open','assigned','payment_pending','active','completed','cancelled'))
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'care_requests_status_check'
+            AND conrelid = 'care_requests'::regclass
+        ) THEN
+          ALTER TABLE care_requests
+          ADD CONSTRAINT care_requests_status_check
+          CHECK (status IN ('open','assigned','payment_pending','active','completed','cancelled'));
+        END IF;
+      END $$;
     `);
     await pool.query(`
-      ALTER TABLE care_requests
-      ADD CONSTRAINT care_requests_payment_status_check
-      CHECK (payment_status IN ('pending','paid','refunded'))
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'care_requests_payment_status_check'
+            AND conrelid = 'care_requests'::regclass
+        ) THEN
+          ALTER TABLE care_requests
+          ADD CONSTRAINT care_requests_payment_status_check
+          CHECK (payment_status IN ('pending','paid','refunded'));
+        END IF;
+      END $$;
     `);
     await pool.query(`
-      ALTER TABLE care_requests
-      ADD CONSTRAINT care_requests_visibility_status_check
-      CHECK (visibility_status IN ('pending','approved','rejected'))
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'care_requests_visibility_status_check'
+            AND conrelid = 'care_requests'::regclass
+        ) THEN
+          ALTER TABLE care_requests
+          ADD CONSTRAINT care_requests_visibility_status_check
+          CHECK (visibility_status IN ('pending','approved','rejected'));
+        END IF;
+      END $$;
     `);
 
     // Lifecycle guardrail trigger for direct SQL updates.

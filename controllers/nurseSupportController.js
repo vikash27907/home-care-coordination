@@ -239,6 +239,78 @@ function canEditManagedNurse(currentUser, nurse) {
   return false;
 }
 
+const EDITABLE_NURSE_ASSET_SELECT = `SELECT
+    n.id,
+    n.user_id,
+    COALESCE(n.profile_image_url, '') AS profile_image_url,
+    COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
+    COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
+    COALESCE((to_jsonb(n) ->> 'aadhar_front_url'), '') AS aadhar_front_url,
+    COALESCE((to_jsonb(n) ->> 'aadhaar_front_url'), '') AS aadhaar_front_url,
+    COALESCE((to_jsonb(n) ->> 'aadhar_back_url'), '') AS aadhar_back_url,
+    COALESCE((to_jsonb(n) ->> 'aadhaar_back_url'), '') AS aadhaar_back_url,
+    COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
+    COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url,
+    COALESCE(n.qualifications, '[]'::jsonb) AS qualifications
+  FROM nurses n`;
+
+function normalizeManagedQualificationList(rawQualifications) {
+  if (!Array.isArray(rawQualifications)) {
+    return [];
+  }
+
+  return rawQualifications
+    .map((item) => {
+      if (item && typeof item === "object") {
+        const name = String(item.name || "").trim();
+        if (!name) return null;
+        return {
+          ...item,
+          name,
+          certificate_url: String(
+            item.certificate_url
+            || item.certificateUrl
+            || item.document_url
+            || item.documentUrl
+            || item.file_url
+            || item.fileUrl
+            || ""
+          ).trim()
+        };
+      }
+
+      const name = String(item || "").trim();
+      if (!name) return null;
+      return {
+        name,
+        certificate_url: "",
+        verified: false
+      };
+    })
+    .filter(Boolean);
+}
+
+function collectEditableNurseAssetUrls(nurseRow) {
+  const qualifications = normalizeManagedQualificationList(nurseRow && nurseRow.qualifications);
+  return Array.from(new Set(
+    [
+      nurseRow && nurseRow.profile_image_url,
+      nurseRow && nurseRow.aadhar_image_url,
+      nurseRow && nurseRow.aadhaar_image_url,
+      nurseRow && nurseRow.aadhar_front_url,
+      nurseRow && nurseRow.aadhaar_front_url,
+      nurseRow && nurseRow.aadhar_back_url,
+      nurseRow && nurseRow.aadhaar_back_url,
+      nurseRow && nurseRow.aadhaar_card_url,
+      nurseRow && nurseRow.aadhar_card_url,
+      ...qualifications.map((item) => item.certificate_url)
+    ]
+      .filter((item) => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item && !item.startsWith("/images/"))
+  ));
+}
+
 async function getEditableNurseRecord(currentUser, nurseId, client = pool) {
   if (!currentUser || !Number.isInteger(nurseId) || nurseId <= 0) {
     return null;
@@ -246,15 +318,7 @@ async function getEditableNurseRecord(currentUser, nurseId, client = pool) {
 
   if (currentUser.role === "admin") {
     const result = await client.query(
-      `SELECT
-          n.id,
-          n.user_id,
-          COALESCE(n.profile_image_url, '') AS profile_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
-          COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url
-       FROM nurses n
+      `${EDITABLE_NURSE_ASSET_SELECT}
        WHERE n.id = $1
        LIMIT 1
        FOR UPDATE`,
@@ -265,15 +329,7 @@ async function getEditableNurseRecord(currentUser, nurseId, client = pool) {
 
   if (currentUser.role === "nurse") {
     const result = await client.query(
-      `SELECT
-          n.id,
-          n.user_id,
-          COALESCE(n.profile_image_url, '') AS profile_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
-          COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url
-       FROM nurses n
+      `${EDITABLE_NURSE_ASSET_SELECT}
        WHERE n.id = $1
          AND n.user_id = $2
        LIMIT 1
@@ -285,15 +341,7 @@ async function getEditableNurseRecord(currentUser, nurseId, client = pool) {
 
   if (currentUser.role === "agent") {
     const result = await client.query(
-      `SELECT
-          n.id,
-          n.user_id,
-          COALESCE(n.profile_image_url, '') AS profile_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhar_image_url'), '') AS aadhar_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhaar_image_url'), '') AS aadhaar_image_url,
-          COALESCE((to_jsonb(n) ->> 'aadhaar_card_url'), '') AS aadhaar_card_url,
-          COALESCE((to_jsonb(n) ->> 'aadhar_card_url'), '') AS aadhar_card_url
-       FROM nurses n
+      `${EDITABLE_NURSE_ASSET_SELECT}
        WHERE n.id = $1
          AND ${getManagedNurseOwnershipSql("n", "$2", "$3")}
        LIMIT 1
@@ -311,7 +359,14 @@ const unifiedNurseAssetStorage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const extension = path.extname(String(file.originalname || "")).toLowerCase();
-    const prefix = file.fieldname === "profileImage" ? "nurse-profile" : "nurse-document";
+    let prefix = "nurse-document";
+    if (file.fieldname === "profileImage") {
+      prefix = "nurse-profile";
+    } else if (file.fieldname === "qualificationDocument") {
+      prefix = "nurse-qualification";
+    } else if (file.fieldname === "aadhaarFront" || file.fieldname === "aadhaarBack" || file.fieldname === "aadhaarDoc") {
+      prefix = "nurse-aadhaar";
+    }
     cb(null, `${prefix}-${uniqueSuffix}${extension}`);
   }
 });
@@ -333,7 +388,12 @@ const unifiedNurseAssetUpload = multer({
       return cb(new Error("Profile image must be JPG, PNG, or WEBP."));
     }
 
-    if (file.fieldname === "aadhaarDoc") {
+    if (
+      file.fieldname === "aadhaarDoc"
+      || file.fieldname === "aadhaarFront"
+      || file.fieldname === "aadhaarBack"
+      || file.fieldname === "qualificationDocument"
+    ) {
       if (
         UNIFIED_NURSE_DOCUMENT_ALLOWED_EXTENSIONS.has(extension)
         && UNIFIED_NURSE_DOCUMENT_ALLOWED_MIME_TYPES.has(mimetype)
@@ -347,7 +407,10 @@ const unifiedNurseAssetUpload = multer({
   }
 }).fields([
   { name: "profileImage", maxCount: 1 },
-  { name: "aadhaarDoc", maxCount: 1 }
+  { name: "aadhaarDoc", maxCount: 1 },
+  { name: "aadhaarFront", maxCount: 1 },
+  { name: "aadhaarBack", maxCount: 1 },
+  { name: "qualificationDocument", maxCount: 1 }
 ]);
 
 function unifiedNurseAssetUploadMiddleware(req, res, next) {
@@ -664,10 +727,21 @@ router.post(
           ? `/agent/nurses/${req.params.id}`
           : "/nurse/profile"));
     const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
-    const aadhaarDocFile = req.files && req.files.aadhaarDoc ? req.files.aadhaarDoc[0] : null;
+    const aadhaarFrontFile = (req.files && req.files.aadhaarFront ? req.files.aadhaarFront[0] : null)
+      || (req.files && req.files.aadhaarDoc ? req.files.aadhaarDoc[0] : null);
+    const aadhaarBackFile = req.files && req.files.aadhaarBack ? req.files.aadhaarBack[0] : null;
+    const qualificationDocumentFile = req.files && req.files.qualificationDocument ? req.files.qualificationDocument[0] : null;
+    const qualificationName = String(req.body.qualificationName || "").trim();
     const nextProfileImageUrl = profileImageFile ? `/uploads/nurse-assets/${profileImageFile.filename}` : "";
-    const nextAadhaarDocUrl = aadhaarDocFile ? `/uploads/nurse-assets/${aadhaarDocFile.filename}` : "";
-    const uploadedAssetUrls = [nextProfileImageUrl, nextAadhaarDocUrl].filter(Boolean);
+    const nextAadhaarFrontUrl = aadhaarFrontFile ? `/uploads/nurse-assets/${aadhaarFrontFile.filename}` : "";
+    const nextAadhaarBackUrl = aadhaarBackFile ? `/uploads/nurse-assets/${aadhaarBackFile.filename}` : "";
+    const nextQualificationDocumentUrl = qualificationDocumentFile ? `/uploads/nurse-assets/${qualificationDocumentFile.filename}` : "";
+    const uploadedAssetUrls = [
+      nextProfileImageUrl,
+      nextAadhaarFrontUrl,
+      nextAadhaarBackUrl,
+      nextQualificationDocumentUrl
+    ].filter(Boolean);
 
     if (Number.isNaN(nurseId) || nurseId <= 0) {
       await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
@@ -675,7 +749,7 @@ router.post(
       return res.redirect(redirectTo);
     }
 
-    if (!profileImageFile && !aadhaarDocFile) {
+    if (!profileImageFile && !aadhaarFrontFile && !aadhaarBackFile && !qualificationDocumentFile) {
       setFlash(req, "error", "Please choose a file to upload.");
       return res.redirect(redirectTo);
     }
@@ -692,37 +766,97 @@ router.post(
       }
 
       updatedNurseUserId = Number(editableNurse.user_id) || null;
-      const previousProfileImageUrl = String(editableNurse.profile_image_url || "").trim();
-      const previousAadhaarDocUrl = String(
+      const previousAssetUrls = new Set(collectEditableNurseAssetUrls(editableNurse));
+      const existingQualifications = normalizeManagedQualificationList(editableNurse.qualifications);
+      let nextQualifications = existingQualifications;
+
+      if (qualificationDocumentFile) {
+        if (!qualificationName) {
+          throw new Error("Qualification name is required.");
+        }
+
+        const normalizedQualificationName = qualificationName.toLowerCase();
+        let matchedQualification = false;
+        nextQualifications = existingQualifications.map((item) => {
+          const itemName = String(item.name || "").trim();
+          if (itemName.toLowerCase() !== normalizedQualificationName) {
+            return item;
+          }
+
+          matchedQualification = true;
+          return {
+            ...item,
+            name: itemName || qualificationName,
+            certificate_url: nextQualificationDocumentUrl
+          };
+        });
+
+        if (!matchedQualification) {
+          throw new Error("Qualification not found.");
+        }
+      }
+
+      const previousLegacyAadhaarUrl = String(
         editableNurse.aadhar_image_url
         || editableNurse.aadhaar_image_url
         || editableNurse.aadhaar_card_url
         || editableNurse.aadhar_card_url
         || ""
       ).trim();
+      const previousAadhaarFrontUrl = String(
+        editableNurse.aadhar_front_url
+        || editableNurse.aadhaar_front_url
+        || previousLegacyAadhaarUrl
+      ).trim();
+      const previousAadhaarBackUrl = String(
+        editableNurse.aadhar_back_url
+        || editableNurse.aadhaar_back_url
+        || ""
+      ).trim();
+      const finalProfileImageUrl = nextProfileImageUrl || String(editableNurse.profile_image_url || "").trim();
+      const finalAadhaarFrontUrl = nextAadhaarFrontUrl || previousAadhaarFrontUrl;
+      const finalAadhaarBackUrl = nextAadhaarBackUrl || previousAadhaarBackUrl;
+      const finalLegacyAadhaarUrl = nextAadhaarFrontUrl
+        || previousLegacyAadhaarUrl
+        || (nextAadhaarBackUrl && !previousLegacyAadhaarUrl ? nextAadhaarBackUrl : "");
 
       await client.query(
         `UPDATE nurses
          SET profile_image_url = COALESCE($1, profile_image_url),
-             aadhar_image_url = COALESCE($2, aadhar_image_url)
-         WHERE id = $3`,
+             aadhar_image_url = CASE
+               WHEN $2::text IS NOT NULL THEN $2::text
+               WHEN COALESCE(NULLIF(BTRIM(COALESCE(aadhar_image_url, '')), ''), NULL) IS NULL AND $3::text IS NOT NULL THEN $3::text
+               ELSE aadhar_image_url
+             END,
+             aadhar_front_url = COALESCE($2::text, aadhar_front_url),
+             aadhar_back_url = COALESCE($3::text, aadhar_back_url),
+             qualifications = COALESCE($4::jsonb, qualifications)
+         WHERE id = $5`,
         [
           nextProfileImageUrl || null,
-          nextAadhaarDocUrl || null,
+          nextAadhaarFrontUrl || null,
+          nextAadhaarBackUrl || null,
+          qualificationDocumentFile ? JSON.stringify(nextQualifications) : null,
           nurseId
         ]
       );
 
       await client.query("COMMIT");
 
-      await Promise.all([
-        nextProfileImageUrl && previousProfileImageUrl && previousProfileImageUrl !== nextProfileImageUrl
-          ? deleteLocalAsset(previousProfileImageUrl)
-          : Promise.resolve(),
-        nextAadhaarDocUrl && previousAadhaarDocUrl && previousAadhaarDocUrl !== nextAadhaarDocUrl
-          ? deleteLocalAsset(previousAadhaarDocUrl)
-          : Promise.resolve()
-      ]);
+      const nextAssetUrls = new Set(
+        [
+          finalProfileImageUrl,
+          finalLegacyAadhaarUrl,
+          finalAadhaarFrontUrl,
+          finalAadhaarBackUrl,
+          ...normalizeManagedQualificationList(nextQualifications).map((item) => item.certificate_url)
+        ]
+          .filter(Boolean)
+          .map((item) => String(item).trim())
+      );
+
+      const staleAssetUrls = Array.from(previousAssetUrls).filter((assetUrl) => !nextAssetUrls.has(assetUrl));
+      await Promise.all(staleAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
 
       if (req.currentUser.role === "nurse" && updatedNurseUserId === req.currentUser.id) {
         const refreshedUser = await getUserById(req.currentUser.id);

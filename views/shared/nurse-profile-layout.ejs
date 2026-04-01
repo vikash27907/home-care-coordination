@@ -34,17 +34,27 @@ const availability = Array.isArray(nurse && nurse.availability) ? nurse.availabi
 const skills = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
 const qualifications = Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [];
 const qualificationDetails = qualifications
-  .map((item) => {
+  .map((item, index) => {
     if (item && typeof item === "object") {
       return {
+        key: `qualification-${index}`,
         name: String(item.name || "").trim(),
-        certificateUrl: item.certificate_url || null,
+        certificateUrl: String(
+          item.certificate_url
+          || item.certificateUrl
+          || item.document_url
+          || item.documentUrl
+          || item.file_url
+          || item.fileUrl
+          || ""
+        ).trim(),
         verified: Boolean(item.verified)
       };
     }
     return {
+      key: `qualification-${index}`,
       name: String(item || "").trim(),
-      certificateUrl: null,
+      certificateUrl: "",
       verified: false
     };
   })
@@ -104,9 +114,13 @@ const cardImage = profileImage || "/images/default-avatar.png";
 const aadhaarRaw = String(
   (nurse && (nurse.aadhaarNumber || nurse.aadharNumber || nurse.aadhaar_number || nurse.aadhar_number)) || ""
 ).replace(/\D/g, "");
-const aadharImageUrl = String(
+const aadhaarFrontUrl = String(
   (nurse && (
-    nurse.aadharImageUrl
+    nurse.aadhaarFrontUrl
+    || nurse.aadharFrontUrl
+    || nurse.aadhaar_front_url
+    || nurse.aadhar_front_url
+    || nurse.aadharImageUrl
     || nurse.aadhar_image_url
     || nurse.aadhaarImageUrl
     || nurse.aadhaar_image_url
@@ -114,6 +128,34 @@ const aadharImageUrl = String(
     || nurse.aadhaar_card_url
     || nurse.aadharCardUrl
     || nurse.aadhar_card_url
+  )) || ""
+).trim();
+const aadhaarBackUrl = String(
+  (nurse && (
+    nurse.aadhaarBackUrl
+    || nurse.aadharBackUrl
+    || nurse.aadhaar_back_url
+    || nurse.aadhar_back_url
+  )) || ""
+).trim();
+const aadhaarPrimaryUrl = String(
+  (nurse && (
+    nurse.aadharImageUrl
+    || nurse.aadhar_image_url
+    || nurse.aadhaarImageUrl
+    || nurse.aadhaar_image_url
+    || nurse.aadhaarFrontUrl
+    || nurse.aadharFrontUrl
+    || nurse.aadhaar_front_url
+    || nurse.aadhar_front_url
+    || nurse.aadhaarCardUrl
+    || nurse.aadhaar_card_url
+    || nurse.aadharCardUrl
+    || nurse.aadhar_card_url
+    || nurse.aadhaarBackUrl
+    || nurse.aadharBackUrl
+    || nurse.aadhaar_back_url
+    || nurse.aadhar_back_url
   )) || ""
 ).trim();
 function maskAadhar(value) {
@@ -138,7 +180,7 @@ const unifiedAssetsRedirectTo = String(
 <section
   class="nurse-profile-shell"
   id="nurseProfileShell"
-  data-has-aadhar-image="<%= aadharImageUrl ? 'true' : 'false' %>"
+  data-has-aadhar-image="<%= aadhaarPrimaryUrl ? 'true' : 'false' %>"
 >
   <% if (backLink) { %>
     <a class="np-back-link" href="<%= backLink %>"><%= backLabel %></a>
@@ -175,10 +217,23 @@ const unifiedAssetsRedirectTo = String(
       >
       <input
         type="file"
-        id="npAadhaarAssetInput"
-        name="aadhaarDoc"
+        id="npAadhaarFrontAssetInput"
+        name="aadhaarFront"
         accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
       >
+      <input
+        type="file"
+        id="npAadhaarBackAssetInput"
+        name="aadhaarBack"
+        accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
+      >
+      <input
+        type="file"
+        id="npQualificationAssetInput"
+        name="qualificationDocument"
+        accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
+      >
+      <input type="hidden" name="qualificationName" id="npQualificationNameInput" value="">
     </form>
   <% } %>
 
@@ -276,13 +331,13 @@ const unifiedAssetsRedirectTo = String(
 
     <article class="np-card np-tabs-card">
       <div class="np-tabs">
-        <button type="button" class="np-tab-btn active" data-np-tab="np-basic-tab">Basic Info</button>
-        <button type="button" class="np-tab-btn" data-np-tab="np-prof-tab">Professional</button>
-        <button type="button" class="np-tab-btn" data-np-tab="np-security-tab"><%= isAgent ? "Access" : "Security" %></button>
+        <button type="button" class="np-tab-btn active" data-np-tab-target="personal">Personal</button>
+        <button type="button" class="np-tab-btn" data-np-tab-target="professional">Professional</button>
+        <button type="button" class="np-tab-btn" data-np-tab-target="access"><%= isAgent ? "Access" : "Security" %></button>
       </div>
     </article>
 
-    <section class="np-tab-panel active" id="np-basic-tab">
+    <section class="np-tab-panel np-section-block" id="personal" data-np-section>
       <article class="np-card">
         <h2>Basic Information</h2>
         <div class="np-grid">
@@ -366,54 +421,54 @@ const unifiedAssetsRedirectTo = String(
 
         </div>
       </article>
-    </section>
 
-    <section class="np-assets-section">
-      <article class="np-card np-assets-card">
+      <article class="np-card np-doc-section-card">
         <div class="np-section-head">
           <div>
-            <h2>Documents</h2>
-            <p class="np-muted">Keep identity documents current in one shared place for nurse, agent, and admin updates.</p>
+            <h2>Aadhaar Card</h2>
+            <p class="np-muted">Upload front and back images or PDF scans. Both are optional, and the latest files stay synced for nurse, agent, and admin views.</p>
           </div>
         </div>
 
-        <div class="np-document-grid">
-          <div class="np-document-card">
-            <div class="np-document-copy">
-              <h3>Aadhaar Document</h3>
-              <p>Upload a clear image or PDF. The latest file is used everywhere this nurse profile is managed.</p>
+        <div class="np-document-group">
+          <div class="np-doc-item">
+            <div class="np-doc-copy">
+              <span class="np-doc-label">Front Side</span>
+              <span class="np-doc-note"><%= aadhaarFrontUrl ? "Ready to review" : "Not uploaded yet" %></span>
             </div>
-
-            <div class="np-document-meta">
-              <% if (aadharImageUrl) { %>
-                <a
-                  class="np-aadhar-link np-aadhar-view-link"
-                  href="<%= aadharImageUrl %>"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View Document
-                </a>
+            <div class="np-doc-actions">
+              <% if (aadhaarFrontUrl) { %>
+                <a class="np-doc-link" href="<%= aadhaarFrontUrl %>" target="_blank" rel="noopener noreferrer">View</a>
               <% } else { %>
-                <span class="np-doc-missing">No document uploaded</span>
+                <span class="np-doc-missing">No file</span>
+              <% } %>
+              <% if (canEditProfile) { %>
+                <button type="button" class="np-doc-button" data-asset-trigger="aadhaarFront">Upload / Replace</button>
               <% } %>
             </div>
+          </div>
 
-            <% if (canEditProfile) { %>
-              <button
-                type="button"
-                class="btn np-document-action"
-                data-asset-trigger="aadhaarDoc"
-              >
-                Upload / Replace
-              </button>
-            <% } %>
+          <div class="np-doc-item">
+            <div class="np-doc-copy">
+              <span class="np-doc-label">Back Side</span>
+              <span class="np-doc-note"><%= aadhaarBackUrl ? "Ready to review" : "Optional upload" %></span>
+            </div>
+            <div class="np-doc-actions">
+              <% if (aadhaarBackUrl) { %>
+                <a class="np-doc-link" href="<%= aadhaarBackUrl %>" target="_blank" rel="noopener noreferrer">View</a>
+              <% } else { %>
+                <span class="np-doc-missing">No file</span>
+              <% } %>
+              <% if (canEditProfile) { %>
+                <button type="button" class="np-doc-button" data-asset-trigger="aadhaarBack">Upload / Replace</button>
+              <% } %>
+            </div>
           </div>
         </div>
       </article>
     </section>
 
-    <section class="np-tab-panel" id="np-prof-tab">
+    <section class="np-tab-panel np-section-block" id="professional" data-np-section>
       <article class="np-card">
         <h2>Professional Details</h2>
         <div class="np-grid">
@@ -572,9 +627,50 @@ const unifiedAssetsRedirectTo = String(
         <% } %>
 
       </article>
+
+      <article class="np-card np-doc-section-card">
+        <div class="np-section-head">
+          <div>
+            <h2>Qualifications & Certificates</h2>
+            <p class="np-muted">Each qualification uses the same shared upload flow, whether it is managed by the nurse, the owning agent, or admin.</p>
+          </div>
+        </div>
+
+        <% if (qualificationDetails.length) { %>
+          <div class="np-document-group">
+            <% qualificationDetails.forEach((item) => { %>
+              <div class="np-doc-item">
+                <div class="np-doc-copy">
+                  <span class="np-doc-label"><%= item.name %></span>
+                  <span class="np-doc-note"><%= item.certificateUrl ? "Document available" : "Upload certificate when ready" %></span>
+                </div>
+                <div class="np-doc-actions">
+                  <% if (item.certificateUrl) { %>
+                    <a class="np-doc-link" href="<%= item.certificateUrl %>" target="_blank" rel="noopener noreferrer">View Document</a>
+                  <% } else { %>
+                    <span class="np-doc-missing">No file</span>
+                  <% } %>
+                  <% if (canEditProfile) { %>
+                    <button
+                      type="button"
+                      class="np-doc-button"
+                      data-asset-trigger="qualificationDocument"
+                      data-qualification-name="<%= item.name %>"
+                    >
+                      Upload / Replace
+                    </button>
+                  <% } %>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <p class="np-muted">No qualifications have been added yet.</p>
+        <% } %>
+      </article>
     </section>
 
-    <section class="np-tab-panel" id="np-security-tab">
+    <section class="np-tab-panel np-section-block" id="access" data-np-section>
       <article class="np-card">
         <h2>Security</h2>
         <div class="np-grid">
@@ -655,49 +751,6 @@ const unifiedAssetsRedirectTo = String(
       </div>
     </form>
     <% } %>
-
-  <% if (isNurse) { %>
-    <article class="np-card">
-      <h2>Qualifications & Certificates</h2>
-      <div class="np-qual-read">
-        <% if (qualificationDetails.length) { %>
-          <div class="np-view np-chip-wrap">
-            <% qualificationDetails.forEach((item, index) => { %>
-              <span class="np-chip"><%= item.name %></span>
-              <% if (index < qualificationDetails.length - 1) { %>
-                <span class="np-muted">|</span>
-              <% } %>
-            <% }) %>
-          </div>
-          <div class="np-qual-read-list">
-            <% qualificationDetails.forEach((item) => { %>
-              <div class="np-qual-read-item">
-                <span class="np-qual-read-name"><%= item.name %></span>
-                <% if (item.certificateUrl) { %>
-                  <a href="<%= item.certificateUrl %>" target="_blank" rel="noopener noreferrer">
-                    View Document
-                  </a>
-                <% } else { %>
-                  <form method="POST" action="/nurse/profile/upload-qualification-document" enctype="multipart/form-data" class="np-qual-upload-form">
-                    <input type="hidden" name="qualificationName" value="<%= item.name %>">
-                    <input type="file" name="qualificationDocument" accept=".pdf,.jpg,.jpeg,.png" required>
-                    <button type="submit" class="btn small">Upload Document</button>
-                    <span class="np-qual-pending-badge">Document Pending</span>
-                  </form>
-                <% } %>
-              </div>
-            <% }) %>
-          </div>
-        <% } else { %>
-          <p class="np-muted">No qualifications added yet.</p>
-        <% } %>
-      </div>
-      <div class="np-qual-edit">
-        <p class="np-muted">Select qualifications and upload certificate for each selected qualification.</p>
-        <%- include("../partials/nurse-qualification-module", { nurse, profileFormId: "profileForm" }) %>
-      </div>
-    </article>
-  <% } %>
 </section>
 
 <style>
@@ -941,6 +994,11 @@ const unifiedAssetsRedirectTo = String(
 
 .np-tabs-card {
   padding: 0.6rem;
+  position: sticky;
+  top: 1rem;
+  z-index: 8;
+  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .np-tabs {
@@ -957,6 +1015,12 @@ const unifiedAssetsRedirectTo = String(
   padding: 0.62rem 0.8rem;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.np-tab-btn:hover {
+  border-color: #93c5fd;
+  transform: translateY(-1px);
 }
 
 .np-tab-btn.active {
@@ -966,11 +1030,13 @@ const unifiedAssetsRedirectTo = String(
 }
 
 .np-tab-panel {
-  display: none;
+  display: block;
+  scroll-margin-top: 110px;
 }
 
-.np-tab-panel.active {
-  display: block;
+.np-section-block {
+  display: grid;
+  gap: 1rem;
 }
 
 .np-card h2 {
@@ -1034,33 +1100,9 @@ const unifiedAssetsRedirectTo = String(
   font: inherit;
 }
 
-.np-aadhar-link {
-  color: #0f5d9b;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.np-aadhar-link:hover {
-  text-decoration: underline;
-}
-
-.np-aadhar-view-link {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #c6dae8;
-  border-radius: 999px;
-  padding: 0.36rem 0.72rem;
-  background: #edf5fc;
-}
-
 .np-doc-missing {
   color: #9f1239;
   font-weight: 600;
-}
-
-.np-assets-section {
-  display: block;
 }
 
 .np-section-head {
@@ -1071,40 +1113,81 @@ const unifiedAssetsRedirectTo = String(
   margin-bottom: 1rem;
 }
 
-.np-document-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 0.9rem;
+.np-doc-section-card {
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
 }
 
-.np-document-card {
+.np-document-group {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.85rem;
+}
+
+.np-doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
   border: 1px solid #d9e7f3;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #fcfeff, #f6fbff);
-  padding: 1rem;
+  border-radius: 16px;
+  background: #f8fafc;
 }
 
-.np-document-copy h3 {
-  margin: 0 0 0.3rem;
+.np-doc-copy {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.np-doc-label {
+  font-weight: 700;
   color: #11304f;
 }
 
-.np-document-copy p {
-  margin: 0;
+.np-doc-note {
   color: #5b7388;
+  font-size: 0.92rem;
 }
 
-.np-document-meta {
-  min-height: 42px;
+.np-doc-actions {
   display: flex;
   align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.np-document-action {
-  width: 100%;
+.np-doc-link {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  min-height: 40px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #cbdfee;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f5d9b;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.np-doc-link:hover {
+  background: #eef6ff;
+}
+
+.np-doc-button {
+  border: none;
+  background: linear-gradient(135deg, #2b7cff, #1e5ed8);
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 0.68rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(30, 94, 216, 0.2);
+}
+
+.np-doc-button:hover {
+  filter: brightness(1.03);
 }
 
 .nurse-profile-shell.is-editing .np-view {
@@ -1392,65 +1475,6 @@ const unifiedAssetsRedirectTo = String(
   margin: 0.25rem 0 0;
 }
 
-.np-qual-read {
-  display: block;
-}
-
-.np-qual-edit {
-  display: none;
-}
-
-.np-qual-read-list {
-  margin-top: 0.8rem;
-  display: grid;
-  gap: 0.55rem;
-}
-
-.np-qual-read-item {
-  border: 1px solid #d9e7f3;
-  border-radius: 12px;
-  background: #f8fbfe;
-  padding: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  flex-wrap: wrap;
-}
-
-.np-qual-read-name {
-  font-weight: 700;
-  color: #11304f;
-}
-
-.np-qual-read-item a {
-  color: #0f5d9b;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.np-qual-read-item a:hover {
-  text-decoration: underline;
-}
-
-.np-qual-upload-form {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-}
-
-.np-qual-pending-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.74rem;
-  font-weight: 700;
-  background: #fff1d8;
-  color: #9a5a00;
-}
-
 .np-edit-actions {
   display: none;
   justify-content: flex-end;
@@ -1480,14 +1504,6 @@ const unifiedAssetsRedirectTo = String(
 
 .nurse-profile-shell.is-editing .np-edit-actions {
   display: flex;
-}
-
-.nurse-profile-shell.is-editing .np-qual-read {
-  display: none;
-}
-
-.nurse-profile-shell.is-editing .np-qual-edit {
-  display: block;
 }
 
 .btn.warning {
@@ -1520,8 +1536,22 @@ const unifiedAssetsRedirectTo = String(
     grid-template-columns: 1fr;
   }
 
-  .np-header-actions,
-  .np-document-action {
+  .np-header-actions {
+    width: 100%;
+  }
+
+  .np-tabs-card {
+    top: 0.6rem;
+  }
+
+  .np-doc-item,
+  .np-doc-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .np-doc-link,
+  .np-doc-button {
     width: 100%;
   }
 }
@@ -1533,19 +1563,43 @@ const unifiedAssetsRedirectTo = String(
   const shell = document.getElementById("nurseProfileShell");
   if (!shell) return;
 
-  const tabButtons = shell.querySelectorAll(".np-tab-btn");
-  const tabPanels = shell.querySelectorAll(".np-tab-panel");
+  const tabButtons = Array.from(shell.querySelectorAll(".np-tab-btn"));
+  const pageSections = Array.from(shell.querySelectorAll("[data-np-section]"));
+  const setActiveTab = (targetId) => {
+    tabButtons.forEach((item) => {
+      item.classList.toggle("active", item.getAttribute("data-np-tab-target") === targetId);
+    });
+  };
+  const getCurrentSectionId = () => {
+    let currentId = pageSections[0] ? pageSections[0].id : "";
+    pageSections.forEach((section) => {
+      if (!(section instanceof HTMLElement)) return;
+      if (window.scrollY >= (section.offsetTop - 150)) {
+        currentId = section.id;
+      }
+    });
+    return currentId;
+  };
 
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      const target = button.getAttribute("data-np-tab");
-      tabButtons.forEach((item) => item.classList.remove("active"));
-      tabPanels.forEach((panel) => panel.classList.remove("active"));
-      button.classList.add("active");
-      const panel = shell.querySelector(`#${target}`);
-      if (panel) panel.classList.add("active");
+      const targetId = String(button.getAttribute("data-np-tab-target") || "").trim();
+      const targetSection = targetId ? document.getElementById(targetId) : null;
+      if (!(targetSection instanceof HTMLElement)) return;
+      setActiveTab(targetId);
+      targetSection.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
+
+  const syncActiveTabWithScroll = () => {
+    const currentId = getCurrentSectionId();
+    if (currentId) {
+      setActiveTab(currentId);
+    }
+  };
+  window.addEventListener("scroll", syncActiveTabWithScroll, { passive: true });
+  window.addEventListener("resize", syncActiveTabWithScroll);
+  syncActiveTabWithScroll();
 
   const editButton = document.getElementById("npToggleEditBtn");
   const viewIdCardButton = document.getElementById("npViewIdCardBtn");
@@ -1564,7 +1618,10 @@ const unifiedAssetsRedirectTo = String(
   const availabilityOptionButtons = shell.querySelectorAll(".availability-option");
   const assetForm = document.getElementById("npAssetsForm");
   const assetProfileInput = document.getElementById("npProfileAssetInput");
-  const assetAadhaarInput = document.getElementById("npAadhaarAssetInput");
+  const assetAadhaarFrontInput = document.getElementById("npAadhaarFrontAssetInput");
+  const assetAadhaarBackInput = document.getElementById("npAadhaarBackAssetInput");
+  const assetQualificationInput = document.getElementById("npQualificationAssetInput");
+  const qualificationNameInput = document.getElementById("npQualificationNameInput");
   const assetTriggers = shell.querySelectorAll("[data-asset-trigger]");
   const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
   const shareContactPhone = <%- JSON.stringify(sharePhone) %>;
@@ -1974,18 +2031,35 @@ const unifiedAssetsRedirectTo = String(
   assetTriggers.forEach((button) => {
     button.addEventListener("click", () => {
       const fieldName = String(button.getAttribute("data-asset-trigger") || "").trim();
-      const input = fieldName === "profileImage" ? assetProfileInput : (fieldName === "aadhaarDoc" ? assetAadhaarInput : null);
+      if (qualificationNameInput instanceof HTMLInputElement && fieldName !== "qualificationDocument") {
+        qualificationNameInput.value = "";
+      }
+      let input = null;
+      if (fieldName === "profileImage") {
+        input = assetProfileInput;
+      } else if (fieldName === "aadhaarFront") {
+        input = assetAadhaarFrontInput;
+      } else if (fieldName === "aadhaarBack") {
+        input = assetAadhaarBackInput;
+      } else if (fieldName === "qualificationDocument") {
+        input = assetQualificationInput;
+        if (qualificationNameInput instanceof HTMLInputElement) {
+          qualificationNameInput.value = String(button.getAttribute("data-qualification-name") || "").trim();
+        }
+      }
       if (!(input instanceof HTMLInputElement)) return;
       input.value = "";
       input.click();
     });
   });
 
-  [assetProfileInput, assetAadhaarInput].forEach((input) => {
+  [assetProfileInput, assetAadhaarFrontInput, assetAadhaarBackInput, assetQualificationInput].forEach((input) => {
     if (!(input instanceof HTMLInputElement) || !assetForm) return;
     input.addEventListener("change", () => {
       if (input.files && input.files.length > 0) {
         assetForm.submit();
+      } else if (input === assetQualificationInput && qualificationNameInput instanceof HTMLInputElement) {
+        qualificationNameInput.value = "";
       }
     });
   });

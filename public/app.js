@@ -412,11 +412,12 @@ function setupDownloadButtons() {
       if (!card) {
         return;
       }
+      const captureTarget = card.querySelector("[data-card-capture]") || card;
 
       try {
         button.disabled = true;
         const htmlToImage = await loadHtmlToImage();
-        const dataUrl = await htmlToImage.toPng(card, {
+        const dataUrl = await htmlToImage.toPng(captureTarget, {
           cacheBust: true,
           pixelRatio: Math.max(window.devicePixelRatio || 1, 2)
         });

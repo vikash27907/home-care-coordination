@@ -166,6 +166,8 @@ function collectNurseAssetUrls(nurseRow) {
       nurseRow && nurseRow.profile_image_path,
       nurseRow && nurseRow.resume_url,
       nurseRow && nurseRow.aadhar_image_url,
+      nurseRow && nurseRow.aadhar_front_url,
+      nurseRow && nurseRow.aadhar_back_url,
       nurseRow && nurseRow.certificate_url,
       ...qualificationAssets
     ]
@@ -394,7 +396,16 @@ function calculateProfileCompletion(nurse) {
   // Profile Image (supports both legacy & new column names)
   if (nurse.profile_pic_url || nurse.profile_image_path) completion += 10;
 
-  if (nurse.aadhaar_card_url || nurse.aadhar_image_url || nurse.aadhaar_image_url || nurse.aadhar_card_url) completion += 15;
+  if (
+    nurse.aadhaar_card_url
+    || nurse.aadhar_image_url
+    || nurse.aadhaar_image_url
+    || nurse.aadhar_card_url
+    || nurse.aadhar_front_url
+    || nurse.aadhaar_front_url
+    || nurse.aadhar_back_url
+    || nurse.aadhaar_back_url
+  ) completion += 15;
   if (nurse.skills && nurse.skills.length >= 3) completion += 15;
   if (nurse.experience_years > 0 || nurse.experience_months > 0) completion += 10;
   if (nurse.expected_salary) completion += 10;
@@ -1336,6 +1347,14 @@ function buildPublicNurseProfileView(nurse) {
   const hasAadhaar = Boolean(
     nurse.aadharImageUrl
     || nurse.aadhar_image_url
+    || nurse.aadhaarFrontUrl
+    || nurse.aadharFrontUrl
+    || nurse.aadhaar_front_url
+    || nurse.aadhar_front_url
+    || nurse.aadhaarBackUrl
+    || nurse.aadharBackUrl
+    || nurse.aadhaar_back_url
+    || nurse.aadhar_back_url
     || nurse.aadhaarCardUrl
     || nurse.aadhaar_card_url
   );
@@ -1372,8 +1391,16 @@ function buildPublicNurseProfileView(nurse) {
     skills,
     aadhaarCardUrl: String(
       nurse.aadhaarCardUrl
+      || nurse.aadhaarFrontUrl
+      || nurse.aadharFrontUrl
+      || nurse.aadhaar_front_url
+      || nurse.aadhar_front_url
       || nurse.aadharImageUrl
       || nurse.aadhar_image_url
+      || nurse.aadhaarBackUrl
+      || nurse.aadharBackUrl
+      || nurse.aadhaar_back_url
+      || nurse.aadhar_back_url
       || nurse.aadhaar_card_url
       || ""
     ).trim(),
@@ -1385,8 +1412,16 @@ function buildPublicNurseProfileView(nurse) {
         label: "Aadhaar Card",
         href: String(
           nurse.aadhaarCardUrl
+          || nurse.aadhaarFrontUrl
+          || nurse.aadharFrontUrl
+          || nurse.aadhaar_front_url
+          || nurse.aadhar_front_url
           || nurse.aadharImageUrl
           || nurse.aadhar_image_url
+          || nurse.aadhaarBackUrl
+          || nurse.aadharBackUrl
+          || nurse.aadhaar_back_url
+          || nurse.aadhar_back_url
           || nurse.aadhaar_card_url
           || ""
         ).trim(),
