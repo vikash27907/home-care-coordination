@@ -325,6 +325,7 @@ router.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) =
     const city = hasField("city") ? String(req.body.city || "").trim() : undefined;
     const workCity = hasField("workCity") ? String(req.body.workCity || "").trim() : undefined;
     const gender = hasField("gender") ? String(req.body.gender || "").trim() : undefined;
+    const religion = hasField("religion") ? String(req.body.religion || "").trim() : undefined;
     const currentAddress = hasField("currentAddress") ? String(req.body.currentAddress || "").trim() : undefined;
     const currentStatusInput = hasField("current_status")
       ? req.body.current_status
@@ -339,6 +340,15 @@ router.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) =
     const aadharNumber = hasField("aadharNumber")
       ? String(req.body.aadharNumber || "").replace(/\D/g, "").slice(0, 12)
       : undefined;
+    const heightText = hasField("height")
+      ? String(req.body.height || "").trim()
+      : (hasField("heightText") ? String(req.body.heightText || "").trim() : undefined);
+    const weightInput = hasField("weight")
+      ? String(req.body.weight || "").trim()
+      : (hasField("weightKg") ? String(req.body.weightKg || "").trim() : undefined);
+    const weightKg = typeof weightInput === "undefined" || weightInput === ""
+      ? undefined
+      : Number.parseInt(weightInput, 10);
     const experienceYearsRaw = String(req.body.experienceYears || "").trim();
     const experienceYears = experienceYearsRaw === ""
       ? undefined
@@ -375,6 +385,18 @@ router.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) =
     }
     if (typeof gender !== "undefined" && gender && !["Male", "Female", "Other", "Not Specified"].includes(gender)) {
       setFlash(req, "error", "Invalid nurse gender.");
+      return res.redirect(redirectTarget);
+    }
+    if (typeof religion !== "undefined" && religion.length > 80) {
+      setFlash(req, "error", "Religion should be 80 characters or fewer.");
+      return res.redirect(redirectTarget);
+    }
+    if (typeof heightText !== "undefined" && heightText.length > 20) {
+      setFlash(req, "error", "Height should be a short value like 5'6 or 167 cm.");
+      return res.redirect(redirectTarget);
+    }
+    if (typeof weightInput !== "undefined" && weightInput !== "" && (Number.isNaN(weightKg) || weightKg < 20 || weightKg > 250)) {
+      setFlash(req, "error", "Weight must be between 20 and 250 kg.");
       return res.redirect(redirectTarget);
     }
     if (typeof currentStatusInput !== "undefined" && !currentStatus) {
@@ -443,9 +465,12 @@ router.post("/admin/nurses/:id/update", requireRole("admin"), async (req, res) =
     if (status) setNurseField("status", status);
     if (typeof fullName !== "undefined") setNurseField("full_name", fullName);
     if (typeof gender !== "undefined") setNurseField("gender", gender);
+    if (typeof religion !== "undefined") setNurseField("religion", religion);
     if (typeof city !== "undefined") setNurseField("city", city);
     if (typeof workCity !== "undefined") setNurseField("work_city", workCity);
     if (typeof currentAddress !== "undefined") setNurseField("current_address", currentAddress);
+    if (typeof heightText !== "undefined") setNurseField("height_text", heightText);
+    if (typeof weightKg !== "undefined") setNurseField("weight_kg", weightKg);
     if (typeof experienceYears !== "undefined") setNurseField("experience_years", experienceYears);
     if (typeof currentStatus !== "undefined") setNurseField("current_status", currentStatus);
     if (typeof normalizedSkills !== "undefined") setNurseField("skills", normalizedSkills);

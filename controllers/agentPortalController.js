@@ -2024,6 +2024,10 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
   const workCity = String(req.body.workCity || "").trim();
   const currentAddress = String(req.body.currentAddress || "").trim();
   const gender = String(req.body.gender || "").trim();
+  const religion = String(req.body.religion || "").trim();
+  const heightText = String(req.body.height || req.body.heightText || "").trim();
+  const weightInput = String(req.body.weight || req.body.weightKg || "").trim();
+  const weightKg = weightInput === "" ? null : Number.parseInt(weightInput, 10);
   const experienceYears = Number.parseInt(req.body.experienceYears, 10);
   const currentStatus = normalizeCurrentStatusInput(req.body.current_status || req.body.currentStatus || "");
   const aadharNumber = String(req.body.aadharNumber || "").replace(/\D/g, "").slice(0, 12);
@@ -2046,6 +2050,18 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
   }
   if (!["Male", "Female", "Other", "Not Specified"].includes(gender)) {
     setFlash(req, "error", "Please choose a valid gender.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (religion.length > 80) {
+    setFlash(req, "error", "Religion should be 80 characters or fewer.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (heightText.length > 20) {
+    setFlash(req, "error", "Height should be a short value like 5'6 or 167 cm.");
+    return res.redirect(`/agent/nurses/${nurseId}`);
+  }
+  if (weightInput && (Number.isNaN(weightKg) || weightKg < 20 || weightKg > 250)) {
+    setFlash(req, "error", "Weight must be between 20 and 250 kg.");
     return res.redirect(`/agent/nurses/${nurseId}`);
   }
   if (Number.isNaN(experienceYears) || experienceYears < 0 || experienceYears > 60) {
@@ -2100,20 +2116,26 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
            work_city = $3,
            address = $4,
            gender = $5,
-           experience_years = $6,
-           current_status = $7,
-           availability_label = $8,
-           is_available = $9,
-           availability = $10::text[],
-           skills = $11::text[],
-           aadhar_number = $12
-       WHERE id = $13`,
+           religion = $6,
+           height_text = $7,
+           weight_kg = $8,
+           experience_years = $9,
+           current_status = $10,
+           availability_label = $11,
+           is_available = $12,
+           availability = $13::text[],
+           skills = $14::text[],
+           aadhar_number = $15
+       WHERE id = $16`,
       [
         fullName,
         city,
         workCity,
         currentAddress,
         gender,
+        religion || null,
+        heightText || null,
+        weightKg,
         experienceYears,
         currentStatus,
         currentStatus,

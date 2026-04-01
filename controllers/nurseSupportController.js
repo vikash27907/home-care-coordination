@@ -1027,6 +1027,11 @@ router.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, a
   const normalizedWorkLocations = normalizeArray(workLocationsInput).filter(Boolean);
 
   const currentAddress = String(req.body.currentAddress || req.body.current_address || "").trim();
+  const religion = String(req.body.religion || "").trim();
+  if (religion.length > 80) {
+    setFlash(req, "error", "Religion should be 80 characters or fewer.");
+    return res.redirect("/nurse/profile/edit");
+  }
 
   const updateData = {};
   const setIfDefined = (key, value) => {
@@ -1037,6 +1042,7 @@ router.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, a
 
   // Explicitly whitelisted profile fields only.
   setIfDefined("city", city);
+  setIfDefined("religion", religion);
   setIfDefined("current_address", currentAddress);
   setIfDefined("current_status", currentStatus);
   setIfDefined("availability_label", availabilityLabel || currentStatus);
@@ -1151,26 +1157,28 @@ router.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, a
       await pool.query(
         `UPDATE nurses SET
           city = COALESCE($1, city),
-          current_address = COALESCE($2, current_address),
-          current_status = COALESCE($3, current_status),
-          experience_years = COALESCE($4, experience_years),
-          experience_months = COALESCE($5, experience_months),
-          aadhaar_number = COALESCE($6, aadhaar_number),
-          skills = COALESCE($7, skills),
-          work_locations = COALESCE($8, work_locations),
-          qualifications = COALESCE($9, qualifications),
-          resume_url = COALESCE($10, resume_url),
-          profile_pic_url = COALESCE($11, profile_pic_url),
-          height_text = COALESCE($12, height_text),
-          weight_kg = COALESCE($13, weight_kg),
-          languages = COALESCE($14, languages),
-          duty_type = COALESCE($15, duty_type),
-          availability_label = COALESCE($16, availability_label),
-          is_verified = COALESCE($17, is_verified),
-          medical_fit_url = COALESCE($18, medical_fit_url)
-        WHERE id = $19`,
+          religion = COALESCE($2, religion),
+          current_address = COALESCE($3, current_address),
+          current_status = COALESCE($4, current_status),
+          experience_years = COALESCE($5, experience_years),
+          experience_months = COALESCE($6, experience_months),
+          aadhaar_number = COALESCE($7, aadhaar_number),
+          skills = COALESCE($8, skills),
+          work_locations = COALESCE($9, work_locations),
+          qualifications = COALESCE($10, qualifications),
+          resume_url = COALESCE($11, resume_url),
+          profile_pic_url = COALESCE($12, profile_pic_url),
+          height_text = COALESCE($13, height_text),
+          weight_kg = COALESCE($14, weight_kg),
+          languages = COALESCE($15, languages),
+          duty_type = COALESCE($16, duty_type),
+          availability_label = COALESCE($17, availability_label),
+          is_verified = COALESCE($18, is_verified),
+          medical_fit_url = COALESCE($19, medical_fit_url)
+        WHERE id = $20`,
         [
           pickValue("city"),
+          pickValue("religion"),
           pickValue("current_address"),
           pickValue("current_status"),
           pickValue("experience_years"),
@@ -1195,26 +1203,28 @@ router.post("/nurse/profile/edit", requireRole("nurse"), requireApprovedNurse, a
       await pool.query(
         `UPDATE nurses SET
           city = COALESCE($1, city),
-          current_address = COALESCE($2, current_address),
-          current_status = COALESCE($3, current_status),
-          experience_years = COALESCE($4, experience_years),
-          experience_months = COALESCE($5, experience_months),
-          aadhaar_number = COALESCE($6, aadhaar_number),
-          skills = COALESCE($7, skills),
-          work_locations = COALESCE($8, work_locations),
-          qualifications = COALESCE($9, qualifications),
-          resume_url = COALESCE($10, resume_url),
-          profile_image_path = COALESCE($11, profile_image_path),
-          height_text = COALESCE($12, height_text),
-          weight_kg = COALESCE($13, weight_kg),
-          languages = COALESCE($14, languages),
-          duty_type = COALESCE($15, duty_type),
-          availability_label = COALESCE($16, availability_label),
-          is_verified = COALESCE($17, is_verified),
-          medical_fit_url = COALESCE($18, medical_fit_url)
-        WHERE id = $19`,
+          religion = COALESCE($2, religion),
+          current_address = COALESCE($3, current_address),
+          current_status = COALESCE($4, current_status),
+          experience_years = COALESCE($5, experience_years),
+          experience_months = COALESCE($6, experience_months),
+          aadhaar_number = COALESCE($7, aadhaar_number),
+          skills = COALESCE($8, skills),
+          work_locations = COALESCE($9, work_locations),
+          qualifications = COALESCE($10, qualifications),
+          resume_url = COALESCE($11, resume_url),
+          profile_image_path = COALESCE($12, profile_image_path),
+          height_text = COALESCE($13, height_text),
+          weight_kg = COALESCE($14, weight_kg),
+          languages = COALESCE($15, languages),
+          duty_type = COALESCE($16, duty_type),
+          availability_label = COALESCE($17, availability_label),
+          is_verified = COALESCE($18, is_verified),
+          medical_fit_url = COALESCE($19, medical_fit_url)
+        WHERE id = $20`,
         [
           pickValue("city"),
+          pickValue("religion"),
           pickValue("current_address"),
           pickValue("current_status"),
           pickValue("experience_years"),

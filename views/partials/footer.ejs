@@ -5,6 +5,13 @@
         care coordination.
       </div>
     </footer>
+    <div id="imagePreviewModal" class="image-modal" aria-hidden="true">
+      <button type="button" class="close-btn" onclick="closeImagePreview()" aria-label="Close image preview">&times;</button>
+      <div class="image-container">
+        <img id="previewImage" alt="Preview" />
+        <div class="watermark-layer"></div>
+      </div>
+    </div>
     <a
       href="https://wa.me/919138913355?text=Hello%20I%20need%20help%20from%20Prisha%20Homecare"
       class="whatsapp-float"
@@ -13,6 +20,81 @@
     >
       💬 Help
     </a>
+    <style>
+      .image-modal {
+        display: none;
+        position: fixed;
+        z-index: 9999;
+        inset: 0;
+        background: rgba(7, 16, 26, 0.88);
+        padding: 2rem;
+      }
+
+      .image-modal.is-open {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .image-modal .close-btn {
+        position: absolute;
+        top: 18px;
+        right: 24px;
+        border: 0;
+        background: transparent;
+        color: #fff;
+        font-size: 2.4rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .image-container {
+        position: relative;
+        text-align: center;
+        max-width: min(92vw, 1100px);
+      }
+
+      .image-container img {
+        display: block;
+        max-width: 100%;
+        max-height: 80vh;
+        border-radius: 18px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      }
+
+      .watermark-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 18px;
+        background-image: repeating-linear-gradient(
+          45deg,
+          rgba(255, 255, 255, 0.12) 0px,
+          rgba(255, 255, 255, 0.12) 20px,
+          transparent 20px,
+          transparent 40px
+        );
+        pointer-events: none;
+      }
+
+      .watermark-layer::after {
+        content: "Prisha Home Care";
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: clamp(22px, 3vw, 32px);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.15);
+      }
+
+      [data-preview-image] {
+        cursor: zoom-in;
+      }
+    </style>
     <% const assetVersion = typeof res !== "undefined" && res.locals && typeof res.locals.assetVersion !== "undefined" ? res.locals.assetVersion : (process.env.NODE_ENV === "production" ? "1.0.0" : Date.now()); %>
     <script src="/app.js?v=<%= assetVersion %>"></script>
   </body>

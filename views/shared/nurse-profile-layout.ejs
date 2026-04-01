@@ -21,9 +21,20 @@ const city = String((nurse && nurse.city) || "");
 const workCity = String((nurse && (nurse.workCity || nurse.work_city)) || "");
 const currentAddress = String((nurse && (nurse.currentAddress || nurse.current_address || nurse.address)) || "");
 const gender = String((nurse && nurse.gender) || "Not Specified");
+const religion = String((nurse && nurse.religion) || "");
 const email = String((nurse && nurse.email) || "");
 const phone = String((nurse && (nurse.phoneNumber || nurse.phone_number)) || "");
 const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
+const heightText = String((nurse && (nurse.height || nurse.heightText || nurse.height_text)) || "").trim();
+const weightInputValue = String(
+  (nurse && (
+    nurse.weightInput
+    || nurse.weightDisplay
+    || nurse.weightKg
+    || nurse.weight_kg
+    || nurse.weight
+  )) || ""
+).trim();
 const referralCode = String((nurse && (nurse.referralCode || nurse.referral_code)) || "");
 const profileStatus = String((nurse && (nurse.profileStatus || nurse.profile_status)) || "");
 const emailVerified = Boolean(nurse && (nurse.emailVerified || nurse.email_verified));
@@ -162,6 +173,9 @@ const hasAadhaarFront = Boolean(aadhaarFrontUrl);
 const hasAadhaarBack = Boolean(aadhaarBackUrl);
 const hasAnyAadhaar = hasAadhaarFront || hasAadhaarBack;
 const qualificationDocuments = qualificationDetails.filter((item) => item.certificateUrl);
+function isPreviewableImage(url) {
+  return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i.test(String(url || "").trim());
+}
 function maskAadhar(value) {
   if (!value || value.length < 4) return "XXXX-XXXX-XXXX";
   return "XXXX-XXXX-" + value.slice(-4);
@@ -246,7 +260,16 @@ const unifiedAssetsRedirectTo = String(
       <div class="np-avatar-shell">
         <div class="np-avatar-wrap <%= canEditProfile ? 'is-editable' : '' %>">
           <% if (profileImage) { %>
-            <img src="<%= profileImage %>" alt="<%= fullName %>" class="np-avatar" onerror="this.onerror=null;this.src='/images/default-avatar.png';">
+            <img
+              src="<%= profileImage %>"
+              alt="<%= fullName %>"
+              class="np-avatar"
+              onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+              data-preview-image="<%= profileImage %>"
+              data-preview-label="<%= fullName %> profile photo"
+              role="button"
+              tabindex="0"
+            >
           <% } else { %>
             <span class="np-avatar-fallback"><%= fullName.charAt(0).toUpperCase() %></span>
           <% } %>
@@ -383,6 +406,14 @@ const unifiedAssetsRedirectTo = String(
           </div>
 
           <div class="np-field">
+            <label>Religion</label>
+            <div class="np-view"><%= religion || "-" %></div>
+            <% if (canEditProfile) { %>
+              <input class="np-edit-field" type="text" name="religion" value="<%= religion %>" maxlength="80" placeholder="Religion">
+            <% } %>
+          </div>
+
+          <div class="np-field">
             <label>City</label>
             <div class="np-view"><%= city || "-" %></div>
             <% if (canEditProfile) { %>
@@ -444,7 +475,16 @@ const unifiedAssetsRedirectTo = String(
             </div>
             <div class="np-doc-actions">
               <% if (hasAadhaarFront) { %>
-                <a class="np-doc-link" href="<%= aadhaarFrontUrl %>" target="_blank" rel="noopener noreferrer">View</a>
+                <a
+                  class="np-doc-link"
+                  href="<%= aadhaarFrontUrl %>"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  <% if (isPreviewableImage(aadhaarFrontUrl)) { %>
+                    data-preview-image="<%= aadhaarFrontUrl %>"
+                    data-preview-label="Aadhaar front"
+                  <% } %>
+                >View</a>
               <% } %>
               <% if (canEditProfile) { %>
                 <button type="button" class="np-doc-button" data-asset-trigger="aadhaarFront">Upload / Replace</button>
@@ -461,7 +501,16 @@ const unifiedAssetsRedirectTo = String(
             </div>
             <div class="np-doc-actions">
               <% if (hasAadhaarBack) { %>
-                <a class="np-doc-link" href="<%= aadhaarBackUrl %>" target="_blank" rel="noopener noreferrer">View</a>
+                <a
+                  class="np-doc-link"
+                  href="<%= aadhaarBackUrl %>"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  <% if (isPreviewableImage(aadhaarBackUrl)) { %>
+                    data-preview-image="<%= aadhaarBackUrl %>"
+                    data-preview-label="Aadhaar back"
+                  <% } %>
+                >View</a>
               <% } %>
               <% if (canEditProfile) { %>
                 <button type="button" class="np-doc-button" data-asset-trigger="aadhaarBack">Upload / Replace</button>
@@ -483,6 +532,22 @@ const unifiedAssetsRedirectTo = String(
             <div class="np-view"><%= experienceYears %></div>
             <% if (canEditProfile) { %>
               <input class="np-edit-field" type="number" min="0" max="60" name="experienceYears" value="<%= experienceYears %>">
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Height</label>
+            <div class="np-view"><%= heightText || "-" %></div>
+            <% if (canEditProfile) { %>
+              <input class="np-edit-field" type="text" name="height" value="<%= heightText %>" maxlength="20" placeholder="e.g. 5'6 or 167 cm">
+            <% } %>
+          </div>
+
+          <div class="np-field">
+            <label>Weight</label>
+            <div class="np-view"><%= weightInputValue ? `${weightInputValue}${/kg$/i.test(weightInputValue) ? "" : " kg"}` : "-" %></div>
+            <% if (canEditProfile) { %>
+              <input class="np-edit-field" type="text" name="weight" value="<%= weightInputValue %>" maxlength="20" placeholder="e.g. 60 kg">
             <% } %>
           </div>
 
@@ -654,7 +719,16 @@ const unifiedAssetsRedirectTo = String(
                 </div>
                 <div class="np-doc-actions">
                   <% if (item.certificateUrl) { %>
-                    <a class="np-doc-link" href="<%= item.certificateUrl %>" target="_blank" rel="noopener noreferrer">View Document</a>
+                    <a
+                      class="np-doc-link"
+                      href="<%= item.certificateUrl %>"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      <% if (isPreviewableImage(item.certificateUrl)) { %>
+                        data-preview-image="<%= item.certificateUrl %>"
+                        data-preview-label="<%= item.name %> certificate"
+                      <% } %>
+                    >View Document</a>
                   <% } %>
                   <% if (canEditProfile) { %>
                     <button

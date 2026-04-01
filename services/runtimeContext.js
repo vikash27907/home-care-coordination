@@ -1259,6 +1259,7 @@ function buildPublicNurse(nurse) {
     id: nurse.id,
     fullName: nurse.fullName,
     city: nurse.publicShowCity ? nurse.city : "Not shared",
+    religion: String(nurse.religion || "").trim(),
     experienceYears: nurse.publicShowExperience ? experienceYears : null,
     experienceText: nurse.publicShowExperience ? `${experienceYears} Years` : "Not shared",
     qualifications: qualificationNames,
@@ -1269,7 +1270,7 @@ function buildPublicNurse(nurse) {
     availability: nurse.availability || [],
     availabilityLabel,
     dutyType: String(nurse.dutyType || nurse.duty_type || "").trim() || "12 hrs / 24 hrs",
-    height: String(nurse.height || nurse.heightText || nurse.height_text || "").trim() || "-",
+    height: String(nurse.height || nurse.heightText || nurse.height_text || "").trim(),
     weight: Number.isFinite(Number(nurse.weightKg || nurse.weight_kg || nurse.weight))
       ? Number(nurse.weightKg || nurse.weight_kg || nurse.weight)
       : null,
@@ -1297,6 +1298,7 @@ function buildAgentDashboardNurse(row) {
     id: row.id,
     fullName: row.full_name || "Nurse",
     gender: row.gender || "Not specified",
+    religion: row.religion || "",
     city: row.city || "",
     experienceYears: Number.parseInt(row.experience_years, 10) || 0,
     qualifications: Array.isArray(row.qualifications) ? row.qualifications : [],
@@ -1437,6 +1439,7 @@ function buildPublicNurseProfileView(nurse) {
     status: nurse.status || "Pending",
     isVerified: nurse.isVerified === true || String(nurse.status || "").toLowerCase() === "approved",
     gender: nurse.gender || "Not specified",
+    religion: String(nurse.religion || "").trim(),
     city: nurse.publicShowCity ? nurse.city : "Not shared",
     qualificationPrimary,
     qualificationsText: qualificationNames.join(", "),
@@ -1453,7 +1456,7 @@ function buildPublicNurseProfileView(nurse) {
     currentStatus: nurse.currentStatus || availabilityLabel,
     availabilityLabel,
     dutyType: String(nurse.dutyType || nurse.duty_type || "").trim() || "12 hrs / 24 hrs",
-    height: String(nurse.height || nurse.heightText || nurse.height_text || "").trim() || "-",
+    height: String(nurse.height || nurse.heightText || nurse.height_text || "").trim(),
     weight: Number.isFinite(Number(nurse.weightKg || nurse.weight_kg || nurse.weight))
       ? Number(nurse.weightKg || nurse.weight_kg || nurse.weight)
       : null,

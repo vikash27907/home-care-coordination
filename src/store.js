@@ -39,6 +39,7 @@ const NURSE_UPDATE_FIELD_MAP = {
   fullName: 'full_name',
   city: 'city',
   gender: 'gender',
+  religion: 'religion',
   status: 'status',
   profileImagePath: 'profile_image_path',
   profileImageUrl: 'profile_image_url',
@@ -357,6 +358,7 @@ function transformNurseFromDB(row) {
     userId: row.user_id,
     fullName: row.full_name,
     gender: row.gender || DEFAULT_NURSE_GENDER,
+    religion: row.religion || '',
     email: row.user_email || row.email || '',
     phoneNumber: row.user_phone || row.phone_number || '',
     emailVerified: Boolean(row.email_verified),
@@ -840,28 +842,28 @@ async function createNurse(nurse) {
     const result = hasExplicitId
       ? await pool.query(`
           INSERT INTO nurses (
-            id, user_id, full_name, city, gender, status, profile_image_path,
+            id, user_id, full_name, city, gender, religion, status, profile_image_path,
             current_status, unique_id, profile_slug, profile_status, public_profile_enabled, claimed_by_nurse, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
           RETURNING *
         `, [
           nurse.id, nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-          normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
+          nurse.religion || null, normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
           nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, normalizedProfileStatus, publicProfileEnabled,
           nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()
         ])
       : await pool.query(`
           INSERT INTO nurses (
-            user_id, full_name, city, gender, status, profile_image_path,
+            user_id, full_name, city, gender, religion, status, profile_image_path,
             current_status, unique_id, profile_slug, profile_status, public_profile_enabled, claimed_by_nurse, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING *
         `, [
           nurse.userId, nurse.fullName, nurse.city || '', nurse.gender || DEFAULT_NURSE_GENDER,
-          normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
+          nurse.religion || null, normalizedStatus, nurse.profileImagePath || '/images/default-male.png',
           nurse.currentStatus || 'Available for Work', uniqueId, profileSlug, normalizedProfileStatus, publicProfileEnabled,
           nurse.claimedByNurse === true,
           nurse.createdAt || new Date().toISOString()

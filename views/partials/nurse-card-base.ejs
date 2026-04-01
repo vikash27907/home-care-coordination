@@ -23,6 +23,7 @@ const qualification = String(
   )) || ""
 ).trim() || "GNM (Nursing)";
 const gender = String((nurse && nurse.gender) || "Not specified").trim();
+const religion = String((nurse && nurse.religion) || "").trim();
 const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
 const experienceLabel = String(
   (nurse && (
@@ -32,9 +33,9 @@ const experienceLabel = String(
 ).trim() || `${experienceYears} Years`;
 const city = String((nurse && nurse.city) || "").trim() || "Not shared";
 const dutyType = String((nurse && (nurse.dutyType || nurse.duty_type)) || "").trim() || "12 hrs / 24 hrs";
-const heightValue = String((nurse && (nurse.height || nurse.heightText || nurse.height_text)) || "").trim() || "-";
+const heightValue = String((nurse && (nurse.height || nurse.heightText || nurse.height_text)) || "").trim();
 const weightRaw = nurse && (nurse.weightKg || nurse.weight_kg || nurse.weight);
-const weightValue = Number.isFinite(Number(weightRaw)) ? `${Number(weightRaw)} kg` : "-";
+const weightValue = Number.isFinite(Number(weightRaw)) ? `${Number(weightRaw)} kg` : "";
 const availabilityValue = String(
   (nurse && (
     nurse.availabilityLabel
@@ -88,6 +89,9 @@ const documents = Array.isArray(nurse && nurse.documents)
 const showQr = typeof showQrCode === "undefined" ? false : showQrCode === true;
 const showContactSection = typeof showContact === "undefined" ? true : showContact === true;
 const filledStars = ratingAverage > 0 ? Math.max(1, Math.min(5, Math.round(ratingAverage))) : 0;
+function isPreviewableImage(url) {
+  return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i.test(String(url || "").trim());
+}
 
 function icon(name, className) {
   const cls = className ? ` class="${className}"` : "";
@@ -151,6 +155,10 @@ function skillIconName(skill) {
             alt="<%= nurseName %> profile"
             class="nurse-card-base__avatar"
             onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+            data-preview-image="<%= imageSrc %>"
+            data-preview-label="<%= nurseName %> profile photo"
+            role="button"
+            tabindex="0"
           />
           <span class="nurse-card-base__verify-dot" aria-label="<%= isVerified ? 'Verified nurse' : 'Verification pending' %>">
             <%- icon(isVerified ? "verified" : "user", "nurse-card-base__verify-icon") %>
@@ -215,6 +223,12 @@ function skillIconName(skill) {
           <span class="nurse-card-base__detail-label"><%- icon("gender", "nurse-card-base__info-icon") %>Gender</span>
           <strong><%= gender %></strong>
         </div>
+        <% if (religion) { %>
+        <div class="nurse-card-base__detail-row">
+          <span class="nurse-card-base__detail-label"><%- icon("user", "nurse-card-base__info-icon") %>Religion</span>
+          <strong><%= religion %></strong>
+        </div>
+        <% } %>
         <div class="nurse-card-base__detail-row">
           <span class="nurse-card-base__detail-label"><%- icon("briefcase", "nurse-card-base__info-icon") %>Experience</span>
           <strong><%= experienceLabel %></strong>
@@ -230,14 +244,18 @@ function skillIconName(skill) {
           <span class="nurse-card-base__detail-label"><%- icon("clock", "nurse-card-base__info-icon") %>Duty Type</span>
           <strong><%= dutyType %></strong>
         </div>
+        <% if (heightValue) { %>
         <div class="nurse-card-base__detail-row">
           <span class="nurse-card-base__detail-label"><%- icon("height", "nurse-card-base__info-icon") %>Height</span>
           <strong><%= heightValue %></strong>
         </div>
+        <% } %>
+        <% if (weightValue) { %>
         <div class="nurse-card-base__detail-row">
           <span class="nurse-card-base__detail-label"><%- icon("weight", "nurse-card-base__info-icon") %>Weight</span>
           <strong><%= weightValue %></strong>
         </div>
+        <% } %>
         <div class="nurse-card-base__detail-row">
           <span class="nurse-card-base__detail-label"><%- icon("availability", "nurse-card-base__info-icon") %>Availability</span>
           <strong><%= availabilityValue %></strong>
@@ -324,6 +342,10 @@ function skillIconName(skill) {
           href="<%= item.href %>"
           target="_blank"
           rel="noopener noreferrer"
+          <% if (isPreviewableImage(item.href)) { %>
+            data-preview-image="<%= item.href %>"
+            data-preview-label="<%= item.label %>"
+          <% } %>
         >
           <span class="nurse-card-base__document-copy">
             <span class="nurse-card-base__document-icon"><%- icon(iconName, "nurse-card-base__mini-icon") %></span>

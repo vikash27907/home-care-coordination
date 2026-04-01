@@ -270,7 +270,7 @@ function setupCardNavigation() {
   }
 
   const isCardActionTarget = (target) => Boolean(
-    target && target.closest("[data-card-action], a, button, form, input, select, textarea, label")
+    target && target.closest("[data-card-action], [data-preview-image], a, button, form, input, select, textarea, label")
   );
 
   const openCardUrl = (card) => {
@@ -437,6 +437,83 @@ function setupDownloadButtons() {
   });
 }
 
+function setupImagePreviewModal() {
+  const modal = document.getElementById("imagePreviewModal");
+  const previewImage = document.getElementById("previewImage");
+  if (!modal || !previewImage) {
+    return;
+  }
+
+  const imagePattern = /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i;
+  const isPreviewableImage = (src) => {
+    const value = String(src || "").trim();
+    return value.startsWith("data:image/") || imagePattern.test(value);
+  };
+
+  window.openImagePreview = (src, label = "Preview") => {
+    const nextSrc = String(src || "").trim();
+    if (!isPreviewableImage(nextSrc)) {
+      return false;
+    }
+
+    previewImage.src = nextSrc;
+    previewImage.alt = String(label || "Preview");
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    return true;
+  };
+
+  window.closeImagePreview = () => {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    previewImage.removeAttribute("src");
+    document.body.style.overflow = "";
+  };
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-preview-image]");
+    if (trigger) {
+      const src = trigger.getAttribute("data-preview-image");
+      const label = trigger.getAttribute("data-preview-label") || trigger.getAttribute("aria-label") || "Preview";
+      if (window.openImagePreview(src, label)) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (event.target === modal) {
+      window.closeImagePreview();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      window.closeImagePreview();
+      return;
+    }
+
+    if (!event.target.closest) {
+      return;
+    }
+
+    const trigger = event.target.closest("[data-preview-image]");
+    if (!trigger || !["Enter", " "].includes(event.key)) {
+      return;
+    }
+
+    const src = trigger.getAttribute("data-preview-image");
+    const label = trigger.getAttribute("data-preview-label") || trigger.getAttribute("aria-label") || "Preview";
+    if (window.openImagePreview(src, label)) {
+      event.preventDefault();
+    }
+  });
+
+  previewImage.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
+}
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {
@@ -453,3 +530,4 @@ setupNavMenu();
 setupCardNavigation();
 setupShareButtons();
 setupDownloadButtons();
+setupImagePreviewModal();
