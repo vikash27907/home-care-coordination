@@ -183,34 +183,13 @@ async function deleteNurseAssets(assetUrls) {
   }
 }
 
-// Multer upload configurations
-const uploadResume = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /pdf/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error("Only PDF files are allowed for resume"));
-  }
-});
 
-const uploadCertificate = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|pdf/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error("Only JPG, JPEG, PNG, and PDF files are allowed"));
-  }
-});
+
+
+
+
+
+
 
 // Forgot-password rate limiter - protects against OTP abuse and enumeration attempts
 const forgotPasswordRateLimiter = rateLimit({
@@ -2832,7 +2811,6 @@ module.exports = {
   calculateCommission,
   calculateProfileCompletion,
   canTransitionCareRequestStatus,
-  certificateStorage,
   clearPatientFinancials,
   collectNurseAssetUrls,
   configureApp,
@@ -2907,7 +2885,6 @@ module.exports = {
   requireAuth,
   requireRole,
   resolveAgentLinkContext,
-  resumeStorage,
   runMulterMiddleware,
   sanitizeInput,
   session,
@@ -2919,9 +2896,10 @@ module.exports = {
   uploadBufferToCloudinary,
   uploadCertificate,
   uploadNurseProfileFiles,
-  uploadResume,
   validateEmail,
   validateIndiaPhone,
   validateRequest,
   validateServiceSchedule,
 };
+
+
