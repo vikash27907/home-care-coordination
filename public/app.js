@@ -519,6 +519,40 @@ function setupImagePreviewModal() {
   });
 }
 
+window.triggerQualificationUpload = (index) => {
+  const input = document.getElementById(`qualInput_${index}`);
+  if (!(input instanceof HTMLInputElement)) {
+    console.error("Qualification input not found:", index);
+    return;
+  }
+
+  input.value = "";
+  input.click();
+};
+
+window.submitQualification = (input) => {
+  if (!(input instanceof HTMLInputElement)) {
+    return;
+  }
+
+  if (!input.files || !input.files[0]) {
+    return;
+  }
+
+  const form = document.getElementById("assetUploadForm");
+  if (!(form instanceof HTMLFormElement)) {
+    console.error("Upload form not found");
+    return;
+  }
+
+  const nameField = form.querySelector('[name="qualificationName"]');
+  if (nameField instanceof HTMLInputElement) {
+    nameField.value = String(input.dataset.name || "").trim();
+  }
+
+  form.submit();
+};
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {

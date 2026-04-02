@@ -786,7 +786,8 @@ const PROFILE_QUALIFICATION_OPTIONS = [
   "ANM",
   "GNM",
   "BSc Nursing",
-  "MSc Nursing"
+  "MSc Nursing",
+  "GDA"
 ];
 
 

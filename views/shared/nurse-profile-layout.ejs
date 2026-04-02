@@ -226,7 +226,7 @@ const unifiedAssetsRedirectTo = String(
       action="<%= unifiedAssetsAction %>"
       method="POST"
       enctype="multipart/form-data"
-      id="npAssetsForm"
+      id="assetUploadForm"
       class="np-hidden-upload-form"
     >
       <input type="hidden" name="redirectTo" value="<%= unifiedAssetsRedirectTo %>">
@@ -246,12 +246,6 @@ const unifiedAssetsRedirectTo = String(
         type="file"
         id="npAadhaarBackAssetInput"
         name="aadhaarBack"
-        accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
-      >
-      <input
-        type="file"
-        id="npQualificationAssetInput"
-        name="qualificationDocument"
         accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
       >
       <input type="hidden" name="qualificationName" id="npQualificationNameInput" value="">
@@ -631,7 +625,7 @@ const unifiedAssetsRedirectTo = String(
                 <span>-</span>
               <% } %>
             </div>
-            <% if (isAdmin) { %>
+            <% if (canEditProfile) { %>
               <input class="np-edit-field" type="hidden" name="qualifications" value="">
               <select class="np-edit-field np-multi-select" name="qualifications" multiple size="6">
                 <% qualificationOptions.forEach((item) => { %>
@@ -723,7 +717,7 @@ const unifiedAssetsRedirectTo = String(
 
         <% if (qualificationDetails.length) { %>
           <div class="np-document-group">
-            <% qualificationDetails.forEach((item) => { %>
+            <% qualificationDetails.forEach((item, index) => { %>
               <% if (item.certificateUrl || canEditProfile) { %>
               <div class="np-doc-item">
                 <div class="np-doc-copy">
@@ -752,11 +746,20 @@ const unifiedAssetsRedirectTo = String(
                     <button
                       type="button"
                       class="np-doc-button"
-                      data-asset-trigger="qualificationDocument"
-                      data-qualification-name="<%= item.name %>"
+                      onclick="triggerQualificationUpload(<%= index %>)"
                     >
-                      Upload / Replace
+                      <%= item.certificateUrl ? "Edit" : "Upload" %>
                     </button>
+                    <input
+                      type="file"
+                      id="qualInput_<%= index %>"
+                      name="qualificationDocument"
+                      form="assetUploadForm"
+                      data-name="<%= item.name %>"
+                      accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
+                      style="position:absolute; left:-9999px;"
+                      onchange="submitQualification(this)"
+                    >
                   <% } %>
                 </div>
               </div>
@@ -952,7 +955,18 @@ const unifiedAssetsRedirectTo = String(
 }
 
 .np-hidden-upload-form {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .np-avatar-overlay {
@@ -1714,11 +1728,10 @@ const unifiedAssetsRedirectTo = String(
   const availabilityTags = document.getElementById("availabilityTags");
   const availabilitySelect = document.getElementById("availabilitySelect");
   const availabilityOptionButtons = shell.querySelectorAll(".availability-option");
-  const assetForm = document.getElementById("npAssetsForm");
+  const assetForm = document.getElementById("assetUploadForm");
   const assetProfileInput = document.getElementById("npProfileAssetInput");
   const assetAadhaarFrontInput = document.getElementById("npAadhaarFrontAssetInput");
   const assetAadhaarBackInput = document.getElementById("npAadhaarBackAssetInput");
-  const assetQualificationInput = document.getElementById("npQualificationAssetInput");
   const qualificationNameInput = document.getElementById("npQualificationNameInput");
   const assetTriggers = shell.querySelectorAll("[data-asset-trigger]");
   const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
@@ -2129,7 +2142,7 @@ const unifiedAssetsRedirectTo = String(
   assetTriggers.forEach((button) => {
     button.addEventListener("click", () => {
       const fieldName = String(button.getAttribute("data-asset-trigger") || "").trim();
-      if (qualificationNameInput instanceof HTMLInputElement && fieldName !== "qualificationDocument") {
+      if (qualificationNameInput instanceof HTMLInputElement) {
         qualificationNameInput.value = "";
       }
       let input = null;
@@ -2139,11 +2152,6 @@ const unifiedAssetsRedirectTo = String(
         input = assetAadhaarFrontInput;
       } else if (fieldName === "aadhaarBack") {
         input = assetAadhaarBackInput;
-      } else if (fieldName === "qualificationDocument") {
-        input = assetQualificationInput;
-        if (qualificationNameInput instanceof HTMLInputElement) {
-          qualificationNameInput.value = String(button.getAttribute("data-qualification-name") || "").trim();
-        }
       }
       if (!(input instanceof HTMLInputElement)) return;
       input.value = "";
@@ -2151,13 +2159,11 @@ const unifiedAssetsRedirectTo = String(
     });
   });
 
-  [assetProfileInput, assetAadhaarFrontInput, assetAadhaarBackInput, assetQualificationInput].forEach((input) => {
+  [assetProfileInput, assetAadhaarFrontInput, assetAadhaarBackInput].forEach((input) => {
     if (!(input instanceof HTMLInputElement) || !assetForm) return;
     input.addEventListener("change", () => {
       if (input.files && input.files.length > 0) {
         assetForm.submit();
-      } else if (input === assetQualificationInput && qualificationNameInput instanceof HTMLInputElement) {
-        qualificationNameInput.value = "";
       }
     });
   });

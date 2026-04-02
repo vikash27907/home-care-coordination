@@ -2033,6 +2033,8 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
   const aadharNumber = String(req.body.aadharNumber || "").replace(/\D/g, "").slice(0, 12);
   const skills = normalizeAgentDashboardList(req.body.skills);
   const availability = normalizeAgentDashboardList(req.body.availability || req.body["availability[]"]);
+  const qualificationsInput = normalizeAgentDashboardList(req.body.qualifications || req.body["qualifications[]"]);
+  const qualifications = [...new Set(qualificationsInput)];
 
   if (Number.isNaN(nurseId) || nurseId <= 0) {
     setFlash(req, "error", "Invalid nurse.");
@@ -2083,7 +2085,7 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
     await client.query("BEGIN");
 
     const nurseResult = await client.query(
-      `SELECT n.id, n.user_id
+      `SELECT n.id, n.user_id, COALESCE(n.qualifications, '[]'::jsonb) AS qualifications
        FROM nurses n
        WHERE n.id = $3
          AND ${getAgentNurseOwnershipSql("n", "$1", "$2")}
@@ -2109,6 +2111,22 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
       throw new Error("That phone number is already linked to another account.");
     }
 
+    const existingQualifications = Array.isArray(nurseRow.qualifications) ? nurseRow.qualifications : [];
+    const existingQualificationsMap = new Map(
+      existingQualifications
+        .filter((item) => item && typeof item.name === "string")
+        .map((item) => [String(item.name || "").trim().toLowerCase(), item])
+    );
+    const normalizedQualifications = qualifications.map((name) => {
+      const cleanName = String(name || "").trim();
+      const existingQualification = existingQualificationsMap.get(cleanName.toLowerCase());
+      return {
+        name: cleanName,
+        certificate_url: existingQualification ? existingQualification.certificate_url || null : null,
+        verified: existingQualification ? Boolean(existingQualification.verified) : false
+      };
+    });
+
     await client.query(
       `UPDATE nurses
        SET full_name = $1,
@@ -2125,8 +2143,9 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
            is_available = $12,
            availability = $13::text[],
            skills = $14::text[],
-           aadhar_number = $15
-       WHERE id = $16`,
+           aadhar_number = $15,
+           qualifications = $16::jsonb
+       WHERE id = $17`,
       [
         fullName,
         city,
@@ -2143,6 +2162,7 @@ router.post("/agent/nurses/:id/update", requireRole("agent"), requireApprovedAge
         availability,
         skills,
         aadharNumber || null,
+        JSON.stringify(normalizedQualifications),
         nurseId
       ]
     );
