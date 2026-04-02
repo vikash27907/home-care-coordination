@@ -710,8 +710,10 @@ function createNurseSupportController() {
       const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
       const aadhaarFrontFile = (req.files && req.files.aadhaarFront ? req.files.aadhaarFront[0] : null)
         || (req.files && req.files.aadhaarDoc ? req.files.aadhaarDoc[0] : null);
-      const aadhaarBackFile = req.files && req.files.aadhaarBack ? req.files.aadhaarBack[0] : null;
-      const qualificationDocumentFile = req.files && req.files.qualificationDocument ? req.files.qualificationDocument[0] : null;
+      console.log("FILES RECEIVED:", req.files);
+        const aadhaarBackFile =req.files && req.files.aadhaarBack && Array.isArray(req.files.aadhaarBack) && req.files.aadhaarBack.length > 0 ? req.files.aadhaarBack[0] : null;
+      console.log("aadhaarBackFile VALUE:", aadhaarBackFile);
+        const qualificationDocumentFile = req.files && req.files.qualificationDocument ? req.files.qualificationDocument[0] : null;
       const qualificationName = String(req.body.qualificationName || "").trim();
 
       let nextProfileImageUrl = "";
@@ -771,11 +773,22 @@ function createNurseSupportController() {
           createdCloudinaryAssetUrls.push(nextAadhaarFrontUrl);
         }
 
-        if (aadhaarBackFile) {
-          const backRes = await uploadBufferToCloudinary(aadhaarBackFile, "home-care/nurses/aadhar");
-          nextAadhaarBackUrl = backRes.secure_url;
-          createdCloudinaryAssetUrls.push(nextAadhaarBackUrl);
-        }
+        if (aadhaarBackFile && aadhaarBackFile.buffer) {
+  console.log("Uploading Aadhaar BACK...");
+
+  const backRes = await uploadBufferToCloudinary(
+    aadhaarBackFile,
+    "home-care/nurses/aadhar"
+  );
+
+  console.log("BACK CLOUDINARY RESPONSE:", backRes);
+
+  nextAadhaarBackUrl = backRes.secure_url;
+
+  console.log("BACK URL SET:", nextAadhaarBackUrl);
+
+  createdCloudinaryAssetUrls.push(nextAadhaarBackUrl);
+}
 
         if (qualificationDocumentFile) {
           if (!qualificationName) {
@@ -841,14 +854,20 @@ function createNurseSupportController() {
                WHEN COALESCE(NULLIF(BTRIM(COALESCE(aadhar_image_url, '')), ''), NULL) IS NULL AND $3::text IS NOT NULL THEN $3::text
                ELSE aadhar_image_url
              END,
-             aadhar_front_url = COALESCE($2::text, aadhar_front_url),
-             aadhar_back_url = COALESCE($3::text, aadhar_back_url),
+             aadhar_front_url = CASE
+  WHEN $2::text IS NOT NULL AND $2::text <> '' THEN $2::text
+  ELSE aadhar_front_url
+END,
+             aadhar_back_url = CASE
+  WHEN $3::text IS NOT NULL AND $3::text <> '' THEN $3::text
+  ELSE aadhar_back_url
+END,
              qualifications = COALESCE($4::jsonb, qualifications)
          WHERE id = $5`,
           [
             nextProfileImageUrl ? nextProfileImageUrl : null,
-            nextAadhaarFrontUrl || null,
-            nextAadhaarBackUrl || null,
+            nextAadhaarFrontUrl ? nextAadhaarFrontUrl : null,
+            nextAadhaarBackUrl ? nextAadhaarBackUrl : null,
             qualificationDocumentFile ? JSON.stringify(nextQualifications) : null,
             nurseId
           ]
