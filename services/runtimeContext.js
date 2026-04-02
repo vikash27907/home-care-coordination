@@ -62,12 +62,11 @@ const loginRateLimiter = rateLimit({
 // MULTER CONFIGURATION FOR FILE UPLOADS
 // ============================================================
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
-const PROFILE_DIR = path.join(UPLOAD_DIR, "profile");
 const RESUME_DIR = path.join(UPLOAD_DIR, "resume");
 const CERTIFICATES_DIR = path.join(UPLOAD_DIR, "certificates");
 
 // Ensure upload directories exist
-[UPLOAD_DIR, PROFILE_DIR, RESUME_DIR, CERTIFICATES_DIR].forEach(dir => {
+[UPLOAD_DIR, RESUME_DIR, CERTIFICATES_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -194,16 +193,6 @@ const resumeStorage = multer.diskStorage({
   }
 });
 
-// Storage configuration for profile images (100KB limit)
-const profileStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, PROFILE_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, "profile-" + uniqueSuffix + ext);
-  }
-});
-
 // Storage configuration for certificates
 const certificateStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, CERTIFICATES_DIR),
@@ -240,23 +229,6 @@ const uploadCertificate = multer({
       return cb(null, true);
     }
     cb(new Error("Only JPG, JPEG, PNG, and PDF files are allowed"));
-  }
-});
-
-
-
-// Profile image upload - 100KB limit (only for profile edit, NOT for signup)
-const uploadProfileImage = multer({
-  storage: profileStorage,
-  limits: { fileSize: 100 * 1024 }, // 100KB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error("Only JPG, JPEG, and PNG files are allowed. Max size: 100KB"));
   }
 });
 
@@ -2859,7 +2831,6 @@ module.exports = {
   PATIENT_STATUSES,
   PORT,
   PROFILE_CURRENT_STATUS_OPTIONS,
-  PROFILE_DIR,
   PROFILE_QUALIFICATION_OPTIONS,
   PROFILE_SKILL_OPTIONS,
   PROFILE_UPLOAD_ALLOWED_EXTENSIONS,
@@ -2948,7 +2919,6 @@ module.exports = {
   parseMoney,
   parseOptionalMoney,
   path,
-  profileStorage,
   rateLimit,
   readNormalizedStore,
   redirectByRole,
@@ -2969,7 +2939,6 @@ module.exports = {
   uploadBufferToCloudinary,
   uploadCertificate,
   uploadNurseProfileFiles,
-  uploadProfileImage,
   uploadResume,
   validateEmail,
   validateIndiaPhone,

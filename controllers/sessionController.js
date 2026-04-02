@@ -76,7 +76,6 @@ function createSessionController() {
     PATIENT_STATUSES,
     PORT,
     PROFILE_CURRENT_STATUS_OPTIONS,
-    PROFILE_DIR,
     PROFILE_QUALIFICATION_OPTIONS,
     PROFILE_SKILL_OPTIONS,
     PROFILE_UPLOAD_ALLOWED_EXTENSIONS,
@@ -165,7 +164,6 @@ function createSessionController() {
     parseMoney,
     parseOptionalMoney,
     path,
-    profileStorage,
     rateLimit,
     readNormalizedStore,
     redirectByRole,
@@ -186,7 +184,6 @@ function createSessionController() {
     uploadBufferToCloudinary,
     uploadCertificate,
     uploadNurseProfileFiles,
-    uploadProfileImage,
     uploadResume,
     validateEmail,
     validateIndiaPhone,
@@ -209,6 +206,26 @@ const AGENT_DOCUMENT_ALLOWED_MIME_TYPES = new Set([
 ]);
 
 fs.mkdirSync(AGENT_UPLOAD_DIR, { recursive: true });
+
+async function uploadProfileImageFromDiskToCloudinary(file) {
+  if (!file) return "";
+
+  const localFilePath = String(file.path || "").trim();
+  if (!localFilePath) {
+    const uploadedAsset = await uploadBufferToCloudinary(file, "home-care/profile");
+    return String((uploadedAsset && uploadedAsset.secure_url) || "").trim();
+  }
+
+  try {
+    const uploadedAsset = await cloudinary.uploader.upload(localFilePath, {
+      folder: "home-care/profile",
+      resource_type: "image"
+    });
+    return String((uploadedAsset && uploadedAsset.secure_url) || "").trim();
+  } finally {
+    await deleteLocalAsset(localFilePath);
+  }
+}
 
 const agentProfileStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, AGENT_UPLOAD_DIR),
@@ -259,7 +276,7 @@ function agentProfileUploadMiddleware(req, res, next) {
     if (!error) {
       const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
       if (profileImageFile && Number(profileImageFile.size || 0) > AGENT_PROFILE_IMAGE_MAX_BYTES) {
-        await deleteLocalAsset(`/uploads/agents/${profileImageFile.filename}`);
+        await deleteLocalAsset(profileImageFile.path);
         setFlash(req, "error", "Profile image must be 2MB or smaller.");
         return res.redirect("/agent/profile");
       }
@@ -635,29 +652,33 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, age
   const workingRegion = String(req.body.workingRegion || "").trim();
   const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
   const aadhaarDocFile = req.files && req.files.aadhaarDoc ? req.files.aadhaarDoc[0] : null;
-  const nextProfileImageUrl = profileImageFile ? `/uploads/agents/${profileImageFile.filename}` : "";
+  let nextProfileImageUrl = "";
   const nextAadhaarDocUrl = aadhaarDocFile ? `/uploads/agents/${aadhaarDocFile.filename}` : "";
   const previousProfileImageUrl = String(req.agentRecord.profileImageUrl || "").trim();
   const previousAadhaarDocUrl = String(req.agentRecord.aadhaarDocUrl || req.agentRecord.aadhaarUrl || "").trim();
-  const uploadedAssetUrls = [nextProfileImageUrl, nextAadhaarDocUrl].filter(Boolean);
+  const temporaryAssetPaths = [
+    profileImageFile && profileImageFile.path,
+    aadhaarDocFile && aadhaarDocFile.path
+  ].filter(Boolean);
+  const localAssetUrls = [nextAadhaarDocUrl].filter(Boolean);
   let hasPersistedProfileChanges = false;
 
   if (!fullName || !emailInput || !phoneInput || !workingRegion) {
-    await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+    await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
     setFlash(req, "error", "Please complete all required profile fields.");
     return res.redirect("/agent/profile");
   }
 
   const emailValidation = validateEmail(emailInput);
   if (!emailValidation.valid) {
-    await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+    await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
     setFlash(req, "error", emailValidation.error);
     return res.redirect("/agent/profile");
   }
 
   const phoneValidation = validateIndiaPhone(phoneInput);
   if (!phoneValidation.valid) {
-    await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+    await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
     setFlash(req, "error", phoneValidation.error);
     return res.redirect("/agent/profile");
   }
@@ -680,7 +701,7 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, age
       [normalizedEmailInput, req.currentUser.id]
     );
     if (duplicateEmailResult.rowCount > 0) {
-      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+      await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
       setFlash(req, "error", "That email address is already in use.");
       return res.redirect("/agent/profile");
     }
@@ -699,9 +720,16 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, age
       [normalizedPhoneInput, req.currentUser.id]
     );
     if (duplicatePhoneResult.rowCount > 0) {
-      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+      await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
       setFlash(req, "error", "That phone number is already in use.");
       return res.redirect("/agent/profile");
+    }
+
+    if (profileImageFile) {
+      nextProfileImageUrl = await uploadProfileImageFromDiskToCloudinary(profileImageFile);
+      if (!nextProfileImageUrl) {
+        throw new Error("Unable to upload profile image right now.");
+      }
     }
 
     const agentUpdates = {
@@ -733,14 +761,21 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, age
     }
     hasPersistedProfileChanges = true;
 
-    await Promise.all([
-      nextProfileImageUrl && previousProfileImageUrl && previousProfileImageUrl !== nextProfileImageUrl
-        ? deleteLocalAsset(previousProfileImageUrl)
-        : Promise.resolve(),
-      nextAadhaarDocUrl && previousAadhaarDocUrl && previousAadhaarDocUrl !== nextAadhaarDocUrl
-        ? deleteLocalAsset(previousAadhaarDocUrl)
-        : Promise.resolve()
-    ]);
+    try {
+      await Promise.all([
+        nextProfileImageUrl && previousProfileImageUrl && previousProfileImageUrl !== nextProfileImageUrl
+          ? Promise.all([
+            deleteCloudinaryAssetByUrl(previousProfileImageUrl),
+            deleteLocalAsset(previousProfileImageUrl)
+          ])
+          : Promise.resolve(),
+        nextAadhaarDocUrl && previousAadhaarDocUrl && previousAadhaarDocUrl !== nextAadhaarDocUrl
+          ? deleteLocalAsset(previousAadhaarDocUrl)
+          : Promise.resolve()
+      ]);
+    } catch (cleanupError) {
+      console.error("Agent profile cleanup error:", cleanupError);
+    }
 
     const refreshedUser = await getUserById(req.currentUser.id);
     req.session.user = await getSessionUserPayload(refreshedUser);
@@ -748,7 +783,11 @@ router.post("/agent/profile/update", requireRole("agent"), loadAgentProfile, age
     return res.redirect("/agent/profile");
   } catch (error) {
     if (!hasPersistedProfileChanges) {
-      await Promise.all(uploadedAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+      if (nextProfileImageUrl) {
+        await deleteCloudinaryAssetByUrl(nextProfileImageUrl);
+      }
+      await Promise.all(localAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
+      await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
     }
     console.error("Agent profile update error:", error);
     setFlash(req, "error", error.message || "Unable to save your profile right now.");

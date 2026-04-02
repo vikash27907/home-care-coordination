@@ -2168,4 +2168,32 @@ const unifiedAssetsRedirectTo = String(
     });
   });
 })();
+// 🔥 FINAL FIX: AUTO SUBMIT FILE UPLOAD
+
+if (assetProfileInput && assetForm) {
+  assetProfileInput.addEventListener("change", function () {
+    if (this.files && this.files.length > 0) {
+      console.log("Uploading profile image...");
+      assetForm.submit();
+    }
+  });
+}
+
+if (assetAadhaarFrontInput && assetForm) {
+  assetAadhaarFrontInput.addEventListener("change", function () {
+    if (this.files && this.files.length > 0) {
+      console.log("Uploading aadhaar front...");
+      assetForm.submit();
+    }
+  });
+}
+
+if (assetAadhaarBackInput && assetForm) {
+  assetAadhaarBackInput.addEventListener("change", function () {
+    if (this.files && this.files.length > 0) {
+      console.log("Uploading aadhaar back...");
+      assetForm.submit();
+    }
+  });
+}
 </script>
