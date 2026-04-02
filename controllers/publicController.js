@@ -318,21 +318,26 @@ function createPublicController() {
     return String(value || "").trim().toLowerCase() === "approved";
   }
 
-  function isNurseDirectProfileVisible(nurse) {
-    if (!nurse) {
-      return false;
-    }
-
-    const profileStatus = nurse.profileStatus || nurse.profile_status || "";
-    const isPubliclyEnabled = nurse.publicProfileEnabled === true
-      || nurse.isPublic === true
-      || nurse.adminVisible === true;
-    return isPubliclyEnabled && isApprovedProfileStatus(profileStatus);
+function isNurseDirectProfileVisible(nurse) {
+  if (!nurse) {
+    return false;
   }
 
-  function isNurseListedPublicly(nurse) {
-    return isNurseDirectProfileVisible(nurse) && nurse.publicProfileEnabled === true;
-  }
+  const profileStatus = nurse.profileStatus || nurse.profile_status || "";
+
+  // ✅ ONLY approval matters for direct access (QR, link, card)
+  return isApprovedProfileStatus(profileStatus);
+}
+
+function isNurseListedPublicly(nurse) {
+  const profileStatus = nurse.profileStatus || nurse.profile_status || "";
+
+  // ✅ For listing: must be approved + public enabled
+  return (
+    isApprovedProfileStatus(profileStatus) &&
+    nurse.publicProfileEnabled === true
+  );
+}
 
 router.get("/health", (req, res) => {
   res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
