@@ -2894,7 +2894,6 @@ module.exports = {
   toArray,
   toBoolean,
   uploadBufferToCloudinary,
-  uploadCertificate,
   uploadNurseProfileFiles,
   validateEmail,
   validateIndiaPhone,
