@@ -183,29 +183,9 @@ async function deleteNurseAssets(assetUrls) {
   }
 }
 
-// Storage configuration for resumes
-const resumeStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, RESUME_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, "resume-" + uniqueSuffix + ext);
-  }
-});
-
-// Storage configuration for certificates
-const certificateStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, CERTIFICATES_DIR),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, "certificate-" + uniqueSuffix + ext);
-  }
-});
-
 // Multer upload configurations
 const uploadResume = multer({
-  storage: resumeStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = /pdf/;
@@ -219,7 +199,7 @@ const uploadResume = multer({
 });
 
 const uploadCertificate = multer({
-  storage: certificateStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|pdf/;
@@ -2945,5 +2925,3 @@ module.exports = {
   validateRequest,
   validateServiceSchedule,
 };
-
-

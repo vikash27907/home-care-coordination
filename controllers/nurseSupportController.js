@@ -191,7 +191,6 @@ function createNurseSupportController() {
     validateServiceSchedule,
   } = runtime;
 
-  const UNIFIED_NURSE_ASSET_DIR = path.join(UPLOAD_DIR, "nurse-assets");
   const UNIFIED_NURSE_PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
   const UNIFIED_NURSE_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024;
   const UNIFIED_NURSE_PROFILE_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
@@ -205,35 +204,12 @@ function createNurseSupportController() {
     "image/webp"
   ]);
 
-  fs.mkdirSync(UNIFIED_NURSE_ASSET_DIR, { recursive: true });
-
-  async function uploadProfileImageFromDiskToCloudinary(file) {
+  async function uploadProfileImageToCloudinary(file) {
     if (!file) return "";
 
-    const localFilePath = String(file.path || "").trim();
-    console.log("Uploading file path:", localFilePath);
+    const uploadedAsset = await uploadBufferToCloudinary(file, "home-care/profile");
 
-    if (!localFilePath) {
-      const uploadedAsset = await uploadBufferToCloudinary(file, "home-care/profile");
-      console.log("Cloudinary (buffer):", uploadedAsset);
-      return String((uploadedAsset && uploadedAsset.secure_url) || "").trim();
-    }
-
-    try {
-      const uploadedAsset = await cloudinary.uploader.upload(localFilePath, {
-        folder: "home-care/profile",
-        resource_type: "image"
-      });
-
-      console.log("Cloudinary result:", uploadedAsset);
-
-      return String((uploadedAsset && uploadedAsset.secure_url) || "").trim();
-    } catch (err) {
-      console.error("Cloudinary ERROR:", err);
-      return "";
-    } finally {
-      await deleteLocalAsset(localFilePath);
-    }
+    return String(uploadedAsset?.secure_url || "").trim();
   }
 
   function getManagedNurseOwnershipSql(alias, emailParamRef, userIdParamRef) {
@@ -380,25 +356,8 @@ function createNurseSupportController() {
     return null;
   }
 
-  const unifiedNurseAssetStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UNIFIED_NURSE_ASSET_DIR),
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      const extension = path.extname(String(file.originalname || "")).toLowerCase();
-      let prefix = "nurse-document";
-      if (file.fieldname === "profileImage") {
-        prefix = "nurse-profile";
-      } else if (file.fieldname === "qualificationDocument") {
-        prefix = "nurse-qualification";
-      } else if (file.fieldname === "aadhaarFront" || file.fieldname === "aadhaarBack" || file.fieldname === "aadhaarDoc") {
-        prefix = "nurse-aadhaar";
-      }
-      cb(null, `${prefix}-${uniqueSuffix}${extension}`);
-    }
-  });
-
   const unifiedNurseAssetUpload = multer({
-    storage: unifiedNurseAssetStorage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: UNIFIED_NURSE_DOCUMENT_MAX_BYTES },
     fileFilter: (req, file, cb) => {
       const extension = path.extname(String(file.originalname || "")).toLowerCase();
@@ -444,7 +403,6 @@ function createNurseSupportController() {
       if (!error) {
         const profileImageFile = req.files && req.files.profileImage ? req.files.profileImage[0] : null;
         if (profileImageFile && Number(profileImageFile.size || 0) > UNIFIED_NURSE_PROFILE_IMAGE_MAX_BYTES) {
-          await deleteLocalAsset(profileImageFile.path);
           setFlash(req, "error", "Profile image must be 5MB or smaller.");
           return res.redirect(req.get("referer") || "/nurse/profile");
         }
@@ -758,30 +716,19 @@ function createNurseSupportController() {
       const aadhaarBackFile = req.files && req.files.aadhaarBack ? req.files.aadhaarBack[0] : null;
       const qualificationDocumentFile = req.files && req.files.qualificationDocument ? req.files.qualificationDocument[0] : null;
       const qualificationName = String(req.body.qualificationName || "").trim();
+
       let nextProfileImageUrl = "";
-      const nextAadhaarFrontUrl = aadhaarFrontFile ? `/uploads/nurse-assets/${aadhaarFrontFile.filename}` : "";
-      const nextAadhaarBackUrl = aadhaarBackFile ? `/uploads/nurse-assets/${aadhaarBackFile.filename}` : "";
-      const nextQualificationDocumentUrl = qualificationDocumentFile ? `/uploads/nurse-assets/${qualificationDocumentFile.filename}` : "";
-      const temporaryAssetPaths = [
-        profileImageFile && profileImageFile.path,
-        aadhaarFrontFile && aadhaarFrontFile.path,
-        aadhaarBackFile && aadhaarBackFile.path,
-        qualificationDocumentFile && qualificationDocumentFile.path
-      ].filter(Boolean);
+      let nextAadhaarFrontUrl = "";
+      let nextAadhaarBackUrl = "";
+      let nextQualificationDocumentUrl = "";
+
       const createdCloudinaryAssetUrls = [];
       let hasCommitted = false;
 
       console.log("FILES:", req.files);
       console.log("FILE:", req.file);
 
-      const localAssetUrls = [
-        nextAadhaarFrontUrl,
-        nextAadhaarBackUrl,
-        nextQualificationDocumentUrl
-      ].filter(Boolean);
-
       if (Number.isNaN(nurseId) || nurseId <= 0) {
-        await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
         setFlash(req, "error", "Invalid nurse.");
         return res.redirect(redirectTo);
       }
@@ -808,7 +755,7 @@ function createNurseSupportController() {
         let nextQualifications = existingQualifications;
 
         if (profileImageFile) {
-          const uploadedUrl = await uploadProfileImageFromDiskToCloudinary(profileImageFile);
+          const uploadedUrl = await uploadProfileImageToCloudinary(profileImageFile);
 
           console.log("FINAL CLOUDINARY URL:", uploadedUrl);
 
@@ -821,10 +768,26 @@ function createNurseSupportController() {
           createdCloudinaryAssetUrls.push(uploadedUrl);
         }
 
+        if (aadhaarFrontFile) {
+          const frontRes = await uploadBufferToCloudinary(aadhaarFrontFile, "home-care/nurses/aadhar");
+          nextAadhaarFrontUrl = frontRes.secure_url;
+          createdCloudinaryAssetUrls.push(nextAadhaarFrontUrl);
+        }
+
+        if (aadhaarBackFile) {
+          const backRes = await uploadBufferToCloudinary(aadhaarBackFile, "home-care/nurses/aadhar");
+          nextAadhaarBackUrl = backRes.secure_url;
+          createdCloudinaryAssetUrls.push(nextAadhaarBackUrl);
+        }
+
         if (qualificationDocumentFile) {
           if (!qualificationName) {
             throw new Error("Qualification name is required.");
           }
+
+          const qualRes = await uploadBufferToCloudinary(qualificationDocumentFile, "home-care/nurses/qualifications");
+          nextQualificationDocumentUrl = qualRes.secure_url;
+          createdCloudinaryAssetUrls.push(nextQualificationDocumentUrl);
 
           const normalizedQualificationName = qualificationName.toLowerCase();
           let matchedQualification = false;
@@ -932,8 +895,6 @@ function createNurseSupportController() {
           }
         }
         if (!hasCommitted) {
-          await Promise.all(localAssetUrls.map((assetUrl) => deleteLocalAsset(assetUrl)));
-          await Promise.all(temporaryAssetPaths.map((assetPath) => deleteLocalAsset(assetPath)));
           await Promise.all(createdCloudinaryAssetUrls.map((assetUrl) => deleteCloudinaryAssetByUrl(assetUrl)));
         }
         console.error("Unified nurse asset upload error:", error);
@@ -2271,5 +2232,3 @@ function createNurseSupportController() {
 }
 
 module.exports = createNurseSupportController;
-
-
