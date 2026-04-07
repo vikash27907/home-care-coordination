@@ -333,10 +333,11 @@ const unifiedAssetsRedirectTo = String(
         }
       }) %>
 
-      <div class="card-actions">
-        <button type="button" class="btn primary" id="download-card">Download Image</button>
-        <button type="button" class="btn" id="share-card">Share</button>
-      </div>
+    <div class="card-actions">
+      <button type="button" class="request-btn" id="request-nurse-btn">
+        Request Nurse 💬
+      </button>
+    </div>
     </div>
   </div>
 
@@ -2194,6 +2195,15 @@ if (assetAadhaarBackInput && assetForm) {
       console.log("Uploading aadhaar back...");
       assetForm.submit();
     }
+  });
+}
+
+
+const requestBtn = document.getElementById("request-nurse-btn");
+
+if (requestBtn) {
+  requestBtn.addEventListener("click", () => {
+    window.location.href = `/nurse/<%= profileSlug %>`;
   });
 }
 </script>

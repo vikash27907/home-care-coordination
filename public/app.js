@@ -263,261 +263,26 @@ function setupNavMenu() {
   });
 }
 
-function setupCardNavigation() {
-  const nurseCards = document.querySelectorAll("[data-card-url]");
-  if (!nurseCards.length) {
-    return;
-  }
+window.openProfile = function (slug) {
+  window.location.href = `/nurse/${slug}`;
+};
 
-  const isCardActionTarget = (target) => Boolean(
-    target && target.closest("[data-card-action], [data-preview-image], a, button, form, input, select, textarea, label")
-  );
+window.requestNurse = function (nurse) {
+  const message = `Hello Prisha Home Care,
 
-  const openCardUrl = (card) => {
-    const nextUrl = String(card.getAttribute("data-card-url") || "").trim();
-    if (!nextUrl) {
-      return;
-    }
+I want to request nurse:
 
-    const target = String(card.getAttribute("data-card-target") || "").trim().toLowerCase();
-    if (target === "_blank") {
-      window.open(nextUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
+Name: ${nurse.name}
+Experience: ${nurse.experience}
+Qualification: ${nurse.qualification}
+City: ${nurse.city}
 
-    window.location.href = nextUrl;
-  };
+Profile: https://prishahomecare.com/nurse/${nurse.slug}`;
 
-  nurseCards.forEach((card) => {
-    card.addEventListener("click", (event) => {
-      if (event.defaultPrevented || isCardActionTarget(event.target)) {
-        return;
-      }
+  const url = `https://wa.me/919138913355?text=${encodeURIComponent(message)}`;
 
-      openCardUrl(card);
-    });
-
-    card.addEventListener("keydown", (event) => {
-      if (!["Enter", " "].includes(event.key) || isCardActionTarget(event.target)) {
-        return;
-      }
-
-      event.preventDefault();
-      openCardUrl(card);
-    });
-  });
-}
-
-function setupShareButtons() {
-  const shareButtons = document.querySelectorAll("[data-share-url]");
-  if (!shareButtons.length) {
-    return;
-  }
-
-  const resolveAbsoluteUrl = (value) => {
-    try {
-      return new URL(String(value || "").trim(), window.location.origin).toString();
-    } catch (error) {
-      return window.location.href;
-    }
-  };
-
-  shareButtons.forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const shareUrl = resolveAbsoluteUrl(button.getAttribute("data-share-url"));
-      const shareTitle = String(button.getAttribute("data-share-title") || "Nurse Profile").trim();
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: shareTitle,
-            url: shareUrl
-          });
-          return;
-        } catch (error) {
-          if (error && error.name === "AbortError") {
-            return;
-          }
-        }
-      }
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          alert("Profile link copied!");
-          return;
-        } catch (error) {
-          // Fall through to manual copy prompt.
-        }
-      }
-
-      window.prompt("Copy this profile link:", shareUrl);
-    });
-  });
-}
-
-function setupDownloadButtons() {
-  const downloadButtons = document.querySelectorAll("[data-download-card]");
-  if (!downloadButtons.length) {
-    return;
-  }
-
-  let htmlToImageLoader = null;
-
-  const loadHtmlToImage = () => {
-    if (window.htmlToImage) {
-      return Promise.resolve(window.htmlToImage);
-    }
-
-    if (htmlToImageLoader) {
-      return htmlToImageLoader;
-    }
-
-    htmlToImageLoader = new Promise((resolve, reject) => {
-      const existingScript = document.querySelector('script[data-html-to-image-loader="true"]');
-      if (existingScript) {
-        existingScript.addEventListener("load", () => resolve(window.htmlToImage));
-        existingScript.addEventListener("error", reject);
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.src = "/vendor/html-to-image.js";
-      script.async = true;
-      script.dataset.htmlToImageLoader = "true";
-      script.onload = () => {
-        if (window.htmlToImage) {
-          resolve(window.htmlToImage);
-          return;
-        }
-
-        reject(new Error("html-to-image failed to load."));
-      };
-      script.onerror = () => reject(new Error("Unable to load download helper."));
-      document.head.appendChild(script);
-    });
-
-    return htmlToImageLoader;
-  };
-
-  downloadButtons.forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const card = button.closest("[data-nurse-card]");
-      if (!card) {
-        return;
-      }
-      const captureTarget = card.querySelector("[data-card-capture]") || card;
-
-      try {
-        button.disabled = true;
-        const htmlToImage = await loadHtmlToImage();
-        const dataUrl = await htmlToImage.toPng(captureTarget, {
-          cacheBust: true,
-          pixelRatio: Math.max(window.devicePixelRatio || 1, 2)
-        });
-        const fileName = String(card.getAttribute("data-card-file-name") || "nurse-card.png").trim();
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } catch (error) {
-        alert("Unable to download card right now.");
-      } finally {
-        button.disabled = false;
-      }
-    });
-  });
-}
-
-function setupImagePreviewModal() {
-  const modal = document.getElementById("imagePreviewModal");
-  const previewImage = document.getElementById("previewImage");
-  if (!modal || !previewImage) {
-    return;
-  }
-
-  const imagePattern = /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i;
-  const pdfPattern = /\.pdf(\?.*)?$/i;
-  const isPreviewableImage = (src) => {
-    const value = String(src || "").trim();
-    return value.startsWith("data:image/") || imagePattern.test(value);
-  };
-
-  window.openImagePreview = (src, label = "Preview") => {
-    const nextSrc = String(src || "").trim();
-    if (pdfPattern.test(nextSrc)) {
-      window.open(nextSrc, "_blank", "noopener,noreferrer");
-      return true;
-    }
-    if (!isPreviewableImage(nextSrc)) {
-      return false;
-    }
-
-    previewImage.src = nextSrc;
-    previewImage.alt = String(label || "Preview");
-    modal.classList.add("is-open");
-    modal.setAttribute("aria-hidden", "false");
-    document.body.style.overflow = "hidden";
-    return true;
-  };
-
-  window.closeImagePreview = () => {
-    modal.classList.remove("is-open");
-    modal.setAttribute("aria-hidden", "true");
-    previewImage.removeAttribute("src");
-    document.body.style.overflow = "";
-  };
-
-  document.addEventListener("click", (event) => {
-    const trigger = event.target.closest("[data-preview-image]");
-    if (trigger) {
-      const src = trigger.getAttribute("data-preview-image");
-      const label = trigger.getAttribute("data-preview-label") || trigger.getAttribute("aria-label") || "Preview";
-      if (window.openImagePreview(src, label)) {
-        event.preventDefault();
-      }
-      return;
-    }
-
-    if (event.target === modal) {
-      window.closeImagePreview();
-    }
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modal.classList.contains("is-open")) {
-      window.closeImagePreview();
-      return;
-    }
-
-    if (!event.target.closest) {
-      return;
-    }
-
-    const trigger = event.target.closest("[data-preview-image]");
-    if (!trigger || !["Enter", " "].includes(event.key)) {
-      return;
-    }
-
-    const src = trigger.getAttribute("data-preview-image");
-    const label = trigger.getAttribute("data-preview-label") || trigger.getAttribute("aria-label") || "Preview";
-    if (window.openImagePreview(src, label)) {
-      event.preventDefault();
-    }
-  });
-
-  previewImage.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-  });
-}
+  window.open(url, "_blank");
+};
 
 window.triggerQualificationUpload = (index) => {
   const input = document.getElementById(`qualInput_${index}`);
@@ -566,7 +331,3 @@ setupHeroRotator();
 setupMenuDropdown();
 setupNotificationCenter();
 setupNavMenu();
-setupCardNavigation();
-setupShareButtons();
-setupDownloadButtons();
-setupImagePreviewModal();

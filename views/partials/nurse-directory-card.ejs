@@ -8,6 +8,13 @@ const showUtilityActions = typeof showUtilityButtons === "undefined" ? Boolean(p
 const resolvedCardMode = String(typeof mode !== "undefined" ? mode : "compact").trim().toLowerCase() === "id" ? "id" : "compact";
 const profileButtonLabel = String(typeof hrefLabel !== "undefined" ? hrefLabel : "View Profile").trim() || "View Profile";
 const profileSlug = String(nurse.profileSlug || nurse.profile_slug || "").trim();
+const resolvedQualificationDisplayMode = typeof qualificationDisplayMode !== "undefined" ? qualificationDisplayMode : "";
+const actionContext = typeof contactContext !== "undefined" && contactContext && typeof contactContext === "object" ? contactContext : {};
+const requestActionHref = showRequest
+  ? String(actionContext.actionHref || actionContext.whatsappHref || actionContext.telHref || "").trim()
+  : "";
+const requestActionLabel = String(actionContext.buttonLabel || "I'm Interested").trim() || "I'm Interested";
+const requestActionOpenInNewTab = actionContext.openInNewTab === true || /^https?:\/\//i.test(requestActionHref);
 const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName || "nurse-card")
   .trim()
   .toLowerCase()
@@ -24,36 +31,31 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
   data-card-url="<%= profileHref %>"
   role="link"
   tabindex="0"
+  onclick="if (event.target.closest('[data-card-action], a, button, input, select, textarea, form')) return; window.location.href='<%= profileHref %>';"
+  onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('[data-card-action], a, button, input, select, textarea, form')) { event.preventDefault(); window.location.href='<%= profileHref %>'; }"
   <% } %>
 >
   <%- include("./nurse-card", {
     nurse,
     mode: resolvedCardMode,
-    showQrCode: resolvedCardMode === "id"
+    showQrCode: resolvedCardMode === "id",
+    qualificationDisplayMode: resolvedQualificationDisplayMode,
+    primaryActionHref: requestActionHref,
+    primaryActionLabel: requestActionLabel,
+    primaryActionTargetBlank: requestActionOpenInNewTab
   }) %>
 
-  <% if (profileHref || (showRequest && nurse.isAvailable) || showUtilityActions || showDeleteAction) { %>
+  <% if (showDeleteAction) { %>
   <div class="cta-row nurse-actions nurse-card__actions">
-    <% if (profileHref) { %>
-    <a href="<%= profileHref %>" class="btn primary" data-card-action><%= profileButtonLabel %></a>
-    <% } %>
-    <% if (showRequest && nurse.isAvailable) { %>
-    <a href="/request-care?nurseId=<%= nurse.id %>" class="btn primary" data-card-action>Request This Nurse</a>
-    <% } %>
-    <% if (showUtilityActions && shareHref) { %>
-    <button type="button" class="btn" data-card-action data-share-url="<%= shareHref %>" data-share-title="<%= nurseName %> | Nurse Profile">Share</button>
-    <button type="button" class="btn" data-card-action data-download-card>Download</button>
-    <% } %>
-    <% if (showDeleteAction) { %>
-    <form method="POST" action="/agent/nurse/delete" class="nurse-delete-form" data-card-action onsubmit="return confirm('Delete this nurse?');">
+    <form method="POST" action="/agent/nurse/delete" class="nurse-delete-form"
+      onsubmit="return confirm('Delete this nurse?');">
       <input type="hidden" name="nurseId" value="<%= nurse.id %>" />
       <% if (nurse.canDelete) { %>
-      <button class="btn btn-danger btn-sm" type="submit">Delete</button>
-      <% } else { %>
-      <button class="btn btn-secondary btn-sm" type="button" disabled>Locked</button>
-      <% } %>
+        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+        <% } else { %>
+          <button class="btn btn-secondary btn-sm" type="button" disabled>Locked</button>
+          <% } %>
     </form>
-    <% } %>
   </div>
   <% } %>
 </article>

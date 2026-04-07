@@ -28,7 +28,9 @@
   <%- include("../partials/nurse-directory-card", {
     nurse,
     href: nurse.publicUrl,
+    contactContext: nurse.contactContext,
     mode: "compact",
+    qualificationDisplayMode: "public-directory",
     showRequestButton: true,
     showStatus: false
   }) %>

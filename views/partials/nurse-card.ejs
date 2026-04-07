@@ -11,12 +11,44 @@ const imageSrc = String(
     || nurse.profile_image_path
   )) || "/images/default-avatar.png"
 ).trim();
-const qualification = String(
-  (nurse && (
-    nurse.qualificationPrimary
-    || nurse.qualificationsText
-  )) || ""
-).trim() || "Nursing";
+const displayMode = String(typeof qualificationDisplayMode !== "undefined" ? qualificationDisplayMode : "").trim().toLowerCase();
+const rawQualifications = Array.isArray(nurse && nurse.qualifications)
+  ? nurse.qualifications.map((item) => (item && typeof item === "object" ? item.name : item))
+  : String(
+    (nurse && (
+      nurse.qualificationsText
+      || nurse.qualificationPrimary
+      || nurse.qualification
+    )) || ""
+  ).split(",");
+const allowedDirectoryQualifications = new Map([
+  ["gda", "GDA"],
+  ["anm", "ANM"],
+  ["gnm", "GNM"],
+  ["bsc", "BSc Nursing"],
+  ["bscnurse", "BSc Nursing"],
+  ["bscnurses", "BSc Nursing"],
+  ["bscnursing", "BSc Nursing"]
+]);
+const directoryQualifications = Array.from(new Set(
+  rawQualifications
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .map((item) => allowedDirectoryQualifications.get(
+      item
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "")
+    ) || "")
+    .filter(Boolean)
+));
+const qualification = displayMode === "public-directory"
+  ? (directoryQualifications.join(" / ") || "Not shared")
+  : (String(
+    (nurse && (
+      nurse.qualificationPrimary
+      || nurse.qualificationsText
+    )) || ""
+  ).trim() || "Nursing");
 const experienceYears = Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0;
 const experienceLabel = String(
   (nurse && (
@@ -34,6 +66,9 @@ const nurseId = Number.parseInt((nurse && nurse.id) || 0, 10);
 const profileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "").trim();
 const profileUrl = profileSlug ? `/nurse/${profileSlug}` : "";
 const showQr = typeof showQrCode === "undefined" ? false : showQrCode === true;
+const primaryActionLink = String(typeof primaryActionHref !== "undefined" ? primaryActionHref : "").trim();
+const primaryActionText = String(typeof primaryActionLabel !== "undefined" ? primaryActionLabel : "Contact").trim() || "Contact";
+const openPrimaryActionInNewTab = primaryActionTargetBlank === true || /^https?:\/\//i.test(primaryActionLink);
 
 function icon(name, className) {
   const cls = className ? ` class="${className}"` : "";
@@ -43,6 +78,7 @@ function icon(name, className) {
     experience: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2 4.5L19 8l-3.6 3.3.9 4.8L12 13.9l-4.3 2.2.9-4.8L5 8l5-.5L12 3z" fill="currentColor" opacity=".18"/><path d="M12 5.1l1.3 2.7 3 .4-2.2 2 .5 3-2.6-1.3-2.6 1.3.5-3-2.2-2 3-.4L12 5.1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
     qualification: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 9.5L12 5l9 4.5L12 14 3 9.5z" fill="currentColor" opacity=".18"/><path d="M6.5 11.5V15c0 1.7 2.4 3 5.5 3s5.5-1.3 5.5-3v-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 9.5L12 5l9 4.5L12 14 3 9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
     location: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s6-5.8 6-11a6 6 0 10-12 0c0 5.2 6 11 6 11z" fill="currentColor" opacity=".16"/><circle cx="12" cy="10" r="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M12 21s6-5.8 6-11a6 6 0 10-12 0c0 5.2 6 11 6 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
+    whatsapp: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.6a8.4 8.4 0 00-7.3 12.5L4 20l4-1a8.4 8.4 0 104-15.4z" fill="currentColor" opacity=".18"/><path d="M12 3.6a8.4 8.4 0 00-7.3 12.5L4 20l4-1a8.4 8.4 0 104-15.4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.4 8.7c-.3.1-.8.8-.9 1.2-.1.4.1 1 .3 1.5.3.7.9 1.6 1.8 2.5.9.9 1.8 1.5 2.5 1.8.5.2 1.1.4 1.5.3.4-.1 1.1-.6 1.2-.9.1-.3.1-.6 0-.7l-1.4-.7c-.1-.1-.3 0-.4.1l-.5.6c-.1.1-.2.1-.4.1-.3-.1-1-.4-1.9-1.2-.8-.8-1.1-1.5-1.2-1.9 0-.1 0-.3.1-.4l.6-.5c.1-.1.2-.2.1-.4l-.7-1.4c-.1-.1-.4-.1-.7 0z" fill="currentColor"/></svg>`,
     qr: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM16 14h1v1h-1zM19 14h1v3h-1zM14 19h3v1h-3zM16 16h2v2h-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`
   };
 
@@ -165,5 +201,21 @@ function icon(name, className) {
       </div>
     </div>
   </div>
+
+  <% if (primaryActionLink) { %>
+  <div class="nurse-card-compact__footer">
+    <a
+      href="<%= primaryActionLink %>"
+      class="nurse-card-compact__cta"
+      data-card-action
+      <%= openPrimaryActionInNewTab ? 'target="_blank" rel="noopener noreferrer"' : '' %>
+    >
+      <span class="nurse-card-compact__cta-icon">
+        <%- icon("whatsapp", "nurse-card-compact__icon") %>
+      </span>
+      <span><%= primaryActionText %></span>
+    </a>
+  </div>
+  <% } %>
 </article>
 <% } %>

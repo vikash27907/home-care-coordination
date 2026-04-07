@@ -356,7 +356,22 @@ function createPublicController() {
       .filter((nurse) => isNurseListedPublicly(nurse))
       .filter((nurse) => (includeUnavailable ? true : nurse.isAvailable !== false))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-      .map((nurse) => buildPublicNurse(nurse));
+      .map((nurse) => {
+        const publicNurse = buildPublicNurse(nurse);
+        const profileUrl = new URL(publicNurse.publicUrl, `${getAppBaseUrl(req)}/`).toString();
+
+        return {
+          ...publicNurse,
+          contactContext: {
+            ...buildNurseContactContext(nurse, req.currentUser, {
+              forceCompanyContact: true,
+              profileUrl
+            }),
+            contactLabel: "Contact via Prisha Home Care",
+            buttonLabel: "I'm Interested"
+          }
+        };
+      });
 
     return res.render("public/nurses", {
       title: "Find Nurses",
