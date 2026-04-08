@@ -20,21 +20,131 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "-")
   .replace(/^-+|-+$/g, "") || "nurse-card"}.png`;
+const showStatusPanel = typeof showStatus !== "undefined" && showStatus === true;
+const approvalStatus = String((nurse && nurse.status) || "pending").trim() || "pending";
+const approvalStatusKey = approvalStatus.toLowerCase();
+const availabilityLabel = String(
+  (nurse && (
+    nurse.availabilityLabel
+    || nurse.availability_label
+    || nurse.currentStatus
+    || nurse.current_status
+  )) || ""
+).trim() || (nurse && nurse.isAvailable === false ? "Unavailable" : "Available");
+const availabilityKey = availabilityLabel.toLowerCase().replace(/\s+/g, "-");
+const experienceText = String(
+  (nurse && (
+    nurse.experienceText
+    || nurse.experienceLabel
+  )) || ""
+).trim() || `${Number.parseInt((nurse && (nurse.experienceYears || nurse.experience_years)) || 0, 10) || 0} Years`;
+const resolvedEditHref = String(typeof editHref !== "undefined" ? editHref : profileHref).trim();
+const resolvedEditLabel = String(typeof editLabel !== "undefined" ? editLabel : profileButtonLabel).trim() || profileButtonLabel;
+const cardNavigationHref = String(
+  typeof cardHref !== "undefined"
+    ? cardHref
+    : (showStatusPanel && shareHref ? shareHref : profileHref)
+).trim();
+const renderShareCard = typeof shareCardEnabled !== "undefined" && shareCardEnabled === true;
+const shareCardDomId = String(
+  (typeof shareCardId !== "undefined" && shareCardId)
+  || `nurse-share-card-${String(nurse && (nurse.id || nurse.uniqueId || nurseName || "card")).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "card"}`
+).trim();
+const shareCardProfileHref = String(typeof shareCardProfileUrl !== "undefined" ? shareCardProfileUrl : shareHref).trim();
+const shareCardContactInfo = typeof shareCardContactContext !== "undefined" && shareCardContactContext && typeof shareCardContactContext === "object"
+  ? shareCardContactContext
+  : actionContext;
+
+function icon(name, className) {
+  const cls = className ? ` class="${className}"` : "";
+  const icons = {
+    edit: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l9.6-9.6a1.8 1.8 0 000-2.5l-1.5-1.5a1.8 1.8 0 00-2.5 0L4 16v4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12.5 7.5l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+    delete: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M9 7V5.8A1.8 1.8 0 0110.8 4h2.4A1.8 1.8 0 0115 5.8V7M7 7l.7 11.1A2 2 0 009.7 20h4.6a2 2 0 002-1.9L17 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    share: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="18" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="12" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="18.5" r="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8.2 11l7.5-4.2M8.2 13l7.5 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+    roster: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 6.5A1.5 1.5 0 016.5 5h11A1.5 1.5 0 0119 6.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 17.5v-11z" stroke="currentColor" stroke-width="1.7"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+    experience: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2 4.5L19 8l-3.6 3.3.9 4.8L12 13.9l-4.3 2.2.9-4.8L5 8l5-.5L12 3z" fill="currentColor" opacity=".18"/><path d="M12 5.1l1.3 2.7 3 .4-2.2 2 .5 3-2.6-1.3-2.6 1.3.5-3-2.2-2 3-.4L12 5.1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+    availability: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="currentColor"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" opacity=".18"/></svg>`
+  };
+
+  return icons[name] || icons.edit;
+}
 %>
 
 <article
-  class="card nurse-card<%= profileHref ? ' nurse-card--interactive' : '' %>"
+  class="card nurse-card<%= profileHref ? ' nurse-card--interactive' : '' %><%= showStatusPanel ? ' nurse-card--agent-compact' : '' %>"
   data-nurse-card
   data-reveal
   data-card-file-name="<%= downloadFileName %>"
-  <% if (profileHref) { %>
-  data-card-url="<%= profileHref %>"
+  <% if (cardNavigationHref) { %>
+  data-card-url="<%= cardNavigationHref %>"
   role="link"
   tabindex="0"
-  onclick="if (event.target.closest('[data-card-action], a, button, input, select, textarea, form')) return; window.location.href='<%= profileHref %>';"
-  onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('[data-card-action], a, button, input, select, textarea, form')) { event.preventDefault(); window.location.href='<%= profileHref %>'; }"
   <% } %>
 >
+  <% if (showStatusPanel || showUtilityActions || showDeleteAction) { %>
+    <div class="nurse-card__utility-bar">
+      <div class="nurse-card__utility-status">
+        <% if (showStatusPanel) { %>
+          <span class="nurse-card__status-chip nurse-card__status-chip--approval nurse-card__status-chip--<%= approvalStatusKey %>">
+            <span>Approval</span>
+            <strong><%= approvalStatus %></strong>
+          </span>
+          <span class="nurse-card__status-chip nurse-card__status-chip--availability nurse-card__status-chip--<%= availabilityKey %>">
+            <span>Availability</span>
+            <strong><%= availabilityLabel %></strong>
+          </span>
+        <% } %>
+      </div>
+
+      <% if (showUtilityActions || showDeleteAction) { %>
+        <div class="nurse-card__utility-actions">
+          <% if (showUtilityActions && resolvedEditHref) { %>
+            <a
+              href="<%= resolvedEditHref %>"
+              class="btn btn-secondary btn-sm nurse-card__action-link"
+              data-card-action
+              aria-label="<%= resolvedEditLabel %>"
+              title="<%= resolvedEditLabel %>"
+            >
+              <span><%= resolvedEditLabel %></span>
+            </a>
+          <% } %>
+
+          <% if (showUtilityActions && shareHref) { %>
+            <a
+              href="<%= shareHref %>"
+              class="btn btn-outline-primary btn-sm nurse-card__action-link"
+              data-card-action
+              data-card-share="<%= renderShareCard ? shareCardDomId : '' %>"
+              data-share-url="<%= shareHref %>"
+              data-share-name="<%= nurseName %>"
+              data-share-intro="This is my profile"
+              aria-label="Share nurse profile"
+              title="Share nurse profile"
+            >
+              <span>Share</span>
+            </a>
+          <% } %>
+
+          <% if (showDeleteAction) { %>
+            <form method="POST" action="/agent/nurse/delete" class="nurse-delete-form" data-card-action onsubmit="return confirm('Delete this nurse?');">
+              <input type="hidden" name="nurseId" value="<%= nurse.id %>" />
+              <% if (nurse.canDelete) { %>
+                <button class="agent-icon-button agent-icon-button--danger" type="submit" aria-label="Delete nurse" title="Delete nurse">
+                  <%- icon("delete") %>
+                </button>
+              <% } else { %>
+                <button class="agent-icon-button agent-icon-button--disabled" type="button" disabled aria-label="Nurse cannot be deleted" title="Locked">
+                  <%- icon("delete") %>
+                </button>
+              <% } %>
+            </form>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+
   <%- include("./nurse-card", {
     nurse,
     mode: resolvedCardMode,
@@ -45,17 +155,33 @@ const downloadFileName = `${String(profileSlug || nurse.uniqueId || nurseName ||
     primaryActionTargetBlank: requestActionOpenInNewTab
   }) %>
 
-  <% if (showDeleteAction) { %>
-  <div class="cta-row nurse-actions nurse-card__actions">
-    <form method="POST" action="/agent/nurse/delete" class="nurse-delete-form"
-      onsubmit="return confirm('Delete this nurse?');">
-      <input type="hidden" name="nurseId" value="<%= nurse.id %>" />
-      <% if (nurse.canDelete) { %>
-        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
-        <% } else { %>
-          <button class="btn btn-secondary btn-sm" type="button" disabled>Locked</button>
-          <% } %>
-    </form>
-  </div>
+  <% if (showStatusPanel) { %>
+    <div class="nurse-card__summary-row">
+      <div class="nurse-card__summary-item">
+        <span class="nurse-card__summary-icon"><%- icon("experience") %></span>
+        <div>
+          <small>Experience</small>
+          <strong><%= experienceText %></strong>
+        </div>
+      </div>
+      <div class="nurse-card__summary-item">
+        <span class="nurse-card__summary-icon"><%- icon("availability") %></span>
+        <div>
+          <small>Availability</small>
+          <strong><%= availabilityLabel %></strong>
+        </div>
+      </div>
+    </div>
   <% } %>
 </article>
+
+<% if (renderShareCard && shareCardProfileHref) { %>
+  <div class="nurse-card__share-asset" aria-hidden="true" style="position:fixed;left:-200vw;top:0;pointer-events:none;">
+    <%- include("./nurse-card-image", {
+      nurse,
+      cardId: shareCardDomId,
+      profileUrl: shareCardProfileHref,
+      contactContext: shareCardContactInfo
+    }) %>
+  </div>
+<% } %>

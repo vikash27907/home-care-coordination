@@ -516,10 +516,15 @@ function createAgentPortalController() {
 
         staff = staffResult.rows.map((row) => {
           const nurse = buildAgentDashboardNurse(row);
+          const publicUrl = buildAgentScopedPublicNurseUrl(req.agentRecord, nurse);
           return {
             ...nurse,
             dashboardUrl: `/agent/nurses/${nurse.id}`,
-            publicUrl: buildAgentScopedPublicNurseUrl(req.agentRecord, nurse)
+            publicUrl,
+            contactContext: buildNurseContactContext(nurse, req.currentUser, {
+              agent: req.agentRecord,
+              profileUrl: publicUrl
+            })
           };
         });
       }

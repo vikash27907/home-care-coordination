@@ -3,6 +3,12 @@
   width: min(100%, 1120px);
 }
 
+.agent-hub {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 2rem;
+}
+
 .agent-hub__header,
 .agent-job-shell__header {
   display: flex;
@@ -11,29 +17,97 @@
   gap: 1rem;
 }
 
+.agent-hub__header--elevated {
+  padding: 1.4rem;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(30, 136, 229, 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 250, 255, 0.96));
+  border: 1px solid rgba(191, 209, 226, 0.82);
+  box-shadow: 0 22px 48px rgba(15, 42, 71, 0.08);
+}
+
+.agent-hub__header-copy {
+  display: grid;
+  gap: 0.9rem;
+}
+
 .agent-hub__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.agent-hub__eyebrow,
+.agent-job-shell .agent-hub__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  margin-bottom: 0;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  color: #0d5d9a;
+  background: rgba(30, 136, 229, 0.1);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.agent-hub__eyebrow-icon,
+.agent-tab-icon,
+.agent-btn-icon,
+.agent-section-head__icon,
+.agent-card-toolbar svg,
+.agent-icon-button svg,
+.agent-info-tile__icon svg,
+.assign-form__label-icon svg,
+.agent-job-card__icon svg,
+.agent-job-card__meta-icon svg,
+.agent-drawer__panel svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.agent-hub__intro {
+  margin-top: 0;
+  max-width: 58ch;
+  color: var(--muted);
+}
+
+.agent-hub__header-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
 }
 
-.agent-hub__eyebrow {
-  margin-bottom: 0.45rem;
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.agent-summary-pill {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 160px;
+  padding: 0.75rem 0.9rem;
+  border-radius: 18px;
+  background: rgba(247, 251, 255, 0.96);
+  border: 1px solid rgba(191, 209, 226, 0.78);
 }
 
-.agent-hub__intro {
-  margin-top: 0.65rem;
-  max-width: 56ch;
-  color: var(--muted);
+.agent-summary-pill__label {
+  color: #607b93;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.agent-summary-pill strong {
+  color: #123a5f;
+  font-size: 0.98rem;
 }
 
 .agent-banner {
-  margin-bottom: 1rem;
+  margin-bottom: 0;
   padding: 0.95rem 1rem;
   border-radius: 18px;
   border: 1px solid transparent;
@@ -69,7 +143,7 @@
 
 .agent-kpi-card strong {
   color: #123a5f;
-  font-size: clamp(1.5rem, 2vw, 1.95rem);
+  font-size: clamp(1.45rem, 2vw, 1.95rem);
 }
 
 .nav {
@@ -88,8 +162,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0.75rem 1rem;
+  gap: 0.55rem;
+  min-height: 48px;
+  padding: 0.78rem 1rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
@@ -113,16 +188,47 @@
   gap: 1rem;
 }
 
+.agent-section-head__copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.agent-section-head__icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 18px;
+  background: rgba(30, 136, 229, 0.1);
+  color: var(--primary-deep);
+  flex-shrink: 0;
+}
+
+.agent-section-head__icon svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.agent-section-head p {
+  margin-top: 0.35rem;
+}
+
 .agent-job-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1rem;
+}
+
+.agent-empty-state {
+  padding: 1.35rem;
+  border-radius: 24px;
 }
 
 .agent-job-card {
   display: grid;
   gap: 1rem;
-  padding: 1.15rem;
+  padding: 1.1rem;
   border-radius: 24px;
 }
 
@@ -133,13 +239,49 @@
   gap: 1rem;
 }
 
-.agent-job-card__top h3 {
-  margin: 0;
+.agent-job-card__headline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  min-width: 0;
 }
 
-.agent-job-card__top p {
-  margin: 0.45rem 0 0;
+.agent-job-card__icon {
+  display: grid;
+  place-items: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(30, 136, 229, 0.14), rgba(21, 147, 127, 0.12));
+  color: #0f609f;
+  flex-shrink: 0;
+}
+
+.agent-job-card__icon svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.agent-job-card__headline h3 {
+  margin: 0;
+  color: #163a5e;
+  font-size: 1.08rem;
+}
+
+.agent-job-card__headline p {
+  margin: 0.35rem 0 0;
   color: var(--muted);
+  font-size: 0.93rem;
+}
+
+.agent-job-card__headline strong {
+  color: #14334d;
+}
+
+.agent-job-card__top-side {
+  display: grid;
+  gap: 0.7rem;
+  justify-items: end;
 }
 
 .agent-job-card__badges {
@@ -147,6 +289,50 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.45rem;
+}
+
+.agent-card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(191, 209, 226, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+  color: #17476f;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  transition:
+    transform var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    color var(--transition-base),
+    background-color var(--transition-base);
+}
+
+.agent-icon-button:hover:not(:disabled),
+.agent-icon-button:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(30, 136, 229, 0.35);
+  box-shadow: 0 16px 28px rgba(15, 42, 71, 0.12);
+}
+
+.agent-icon-button--danger {
+  color: #b91c1c;
+}
+
+.agent-icon-button--disabled,
+.agent-icon-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .status-pill {
@@ -180,12 +366,61 @@
   color: #991b1b;
 }
 
-.agent-job-card__meta {
+.agent-job-card__quick-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem 1rem;
-  color: #294a67;
+  gap: 0.75rem;
+}
+
+.agent-info-tile {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 18px;
+  background: #f8fbfe;
+  border: 1px solid #d8e7f3;
+}
+
+.agent-info-tile__icon {
+  display: inline-flex;
+  color: #0d6da8;
+}
+
+.agent-info-tile small {
+  color: #69849b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.agent-info-tile strong {
+  color: #173a59;
   font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+.agent-job-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1rem;
+  color: #294a67;
+  font-size: 0.9rem;
+}
+
+.agent-job-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.agent-job-card__meta strong {
+  color: #173a59;
+}
+
+.agent-job-card__meta-icon {
+  display: inline-flex;
+  color: #0f6ca7;
 }
 
 .agent-job-card__notes {
@@ -204,6 +439,7 @@
 
 .agent-job-card__assignment p {
   margin: 0;
+  color: #163a5d;
 }
 
 .agent-job-card__actions {
@@ -220,14 +456,29 @@
   align-items: center;
 }
 
+.assign-form {
+  padding: 0.9rem;
+  border-radius: 18px;
+  background: rgba(30, 136, 229, 0.06);
+  border: 1px solid rgba(191, 209, 226, 0.8);
+}
+
 .assign-form__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--ink);
 }
 
+.assign-form__label-icon {
+  display: inline-flex;
+  color: #0f6ca7;
+}
+
 .assign-form__select {
-  min-height: 42px;
+  min-height: 44px;
   min-width: 230px;
   border-radius: 14px;
   border: 1px solid #c6dae8;
@@ -441,13 +692,236 @@
   height: 100%;
 }
 
-.agent-hub .nurse-card:hover .nurse-card-base {
-  transform: translateY(-2px);
+.agent-hub .nurse-card {
+  display: flex;
+  flex-direction: column;
 }
 
-.nurse-delete-form .btn[disabled] {
-  opacity: 0.65;
-  cursor: not-allowed;
+.agent-hub .nurse-card:hover .nurse-card-base,
+.agent-hub .nurse-card:hover .nurse-card-compact,
+.agent-hub .nurse-card:focus-within .nurse-card-base,
+.agent-hub .nurse-card:focus-within .nurse-card-compact {
+  transform: none;
+}
+
+.agent-hub .nurse-card .nurse-card-compact {
+  gap: 0.85rem;
+  padding: 1rem 1rem 0.95rem;
+}
+
+.agent-hub .nurse-card .nurse-card-compact__meta {
+  gap: 0.7rem;
+}
+
+.agent-hub .nurse-card .nurse-card-compact__meta-item:nth-child(2) {
+  display: none;
+}
+
+.agent-hub .nurse-card .nurse-card-compact__meta-item {
+  min-height: 0;
+}
+
+.nurse-card__utility-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem 0;
+}
+
+.nurse-card__utility-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.nurse-card__status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.4rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.nurse-card__status-chip span {
+  opacity: 0.74;
+}
+
+.nurse-card__status-chip--approved,
+.nurse-card__status-chip--available,
+.nurse-card__status-chip--ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.nurse-card__status-chip--pending {
+  background: #fff4d6;
+  color: #9a5a00;
+}
+
+.nurse-card__status-chip--rejected,
+.nurse-card__status-chip--unavailable,
+.nurse-card__status-chip--not-available {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.nurse-card__utility-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.nurse-card__action-link {
+  min-width: 122px;
+}
+
+.nurse-card__summary-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+  padding: 0 1rem 1rem;
+}
+
+.nurse-card__summary-item,
+.nurse-card__summary-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 68px;
+  padding: 0.8rem 0.85rem;
+  border-radius: 18px;
+  background: #f8fbfe;
+  border: 1px solid #d8e7f3;
+}
+
+.nurse-card__summary-link {
+  justify-content: center;
+  color: #135e99;
+  font-weight: 700;
+}
+
+.nurse-card__summary-icon,
+.nurse-card__summary-link-icon {
+  display: inline-flex;
+  color: #0f6ba7;
+}
+
+.nurse-card__summary-icon svg,
+.nurse-card__summary-link-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.nurse-card__summary-item small {
+  display: block;
+  color: #69849b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nurse-card__summary-item strong {
+  color: #153c61;
+  font-size: 0.92rem;
+}
+
+.agent-drawer[hidden] {
+  display: none;
+}
+
+.agent-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: grid;
+  place-items: end;
+}
+
+.agent-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(11, 24, 37, 0.52);
+}
+
+.agent-drawer__panel {
+  position: relative;
+  width: min(100%, 760px);
+  height: min(100vh, 100%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -20px 60px rgba(15, 42, 71, 0.2);
+  overflow: hidden;
+}
+
+.agent-drawer__header,
+.agent-drawer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid rgba(191, 209, 226, 0.72);
+}
+
+.agent-drawer__footer {
+  border-top: 1px solid rgba(191, 209, 226, 0.72);
+  border-bottom: 0;
+}
+
+.agent-drawer__eyebrow {
+  margin: 0 0 0.25rem;
+  color: #0f5d9b;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.agent-drawer__body {
+  position: relative;
+  min-height: 0;
+  background: rgba(247, 251, 255, 0.8);
+}
+
+.agent-drawer__frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.agent-drawer__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  background: rgba(247, 251, 255, 0.94);
+  color: #46647c;
+  z-index: 1;
+}
+
+.agent-drawer__spinner {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 3px solid rgba(30, 136, 229, 0.18);
+  border-top-color: var(--primary);
+  animation: agent-dashboard-spin 0.8s linear infinite;
+}
+
+.agent-drawer__loading.is-hidden {
+  display: none;
 }
 
 @keyframes agent-dashboard-spin {
@@ -461,9 +935,18 @@
   .agent-job-form__grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .nurse-card__summary-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
+  .agent-hub,
+  .agent-job-shell {
+    width: 100%;
+  }
+
   .agent-hub__header,
   .agent-job-shell__header,
   .agent-section-head,
@@ -473,18 +956,35 @@
     align-items: stretch;
   }
 
+  .agent-hub__header--elevated,
+  .agent-job-form,
+  .agent-job-card {
+    border-radius: 24px;
+  }
+
   .agent-hub__header-actions,
   .agent-job-card__badges,
-  .agent-job-form__meta {
+  .agent-job-form__meta,
+  .agent-card-toolbar {
     justify-content: flex-start;
   }
 
   .agent-kpi-grid,
   .agent-job-grid,
   .agent-job-form__grid,
-  .agent-job-card__meta,
+  .agent-job-card__quick-grid,
   .agent-hub .nurse-cards-grid {
     grid-template-columns: 1fr;
+  }
+
+  .agent-job-card__top-side {
+    justify-items: start;
+  }
+
+  .agent-job-card__meta,
+  .nurse-card__utility-bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .assign-form,
@@ -498,8 +998,24 @@
   .assign-form .btn,
   .agent-job-card__action-row .btn,
   .agent-job-form__actions .btn,
-  .agent-hub__header-actions .btn {
+  .agent-hub__header-actions .btn,
+  .agent-drawer__footer .btn {
     width: 100%;
+  }
+
+  .agent-inline-form .agent-icon-button,
+  .nurse-card__utility-actions .agent-icon-button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .nurse-card__utility-actions,
+  .nurse-card__action-link {
+    width: 100%;
+  }
+
+  .agent-hub {
+    padding-bottom: 5.5rem;
   }
 
   .agent-password-field input {
@@ -508,5 +1024,15 @@
 
   .agent-referral-panel {
     padding: 1rem;
+  }
+
+  .agent-drawer {
+    place-items: stretch;
+  }
+
+  .agent-drawer__panel {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
   }
 }

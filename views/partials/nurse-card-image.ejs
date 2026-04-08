@@ -2,7 +2,6 @@
 const nurseName = String((nurse && (nurse.fullName || nurse.full_name)) || "Nurse").trim();
 const nurseId = Number.parseInt((nurse && nurse.id) || 0, 10);
 const profileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "").trim();
-const profileUrl = profileSlug ? `/nurse/${profileSlug}` : "";
 const cardDomId = String(typeof cardId === "string" && cardId.trim() ? cardId.trim() : "nurseCard");
 const logoSrc = "/images/prisha-logo.png";
 const imageSrc = String(
@@ -45,9 +44,14 @@ const verifiedLabel = "Prisha Home Care";
 const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "").trim()
   || `PHCN-${String(nurseId || "000").padStart(3, "0")}`;
 const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
+const resolvedProfileUrl = String(
+  (typeof profileUrl !== "undefined" && profileUrl)
+  || contactInfo.profileUrl
+  || (profileSlug ? `/nurse/${profileSlug}` : "")
+).trim();
 const cardPhone = String(contactInfo.downloadPhone || contactInfo.displayPhone || contactInfo.phone || "9138913355").trim() || "9138913355";
 const cardEmail = String(contactInfo.displayEmail || contactInfo.email || "prishahomecare@gmail.com").trim() || "prishahomecare@gmail.com";
-const canOpenProfile = Boolean(profileUrl);
+const canOpenProfile = Boolean(resolvedProfileUrl);
 const showQrCode = canOpenProfile && nurseId > 0;
 const downloadFileName = `${String(profileSlug || nurseName || "nurse-card")
   .trim()
@@ -62,7 +66,7 @@ const downloadFileName = `${String(profileSlug || nurseName || "nurse-card")
     class="card-fixed nurse-card-image nurse-card-image--replica"
     data-card-file-name="<%= downloadFileName %>"
     <% if (canOpenProfile) { %>
-      data-card-url="<%= profileUrl %>"
+      data-card-url="<%= resolvedProfileUrl %>"
       data-card-target="_blank"
       role="link"
       tabindex="0"
@@ -112,7 +116,7 @@ const downloadFileName = `${String(profileSlug || nurseName || "nurse-card")
     <section class="nurse-card-image__qr-section">
       <% if (showQrCode) { %>
         <a
-          href="<%= profileUrl %>"
+          href="<%= resolvedProfileUrl %>"
           target="_blank"
           rel="noopener noreferrer"
           class="nurse-card-image__qr-link"

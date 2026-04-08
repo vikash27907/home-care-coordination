@@ -6,17 +6,51 @@
   const agentAadhaarDoc = String((agent && (agent.aadhaarDocUrl || agent.aadhaarUrl)) || "").trim();
   const agentAadhaarDocIsImage = /\.(png|jpe?g|webp)(\?.*)?$/i.test(agentAadhaarDoc);
   const agentAadhaarDocIsPdf = /\.pdf(\?.*)?$/i.test(agentAadhaarDoc);
+
+  function icon(name, className = "") {
+    const cls = className ? ` class="${className}"` : "";
+    const icons = {
+      profile: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 19a6.5 6.5 0 0113 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      shield: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-2.8 8.3-7 10-4.2-1.7-7-5.4-7-10V6l7-3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
+      phone: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.3 4.7l2.2 3.8-1.4 1.8a14.5 14.5 0 005.4 5.4l1.8-1.4 3.8 2.2-1.2 3.7a2 2 0 01-2.2 1.3A18.5 18.5 0 013.7 8.1a2 2 0 011.3-2.2l2.3-1.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+      region: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s6-5.7 6-10.8a6 6 0 10-12 0C6 15.3 12 21 12 21z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.1" stroke="currentColor" stroke-width="1.7"/></svg>`,
+      status: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M9 12.2l2 2 4-4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      edit: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l9.6-9.6a1.8 1.8 0 000-2.5l-1.5-1.5a1.8 1.8 0 00-2.5 0L4 16v4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12.5 7.5l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      share: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="18" cy="5.5" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="12" r="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="18.5" r="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8.2 11l7.5-4.2M8.2 13l7.5 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      upload: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V5M8.5 8.5L12 5l3.5 3.5M5 16.5v1A1.5 1.5 0 006.5 19h11a1.5 1.5 0 001.5-1.5v-1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      team: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7"/><circle cx="16.5" cy="9.5" r="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 18a4.5 4.5 0 019 0M13.5 18a3 3 0 016 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      jobs: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M9 6V5.2A1.2 1.2 0 0110.2 4h3.6A1.2 1.2 0 0115 5.2V6M4 11.5h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      roster: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 6.5A1.5 1.5 0 016.5 5h11A1.5 1.5 0 0119 6.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 17.5v-11z" stroke="currentColor" stroke-width="1.7"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+      contact: `<svg${cls} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 7.5A2.5 2.5 0 018.5 5h7A2.5 2.5 0 0118 7.5v9a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 016 16.5v-9z" stroke="currentColor" stroke-width="1.7"/><path d="M9 8.5h6M9 12h6M9 15.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`
+    };
+
+    return icons[name] || icons.profile;
+  }
 %>
 
 <section class="agent-profile" data-agent-profile>
   <div class="cover" data-reveal>
     <img src="/images/patient-care.svg" alt="Agent cover" />
+    <div class="cover__overlay">
+      <div class="cover__copy">
+        <p class="agent-profile__eyebrow">Agent Profile</p>
+        <h2>Keep your public-facing details current for families and nurses.</h2>
+        <p>Cleaner profile details make coordination faster and help your roster stay trusted.</p>
+      </div>
+      <button type="button" class="btn btn-secondary cover__action" data-edit-toggle>
+        <span class="agent-profile__icon-inline"><%- icon("edit") %></span>
+        <span>Update profile</span>
+      </button>
+    </div>
   </div>
 
   <div class="profile-header" data-reveal>
-    <div class="avatar">
+    <button type="button" class="avatar avatar--editable" data-file-trigger="profileImageInput" data-agent-avatar-trigger aria-label="Change profile image">
       <img src="<%= agentProfileImage %>" alt="Agent avatar" data-agent-avatar />
-    </div>
+      <span class="avatar__edit-badge">
+        <%- icon("upload") %>
+      </span>
+    </button>
 
     <div class="profile-info">
       <p class="agent-profile__eyebrow">Agent Profile</p>
@@ -24,17 +58,23 @@
       <p><%= (agent && agent.companyName) || "Healthcare Staffing Partner" %></p>
 
       <div class="profile-meta">
-        <span>Region: <strong><%= (agent && (agent.workingRegion || agent.region)) || "Not shared" %></strong></span>
-        <span>Phone: <strong><%= (agent && agent.phoneNumber) || "Not shared" %></strong></span>
-        <span>Status: <strong><%= (agent && agent.status) || "pending" %></strong></span>
+        <span><span class="agent-profile__meta-icon"><%- icon("region") %></span>Region: <strong><%= (agent && (agent.workingRegion || agent.region)) || "Not shared" %></strong></span>
+        <span><span class="agent-profile__meta-icon"><%- icon("phone") %></span>Phone: <strong><%= (agent && agent.phoneNumber) || "Not shared" %></strong></span>
+        <span><span class="agent-profile__meta-icon"><%- icon("status") %></span>Status: <strong><%= (agent && agent.status) || "pending" %></strong></span>
       </div>
 
       <div class="profile-actions">
         <% if (agent && agent.phoneNumber) { %>
           <a class="btn btn-primary" href="tel:+91<%= String(agent.phoneNumber).replace(/\D/g, '') %>">Call</a>
         <% } %>
-        <button class="btn btn-secondary" type="button" data-agent-share="<%= profileShareUrl || '' %>">Share</button>
-        <button class="btn btn-outline-primary" type="button" id="agentProfileEditToggle">Edit Profile</button>
+        <button class="btn btn-secondary" type="button" data-agent-share="<%= profileShareUrl || '' %>">
+          <span class="agent-profile__icon-inline"><%- icon("share") %></span>
+          <span>Share</span>
+        </button>
+        <button class="btn btn-outline-primary" type="button" id="agentProfileEditToggle">
+          <span class="agent-profile__icon-inline"><%- icon("edit") %></span>
+          <span>Edit Profile</span>
+        </button>
       </div>
     </div>
   </div>
@@ -57,8 +97,9 @@
   <form class="agent-profile-form profile-section" method="POST" action="/agent/profile/update" id="agentProfileForm" data-reveal enctype="multipart/form-data">
     <div class="agent-profile-form__header">
       <div>
-        <h2>Profile Details</h2>
-        <p>Update your public-facing coordination details. Changes reflect immediately after saving.</p>
+        <p class="agent-profile-form__eyebrow">Profile Details</p>
+        <h2>Update your coordination profile</h2>
+        <p>Review contact information, company branding, and current profile documents in one form.</p>
       </div>
       <div class="agent-profile-form__badges">
         <span class="agent-mini-stat">Pending Nurses: <strong><%= stats && typeof stats.pendingNurses !== "undefined" ? stats.pendingNurses : 0 %></strong></span>
@@ -66,148 +107,182 @@
       </div>
     </div>
 
-    <div class="agent-upload-grid agent-profile-form__span-2">
-      <section class="agent-upload-card">
-        <div class="agent-upload-card__copy">
-          <p class="agent-upload-card__eyebrow">Profile Image</p>
-          <h3>Photo shown across your account</h3>
-          <p>Upload a clear square image. JPG, PNG, or WEBP up to 2MB.</p>
+    <section class="agent-form-group agent-form-group--media">
+      <div class="agent-form-group__head">
+        <span class="agent-form-group__icon"><%- icon("profile") %></span>
+        <div>
+          <h3>Profile media</h3>
+          <p>Tap the preview cards to replace files and review them before saving.</p>
         </div>
+      </div>
 
-        <div
-          class="agent-upload-preview agent-upload-preview--avatar"
-          data-preview-shell="profileImage"
-          data-preview-type="image"
-          data-initial-src="<%= agentProfileImage %>"
-        >
-          <img
-            src="<%= agentProfileImage %>"
-            alt="Agent profile preview"
-            class="agent-upload-preview__image"
-            data-preview-image="profileImage"
-            data-agent-avatar
-          />
-        </div>
+      <div class="agent-upload-grid agent-profile-form__span-2">
+        <section class="agent-upload-card" data-file-trigger="profileImageInput" role="button" tabindex="0" aria-label="Change profile image">
+          <div class="agent-upload-card__copy">
+            <p class="agent-upload-card__eyebrow">Profile Image</p>
+            <h3>Photo shown across your account</h3>
+            <p>Upload a clear square image. JPG, PNG, or WEBP up to 2MB.</p>
+          </div>
 
-        <div class="agent-upload-card__actions">
-          <button
-            type="button"
-            class="btn btn-outline-primary"
-            data-file-trigger="profileImageInput"
+          <div
+            class="agent-upload-preview agent-upload-preview--avatar"
+            data-preview-shell="profileImage"
+            data-preview-type="image"
+            data-initial-src="<%= agentProfileImage %>"
           >
-            <%= agent && agent.profileImageUrl ? "Change Image" : "Upload Image" %>
-          </button>
-          <span class="agent-upload-card__status" data-file-name="profileImage">
-            <%= agent && agent.profileImageUrl ? "Current image uploaded." : "No profile image uploaded yet." %>
-          </span>
-        </div>
-
-        <input
-          id="profileImageInput"
-          type="file"
-          name="profileImage"
-          accept="image/jpeg,image/png,image/webp"
-          hidden
-          data-file-input="profileImage"
-        />
-      </section>
-
-      <section class="agent-upload-card">
-        <div class="agent-upload-card__copy">
-          <p class="agent-upload-card__eyebrow">Aadhaar / Document</p>
-          <h3>Identity document preview and replacement</h3>
-          <p>Upload JPG, PNG, WEBP, or PDF up to 4MB. Existing file stays visible until you replace it.</p>
-        </div>
-
-        <div
-          class="agent-upload-preview agent-upload-preview--document"
-          data-preview-shell="aadhaarDoc"
-          data-preview-type="<%= agentAadhaarDocIsPdf ? 'pdf' : (agentAadhaarDocIsImage ? 'image' : 'empty') %>"
-          data-initial-src="<%= agentAadhaarDoc %>"
-        >
-          <% if (agentAadhaarDoc && agentAadhaarDocIsImage) { %>
             <img
-              src="<%= agentAadhaarDoc %>"
-              alt="Uploaded Aadhaar document"
-              class="agent-upload-preview__image agent-upload-preview__image--document"
-              data-preview-image="aadhaarDoc"
+              src="<%= agentProfileImage %>"
+              alt="Agent profile preview"
+              class="agent-upload-preview__image"
+              data-preview-image="profileImage"
+              data-agent-avatar
             />
-          <% } else if (agentAadhaarDoc && agentAadhaarDocIsPdf) { %>
-            <iframe
-              src="<%= agentAadhaarDoc %>"
-              title="Uploaded Aadhaar document preview"
-              class="agent-upload-preview__frame"
-              data-preview-frame="aadhaarDoc"
-            ></iframe>
-          <% } else { %>
-            <div class="agent-upload-preview__empty" data-preview-empty="aadhaarDoc">
-              <strong>No document uploaded</strong>
-              <span>Your Aadhaar or ID file preview will appear here.</span>
-            </div>
-          <% } %>
-        </div>
+            <span class="agent-upload-preview__tap-hint">Tap to change</span>
+          </div>
 
-        <div class="agent-upload-card__actions">
-          <button
-            type="button"
-            class="btn btn-outline-primary"
-            data-file-trigger="aadhaarDocInput"
+          <div class="agent-upload-card__actions">
+            <button
+              type="button"
+              class="btn btn-outline-primary"
+              data-file-trigger="profileImageInput"
+            >
+              <%= agent && agent.profileImageUrl ? "Change Image" : "Upload Image" %>
+            </button>
+            <span class="agent-upload-card__status" data-file-name="profileImage">
+              <%= agent && agent.profileImageUrl ? "Current image uploaded." : "No profile image uploaded yet." %>
+            </span>
+          </div>
+
+          <input
+            id="profileImageInput"
+            type="file"
+            name="profileImage"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            data-file-input="profileImage"
+          />
+        </section>
+
+        <section class="agent-upload-card" data-file-trigger="aadhaarDocInput" role="button" tabindex="0" aria-label="Change Aadhaar or identity document">
+          <div class="agent-upload-card__copy">
+            <p class="agent-upload-card__eyebrow">Aadhaar / Document</p>
+            <h3>Identity document preview and replacement</h3>
+            <p>Upload JPG, PNG, WEBP, or PDF up to 4MB. Existing file stays visible until you replace it.</p>
+          </div>
+
+          <div
+            class="agent-upload-preview agent-upload-preview--document"
+            data-preview-shell="aadhaarDoc"
+            data-preview-type="<%= agentAadhaarDocIsPdf ? 'pdf' : (agentAadhaarDocIsImage ? 'image' : 'empty') %>"
+            data-initial-src="<%= agentAadhaarDoc %>"
           >
-            <%= agentAadhaarDoc ? "Edit Document" : "Upload Document" %>
-          </button>
-          <% if (agentAadhaarDoc) { %>
-            <a class="btn btn-secondary" href="<%= agentAadhaarDoc %>" target="_blank" rel="noopener noreferrer">View Current</a>
-          <% } %>
-          <span class="agent-upload-card__status" data-file-name="aadhaarDoc">
-            <%= agentAadhaarDoc ? "Current document uploaded." : "No document uploaded yet." %>
-          </span>
+            <% if (agentAadhaarDoc && agentAadhaarDocIsImage) { %>
+              <img
+                src="<%= agentAadhaarDoc %>"
+                alt="Uploaded Aadhaar document"
+                class="agent-upload-preview__image agent-upload-preview__image--document"
+                data-preview-image="aadhaarDoc"
+              />
+            <% } else if (agentAadhaarDoc && agentAadhaarDocIsPdf) { %>
+              <iframe
+                src="<%= agentAadhaarDoc %>"
+                title="Uploaded Aadhaar document preview"
+                class="agent-upload-preview__frame"
+                data-preview-frame="aadhaarDoc"
+              ></iframe>
+            <% } else { %>
+              <div class="agent-upload-preview__empty" data-preview-empty="aadhaarDoc">
+                <strong>No document uploaded</strong>
+                <span>Your Aadhaar or ID file preview will appear here.</span>
+              </div>
+            <% } %>
+            <span class="agent-upload-preview__tap-hint">Tap to change</span>
+          </div>
+
+          <div class="agent-upload-card__actions">
+            <button
+              type="button"
+              class="btn btn-outline-primary"
+              data-file-trigger="aadhaarDocInput"
+            >
+              <%= agentAadhaarDoc ? "Edit Document" : "Upload Document" %>
+            </button>
+            <% if (agentAadhaarDoc) { %>
+              <a class="btn btn-secondary" href="<%= agentAadhaarDoc %>" target="_blank" rel="noopener noreferrer">View Current</a>
+            <% } %>
+            <span class="agent-upload-card__status" data-file-name="aadhaarDoc">
+              <%= agentAadhaarDoc ? "Current document uploaded." : "No document uploaded yet." %>
+            </span>
+          </div>
+
+          <input
+            id="aadhaarDocInput"
+            type="file"
+            name="aadhaarDoc"
+            accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
+            hidden
+            data-file-input="aadhaarDoc"
+          />
+        </section>
+      </div>
+    </section>
+
+    <section class="agent-form-group">
+      <div class="agent-form-group__head">
+        <span class="agent-form-group__icon"><%- icon("contact") %></span>
+        <div>
+          <h3>Contact information</h3>
+          <p>These details appear in your account and help your team reach you quickly.</p>
         </div>
+      </div>
 
-        <input
-          id="aadhaarDocInput"
-          type="file"
-          name="aadhaarDoc"
-          accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
-          hidden
-          data-file-input="aadhaarDoc"
-        />
-      </section>
-    </div>
+      <div class="agent-profile-form__grid">
+        <label>
+          Full Name
+          <input name="fullName" type="text" value="<%= (agent && agent.fullName) || '' %>" required />
+        </label>
 
-    <div class="agent-profile-form__grid">
-      <label>
-        Full Name
-        <input name="fullName" type="text" value="<%= (agent && agent.fullName) || '' %>" required />
-      </label>
+        <label>
+          Email
+          <input name="email" type="email" value="<%= (agent && agent.email) || (currentUser && currentUser.email) || '' %>" required />
+        </label>
 
-      <label>
-        Email
-        <input name="email" type="email" value="<%= (agent && agent.email) || (currentUser && currentUser.email) || '' %>" required />
-      </label>
+        <label>
+          Phone Number
+          <input
+            name="phoneNumber"
+            type="tel"
+            value="<%= (agent && agent.phoneNumber) || '' %>"
+            maxlength="10"
+            pattern="[6-9][0-9]{9}"
+            inputmode="numeric"
+            required
+          />
+        </label>
 
-      <label>
-        Phone Number
-        <input
-          name="phoneNumber"
-          type="tel"
-          value="<%= (agent && agent.phoneNumber) || '' %>"
-          maxlength="10"
-          pattern="[6-9][0-9]{9}"
-          inputmode="numeric"
-          required
-        />
-      </label>
+        <label>
+          Working Region
+          <input name="workingRegion" type="text" value="<%= (agent && (agent.workingRegion || agent.region)) || '' %>" required />
+        </label>
+      </div>
+    </section>
 
-      <label>
-        Working Region
-        <input name="workingRegion" type="text" value="<%= (agent && (agent.workingRegion || agent.region)) || '' %>" required />
-      </label>
+    <section class="agent-form-group">
+      <div class="agent-form-group__head">
+        <span class="agent-form-group__icon"><%- icon("shield") %></span>
+        <div>
+          <h3>Brand and business details</h3>
+          <p>Keep the name shown to nurses and public leads clean and easy to recognize.</p>
+        </div>
+      </div>
 
-      <label class="agent-profile-form__span-2">
-        Company / Brand Name
-        <input name="companyName" type="text" value="<%= (agent && agent.companyName) || '' %>" placeholder="Shown to nurses and public leads where applicable" />
-      </label>
-    </div>
+      <div class="agent-profile-form__grid">
+        <label class="agent-profile-form__span-2">
+          Company / Brand Name
+          <input name="companyName" type="text" value="<%= (agent && agent.companyName) || '' %>" placeholder="Shown to nurses and public leads where applicable" />
+        </label>
+      </div>
+    </section>
 
     <div class="agent-profile-form__actions">
       <button type="button" class="btn btn-secondary" id="agentProfileCancelBtn">Reset</button>
@@ -219,7 +294,14 @@
   </form>
 
   <div class="profile-section quick-actions" data-reveal>
-    <h2>Quick Actions</h2>
+    <div class="agent-section-block__head">
+      <span class="agent-section-block__icon"><%- icon("jobs") %></span>
+      <div>
+        <h2>Quick Actions</h2>
+        <p>Jump into the tasks you use most often without hunting across the dashboard.</p>
+      </div>
+    </div>
+
     <div class="quick-actions__grid">
       <a href="/agent/nurses/new" class="btn btn-primary">+ Add Nurse</a>
       <a href="/agent/jobs/new" class="btn btn-success">+ Add Job</a>
@@ -229,7 +311,13 @@
   </div>
 
   <div class="profile-section" data-reveal>
-    <h2>Nurse Network</h2>
+    <div class="agent-section-block__head">
+      <span class="agent-section-block__icon"><%- icon("team") %></span>
+      <div>
+        <h2>Nurse Network</h2>
+        <p>Approved nurses from this account appear here automatically for a quick roster preview.</p>
+      </div>
+    </div>
 
     <div class="nurse-grid">
       <% if (featuredNurses && featuredNurses.length) { %>
@@ -237,6 +325,8 @@
           <%- include("../partials/nurse-directory-card", {
             nurse,
             href: `/agent/nurses/${nurse.id}`,
+            shareUrl: (nurse.profileSlug || nurse.profile_slug) ? `/nurse/${nurse.profileSlug || nurse.profile_slug}` : "",
+            cardHref: (nurse.profileSlug || nurse.profile_slug) ? `/nurse/${nurse.profileSlug || nurse.profile_slug}` : `/agent/nurses/${nurse.id}`,
             hrefLabel: "Manage Nurse",
             mode: "compact",
             showRequestButton: false,
@@ -256,7 +346,14 @@
   </div>
 
   <div class="profile-section" data-reveal>
-    <h2>Contact Summary</h2>
+    <div class="agent-section-block__head">
+      <span class="agent-section-block__icon"><%- icon("contact") %></span>
+      <div>
+        <h2>Contact Summary</h2>
+        <p>Use this as a quick read-only snapshot when you need to confirm current details.</p>
+      </div>
+    </div>
+
     <div class="contact-card">
       <p><strong>Phone:</strong> <%= (agent && agent.phoneNumber) || 'Not shared' %></p>
       <p><strong>Email:</strong> <%= (agent && agent.email) || (currentUser && currentUser.email) || 'Not shared' %></p>

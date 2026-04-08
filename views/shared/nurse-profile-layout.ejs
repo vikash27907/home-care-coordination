@@ -8,7 +8,6 @@ const canViewCard = isAdmin || isNurse || isAgent;
 const contactInfo = contactContext && typeof contactContext === "object" ? contactContext : {};
 const cardPhone = String(contactInfo.downloadPhone || contactInfo.displayPhone || contactInfo.phone || "").trim();
 const cardEmail = String(contactInfo.displayEmail || contactInfo.email || "").trim();
-const sharePhone = String(contactInfo.sharePhone || cardPhone || "").trim();
 
 const nurseId = nurse && nurse.id ? nurse.id : "";
 const userId = nurse && (nurse.userId || nurse.user_id) ? (nurse.userId || nurse.user_id) : "";
@@ -41,6 +40,7 @@ const emailVerified = Boolean(nurse && (nurse.emailVerified || nurse.email_verif
 const profileImage = (nurse && (nurse.profileImageUrl || nurse.profile_image_url || nurse.profileImagePath || nurse.profile_image_path)) || "";
 const uniqueId = String((nurse && (nurse.uniqueId || nurse.unique_id)) || "");
 const profileSlug = String((nurse && (nurse.profileSlug || nurse.profile_slug)) || "");
+const publicProfileUrl = String(contactInfo.profileUrl || (profileSlug ? `/nurse/${profileSlug}` : "")).trim();
 const availability = Array.isArray(nurse && nurse.availability) ? nurse.availability : [];
 const skills = Array.isArray(nurse && nurse.skills) ? nurse.skills : [];
 const qualifications = Array.isArray(nurse && nurse.qualifications) ? nurse.qualifications : [];
@@ -326,6 +326,7 @@ const unifiedAssetsRedirectTo = String(
       <%- include("../partials/nurse-card-image", {
         nurse,
         cardId: "nurse-id-card",
+        profileUrl: publicProfileUrl,
         contactContext: {
           ...contactInfo,
           downloadPhone: cardPhone,
@@ -334,9 +335,21 @@ const unifiedAssetsRedirectTo = String(
       }) %>
 
     <div class="card-actions">
-      <button type="button" class="request-btn" id="request-nurse-btn">
-        Request Nurse 💬
-      </button>
+      <button
+        type="button"
+        class="btn"
+        data-card-action
+        data-card-share="nurse-id-card"
+        data-share-url="<%= publicProfileUrl %>"
+        data-share-name="<%= fullName %>"
+        data-share-intro="This is my profile"
+      >Share</button>
+      <button
+        type="button"
+        class="btn"
+        data-card-action
+        data-card-download="nurse-id-card"
+      >Download</button>
     </div>
     </div>
   </div>
@@ -1605,9 +1618,10 @@ const unifiedAssetsRedirectTo = String(
 
 .card-actions {
   display: flex;
+  justify-content: center;
   gap: 0.75rem;
-  flex-wrap: wrap;
   margin-top: 1rem;
+  flex-wrap: wrap;
 }
 
 .card-actions .btn[disabled] {
@@ -1671,6 +1685,7 @@ const unifiedAssetsRedirectTo = String(
 </style>
 
 <script src="/vendor/html-to-image.js"></script>
+<script src="/js/agent-dashboard.js"></script>
 <script>
 (() => {
   const shell = document.getElementById("nurseProfileShell");
@@ -1718,8 +1733,6 @@ const unifiedAssetsRedirectTo = String(
   const viewIdCardButton = document.getElementById("npViewIdCardBtn");
   const idCardModal = document.getElementById("npIdCardModal");
   const closeIdCardButton = document.getElementById("npCloseIdCardBtn");
-  const downloadCardButton = document.getElementById("download-card");
-  const shareCardButton = document.getElementById("share-card");
   const cancelButton = document.getElementById("npCancelEditBtn");
   const profileForm = document.getElementById("profileForm");
   const selectedSkillsContainer = document.getElementById("selectedSkillsContainer");
@@ -1735,9 +1748,6 @@ const unifiedAssetsRedirectTo = String(
   const assetAadhaarBackInput = document.getElementById("npAadhaarBackAssetInput");
   const qualificationNameInput = document.getElementById("npQualificationNameInput");
   const assetTriggers = shell.querySelectorAll("[data-asset-trigger]");
-  const publicProfileUrl = <%- JSON.stringify(profileSlug ? `/nurse/${profileSlug}` : "") %>;
-  const shareContactPhone = <%- JSON.stringify(sharePhone) %>;
-  const cardFileName = <%- JSON.stringify(`${String(profileSlug || fullName || "nurse-card").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "nurse-card"}.png`) %>;
 
   let selectedSkills = new Set();
   let selectedAvailability = new Set();
@@ -1958,66 +1968,6 @@ const unifiedAssetsRedirectTo = String(
     idCardModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
     document.body.style.overflow = isOpen ? "hidden" : "";
   };
-  const getIdCardNode = () => document.getElementById("nurse-id-card");
-  const getIdCardFileName = () => {
-    const card = getIdCardNode();
-    return String((card && card.getAttribute("data-card-file-name")) || cardFileName || "nurse-card.png").trim() || "nurse-card.png";
-  };
-  const exportIdCardBlob = async () => {
-    const card = getIdCardNode();
-    if (!card || typeof htmlToImage === "undefined") {
-      throw new Error("Card export is unavailable.");
-    }
-
-    const blob = await htmlToImage.toBlob(card, {
-      cacheBust: true,
-      backgroundColor: "#ffffff",
-      pixelRatio: Math.max(window.devicePixelRatio || 1, 2)
-    });
-
-    if (!blob) {
-      throw new Error("Card export failed.");
-    }
-
-    return blob;
-  };
-  const downloadBlob = (blob, fileName) => {
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-  };
-  const getShareUrl = () => publicProfileUrl ? `${window.location.origin}${publicProfileUrl}` : window.location.href;
-  const buildWhatsAppMessage = () => {
-    const shareUrl = getShareUrl();
-    const lines = [
-      "Hello,",
-      "",
-      "I am sharing a nurse profile:",
-      "",
-      <%- JSON.stringify(fullName || "Nurse") %>
-    ];
-
-    if (shareUrl) {
-      lines.push("", "View Profile:", shareUrl);
-    }
-    if (shareContactPhone) {
-      lines.push("", `Contact: ${shareContactPhone}`);
-    }
-
-    return lines.join("\n");
-  };
-  const openWhatsAppShare = (message) => {
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    const popup = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-    if (!popup) {
-      window.location.href = whatsappUrl;
-    }
-  };
 
   if (editButton) {
     editButton.addEventListener("click", () => {
@@ -2045,50 +1995,6 @@ const unifiedAssetsRedirectTo = String(
     idCardModal.addEventListener("click", (event) => {
       if (event.target === idCardModal) {
         setIdCardModalState(false);
-      }
-    });
-  }
-  if (downloadCardButton) {
-    downloadCardButton.addEventListener("click", async () => {
-      try {
-        downloadCardButton.disabled = true;
-        const blob = await exportIdCardBlob();
-        downloadBlob(blob, getIdCardFileName());
-      } catch (error) {
-        window.alert("Unable to download the card image right now.");
-      } finally {
-        downloadCardButton.disabled = false;
-      }
-    });
-  }
-  if (shareCardButton) {
-    shareCardButton.addEventListener("click", async () => {
-      try {
-        shareCardButton.disabled = true;
-        const blob = await exportIdCardBlob();
-        const fileName = getIdCardFileName();
-        const message = buildWhatsAppMessage();
-
-        if (typeof File !== "undefined" && typeof navigator.share === "function") {
-          const file = new File([blob], fileName, { type: "image/png" });
-          if (!navigator.canShare || navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: <%- JSON.stringify(`${fullName || "Nurse"} | Nurse Card`) %>,
-              text: message
-            });
-            return;
-          }
-        }
-
-        openWhatsAppShare(message);
-        downloadBlob(blob, fileName);
-        window.alert("WhatsApp was opened with the nurse profile message. This browser cannot attach the generated card image directly, so the card image was downloaded as well.");
-      } catch (error) {
-        if (error && error.name === "AbortError") return;
-        window.alert("Unable to share the card image right now.");
-      } finally {
-        shareCardButton.disabled = false;
       }
     });
   }
@@ -2171,39 +2077,4 @@ const unifiedAssetsRedirectTo = String(
 })();
 // 🔥 FINAL FIX: AUTO SUBMIT FILE UPLOAD
 
-if (assetProfileInput && assetForm) {
-  assetProfileInput.addEventListener("change", function () {
-    if (this.files && this.files.length > 0) {
-      console.log("Uploading profile image...");
-      assetForm.submit();
-    }
-  });
-}
-
-if (assetAadhaarFrontInput && assetForm) {
-  assetAadhaarFrontInput.addEventListener("change", function () {
-    if (this.files && this.files.length > 0) {
-      console.log("Uploading aadhaar front...");
-      assetForm.submit();
-    }
-  });
-}
-
-if (assetAadhaarBackInput && assetForm) {
-  assetAadhaarBackInput.addEventListener("change", function () {
-    if (this.files && this.files.length > 0) {
-      console.log("Uploading aadhaar back...");
-      assetForm.submit();
-    }
-  });
-}
-
-
-const requestBtn = document.getElementById("request-nurse-btn");
-
-if (requestBtn) {
-  requestBtn.addEventListener("click", () => {
-    window.location.href = `/nurse/<%= profileSlug %>`;
-  });
-}
 </script>
