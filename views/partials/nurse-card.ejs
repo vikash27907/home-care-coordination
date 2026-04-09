@@ -100,7 +100,7 @@ function icon(name, className) {
       src="<%= imageSrc %>"
       alt="<%= nurseName %> profile"
       class="nurse-card-id__photo"
-      onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+      onerror="console.error('Failed to load nurse directory image:', this.currentSrc || this.src);this.onerror=null;this.src='/images/default-avatar.png';"
     />
   </div>
 
@@ -162,7 +162,7 @@ function icon(name, className) {
       src="<%= imageSrc %>"
       alt="<%= nurseName %> profile"
       class="nurse-card-compact__avatar"
-      onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+      onerror="console.error('Failed to load nurse directory image:', this.currentSrc || this.src);this.onerror=null;this.src='/images/default-avatar.png';"
     />
     <span class="nurse-card-compact__badge nurse-card-compact__badge--<%= compactBadgeClass %>">
       <span class="nurse-card-compact__badge-icon">

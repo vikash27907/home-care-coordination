@@ -139,6 +139,49 @@ function normalizeNurseStatus(value) {
   return NURSE_ALLOWED_STATUS_LABELS[normalized] || 'Pending';
 }
 
+function normalizeStoredAssetUrl(value) {
+  const assetUrl = String(value || '').trim();
+  if (!assetUrl) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(assetUrl) || assetUrl.startsWith('/')) {
+    return assetUrl;
+  }
+  return `/${assetUrl.replace(/^[.\\/]+/, '')}`;
+}
+
+function normalizeQualificationAssets(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+
+    const normalizedCertificateUrl = normalizeStoredAssetUrl(
+      item.certificate_url
+      || item.certificateUrl
+      || item.document_url
+      || item.documentUrl
+      || item.file_url
+      || item.fileUrl
+      || ''
+    );
+
+    return {
+      ...item,
+      certificate_url: normalizedCertificateUrl,
+      certificateUrl: normalizedCertificateUrl,
+      document_url: normalizeStoredAssetUrl(item.document_url || normalizedCertificateUrl),
+      documentUrl: normalizeStoredAssetUrl(item.documentUrl || normalizedCertificateUrl),
+      file_url: normalizeStoredAssetUrl(item.file_url || normalizedCertificateUrl),
+      fileUrl: normalizeStoredAssetUrl(item.fileUrl || normalizedCertificateUrl)
+    };
+  });
+}
+
 function normalizeNurseProfileStatus(value, fallbackStatus = '') {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'approved' || normalized === 'rejected' || normalized === 'pending' || normalized === 'draft') {
@@ -353,6 +396,18 @@ function transformUserFromDB(row) {
 }
 
 function transformNurseFromDB(row) {
+  const normalizedQualifications = normalizeQualificationAssets(row.qualifications);
+  const normalizedProfileImageUrl = normalizeStoredAssetUrl(row.profile_image_url || '');
+  const normalizedProfileImagePath = normalizeStoredAssetUrl(row.profile_image_path || '');
+  const normalizedAadharImageUrl = normalizeStoredAssetUrl(row.aadhar_image_url || row.aadhaar_image_url || '');
+  const normalizedAadhaarFrontUrl = normalizeStoredAssetUrl(
+    row.aadhaar_front_url || row.aadhar_front_url || row.aadhar_image_url || row.aadhaar_image_url || row.aadhaar_card_url || row.aadhar_card_url || ''
+  );
+  const normalizedAadhaarBackUrl = normalizeStoredAssetUrl(row.aadhaar_back_url || row.aadhar_back_url || '');
+  const normalizedAadhaarCardUrl = normalizeStoredAssetUrl(
+    row.aadhaar_card_url || row.aadhar_front_url || row.aadhaar_front_url || row.aadhar_image_url || row.aadhaar_image_url || row.aadhar_back_url || row.aadhaar_back_url || row.aadhar_card_url || ''
+  );
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -365,12 +420,12 @@ function transformNurseFromDB(row) {
     city: row.city || '',
     aadhaarNumber: row.aadhar_number || row.aadhaar_number || '',
     aadharNumber: row.aadhar_number || row.aadhaar_number || '',
-    aadharImageUrl: row.aadhar_image_url || row.aadhaar_image_url || row.aadhar_front_url || row.aadhaar_front_url || row.aadhar_back_url || row.aadhaar_back_url || row.aadhaar_card_url || row.aadhar_card_url || '',
-    aadhaarFrontUrl: row.aadhaar_front_url || row.aadhar_front_url || row.aadhar_image_url || row.aadhaar_image_url || row.aadhaar_card_url || row.aadhar_card_url || '',
-    aadharFrontUrl: row.aadhar_front_url || row.aadhaar_front_url || row.aadhar_image_url || row.aadhaar_image_url || row.aadhaar_card_url || row.aadhar_card_url || '',
-    aadhaarBackUrl: row.aadhaar_back_url || row.aadhar_back_url || '',
-    aadharBackUrl: row.aadhar_back_url || row.aadhaar_back_url || '',
-    aadhaarCardUrl: row.aadhaar_card_url || row.aadhar_front_url || row.aadhaar_front_url || row.aadhar_image_url || row.aadhaar_image_url || row.aadhar_back_url || row.aadhaar_back_url || row.aadhar_card_url || '',
+    aadharImageUrl: normalizedAadharImageUrl,
+    aadhaarFrontUrl: normalizedAadhaarFrontUrl,
+    aadharFrontUrl: normalizedAadhaarFrontUrl,
+    aadhaarBackUrl: normalizedAadhaarBackUrl,
+    aadharBackUrl: normalizedAadhaarBackUrl,
+    aadhaarCardUrl: normalizedAadhaarCardUrl,
     height: row.height_text || '',
     heightText: row.height_text || '',
     weight: Number.isFinite(Number(row.weight_kg)) ? Number(row.weight_kg) : null,
@@ -385,15 +440,15 @@ function transformNurseFromDB(row) {
     currentAddress: row.current_address || row.address || '',
     languages: row.languages || [],
     skills: row.skills || [],
-    qualifications: row.qualifications || [],
+    qualifications: normalizedQualifications,
     publicSkills: row.public_skills || [],
     availability: row.availability || [],
     status: row.status || 'Pending',
     isVerified: row.is_verified === true || String(row.status || '').toLowerCase() === 'approved',
     agentEmail: row.agent_email || '',
     agentEmails: row.agent_emails || [],
-    profileImageUrl: row.profile_image_url || '',
-    profileImagePath: row.profile_image_path || '',
+    profileImageUrl: normalizedProfileImageUrl,
+    profileImagePath: normalizedProfileImagePath,
     publicBio: row.public_bio || '',
     uniqueId: row.unique_id || '',
     profileSlug: row.profile_slug || '',
@@ -409,9 +464,9 @@ function transformNurseFromDB(row) {
     referralCode: row.referral_code || '',
     referredByNurseId: row.referred_by_nurse_id,
     referralCommissionPercent: parseFloat(row.referral_commission_percent) || 5,
-    resumeUrl: row.resume_url || '',
-    certificateUrl: row.certificate_url || '',
-    medicalFitUrl: row.medical_fit_url || '',
+    resumeUrl: normalizeStoredAssetUrl(row.resume_url || ''),
+    certificateUrl: normalizeStoredAssetUrl(row.certificate_url || ''),
+    medicalFitUrl: normalizeStoredAssetUrl(row.medical_fit_url || ''),
     address: row.current_address || row.address || '',
     workCity: row.work_city || '',
     customSkills: row.custom_skills || [],
@@ -420,6 +475,9 @@ function transformNurseFromDB(row) {
 }
 
 function transformAgentFromDB(row) {
+  const normalizedProfileImageUrl = normalizeStoredAssetUrl(row.profile_image_url || '');
+  const normalizedAadhaarDocUrl = normalizeStoredAssetUrl(row.aadhaar_doc_url || '');
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -429,9 +487,9 @@ function transformAgentFromDB(row) {
     companyName: row.company_name || '',
     workingRegion: row.working_region || row.region || '',
     region: row.working_region || row.region || '',
-    profileImageUrl: row.profile_image_url || '',
-    aadhaarDocUrl: row.aadhaar_doc_url || '',
-    aadhaarUrl: row.aadhaar_doc_url || '',
+    profileImageUrl: normalizedProfileImageUrl,
+    aadhaarDocUrl: normalizedAadhaarDocUrl,
+    aadhaarUrl: normalizedAadhaarDocUrl,
     uniqueId: row.unique_id || '',
     profileSlug: row.profile_slug || '',
     userIsDeleted: row.user_is_deleted === true,

@@ -175,6 +175,11 @@
       image.className = key === "profileImage"
         ? "agent-upload-preview__image"
         : "agent-upload-preview__image agent-upload-preview__image--document";
+      image.setAttribute("data-preview-image", src);
+      image.setAttribute(
+        "data-preview-label",
+        key === "profileImage" ? "Agent profile photo" : "Uploaded Aadhaar document"
+      );
       previewShell.appendChild(image);
 
       const hint = document.createElement("span");
@@ -191,11 +196,10 @@
     }
 
     if (type === "pdf" && src) {
-      const frame = document.createElement("iframe");
-      frame.src = src;
-      frame.title = "Selected Aadhaar document preview";
-      frame.className = "agent-upload-preview__frame";
-      previewShell.appendChild(frame);
+      const emptyState = document.createElement("div");
+      emptyState.className = "agent-upload-preview__empty";
+      emptyState.innerHTML = "<strong>PDF selected</strong><span>The document will open in a new tab after upload.</span>";
+      previewShell.appendChild(emptyState);
 
       const hint = document.createElement("span");
       hint.className = "agent-upload-preview__tap-hint";
@@ -272,6 +276,13 @@
 
   triggers.forEach((trigger) => {
     const openInput = (event) => {
+      const previewTarget = event.target instanceof Element
+        ? event.target.closest("[data-preview-image], a[href]")
+        : null;
+      if (previewTarget) {
+        return;
+      }
+
       const inputId = trigger.getAttribute("data-file-trigger");
       const input = inputId ? document.getElementById(inputId) : null;
       if (!input) return;

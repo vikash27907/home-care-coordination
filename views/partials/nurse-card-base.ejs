@@ -95,6 +95,11 @@ function isPreviewableImage(url) {
 function isPdfDocument(url) {
   return /\.pdf(\?.*)?$/i.test(String(url || "").trim());
 }
+function getDocumentLinkLabel(url) {
+  if (isPreviewableImage(url)) return "View Image";
+  if (isPdfDocument(url)) return "View PDF";
+  return "Download";
+}
 
 function icon(name, className) {
   const cls = className ? ` class="${className}"` : "";
@@ -157,7 +162,7 @@ function skillIconName(skill) {
             src="<%= imageSrc %>"
             alt="<%= nurseName %> profile"
             class="nurse-card-base__avatar"
-            onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+            onerror="console.error('Failed to load nurse card image:', this.currentSrc || this.src);this.onerror=null;this.src='/images/default-avatar.png';"
             data-preview-image="<%= imageSrc %>"
             data-preview-label="<%= nurseName %> profile photo"
             role="button"
@@ -342,24 +347,20 @@ function skillIconName(skill) {
           : (item.key === "medical-fit" ? "medical" : "certificate"); %>
         <a
           class="nurse-card-base__document is-available"
-          href="<%= isPreviewableImage(item.href) || isPdfDocument(item.href) ? 'javascript:void(0)' : item.href %>"
-          <% if (!(isPreviewableImage(item.href) || isPdfDocument(item.href))) { %>
-            target="_blank"
-            rel="noopener noreferrer"
-          <% } %>
+          href="<%= item.href %>"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open <%= item.label %>"
           <% if (isPreviewableImage(item.href)) { %>
             data-preview-image="<%= item.href %>"
             data-preview-label="<%= item.label %>"
-          <% } %>
-          <% if (isPreviewableImage(item.href) || isPdfDocument(item.href)) { %>
-            onclick='return openImagePreview(<%- JSON.stringify(item.href) %>, <%- JSON.stringify(item.label) %>)'
           <% } %>
         >
           <span class="nurse-card-base__document-copy">
             <span class="nurse-card-base__document-icon"><%- icon(iconName, "nurse-card-base__mini-icon") %></span>
             <span><%= item.label %></span>
           </span>
-          <strong>View</strong>
+          <strong><%= getDocumentLinkLabel(item.href) %></strong>
         </a>
       <% }) %>
     </section>

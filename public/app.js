@@ -263,6 +263,125 @@ function setupNavMenu() {
   });
 }
 
+function setupImagePreview() {
+  const modal = document.getElementById("imagePreviewModal");
+  const previewImage = document.getElementById("previewImage");
+
+  const setOpenState = (isOpen) => {
+    if (!modal) {
+      return;
+    }
+
+    modal.classList.toggle("is-open", Boolean(isOpen));
+    modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+    if (isOpen) {
+      if (!modal.dataset.previousOverflow) {
+        modal.dataset.previousOverflow = document.body.style.overflow || "";
+      }
+      document.body.style.overflow = "hidden";
+      return;
+    }
+
+    document.body.style.overflow = modal.dataset.previousOverflow || "";
+    delete modal.dataset.previousOverflow;
+
+    if (previewImage) {
+      previewImage.removeAttribute("src");
+      previewImage.alt = "Preview";
+    }
+  };
+
+  window.openImagePreview = (src, label) => {
+    const imageUrl = String(src || "").trim();
+    if (!imageUrl || !modal || !previewImage) {
+      return false;
+    }
+
+    previewImage.onerror = function handlePreviewError() {
+      console.error("Failed to load preview image:", this.currentSrc || this.src);
+      this.onerror = null;
+      setOpenState(false);
+    };
+    previewImage.src = imageUrl;
+    previewImage.alt = String(label || "Preview").trim() || "Preview";
+    setOpenState(true);
+    return false;
+  };
+
+  window.closeImagePreview = () => {
+    setOpenState(false);
+    return false;
+  };
+
+  if (!modal || !previewImage) {
+    return;
+  }
+
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      setOpenState(false);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target instanceof Element
+      ? event.target.closest("[data-preview-image]")
+      : null;
+
+    if (!trigger) {
+      return;
+    }
+
+    const src = String(trigger.getAttribute("data-preview-image") || "").trim();
+    if (!src) {
+      return;
+    }
+
+    const label = String(
+      trigger.getAttribute("data-preview-label")
+      || trigger.getAttribute("alt")
+      || "Preview"
+    ).trim();
+
+    event.preventDefault();
+    window.openImagePreview(src, label);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      setOpenState(false);
+      return;
+    }
+
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    const active = document.activeElement instanceof Element
+      ? document.activeElement.closest("[data-preview-image]")
+      : null;
+
+    if (!active) {
+      return;
+    }
+
+    const src = String(active.getAttribute("data-preview-image") || "").trim();
+    if (!src) {
+      return;
+    }
+
+    const label = String(
+      active.getAttribute("data-preview-label")
+      || active.getAttribute("alt")
+      || "Preview"
+    ).trim();
+
+    event.preventDefault();
+    window.openImagePreview(src, label);
+  });
+}
+
 window.openProfile = function (slug) {
   window.location.href = `/nurse/${slug}`;
 };
@@ -331,3 +450,4 @@ setupHeroRotator();
 setupMenuDropdown();
 setupNotificationCenter();
 setupNavMenu();
+setupImagePreview();

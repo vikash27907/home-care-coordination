@@ -179,6 +179,11 @@ function isPreviewableImage(url) {
 function isPdfDocument(url) {
   return /\.pdf(\?.*)?$/i.test(String(url || "").trim());
 }
+function getDocumentLinkLabel(url) {
+  if (isPreviewableImage(url)) return "View Image";
+  if (isPdfDocument(url)) return "View PDF";
+  return "Download Document";
+}
 function maskAadhar(value) {
   if (!value || value.length < 4) return "XXXX-XXXX-XXXX";
   return "XXXX-XXXX-" + value.slice(-4);
@@ -261,7 +266,7 @@ const unifiedAssetsRedirectTo = String(
               src="<%= profileImage %>"
               alt="<%= fullName %>"
               class="np-avatar"
-              onerror="this.onerror=null;this.src='/images/default-avatar.png';"
+              onerror="console.error('Failed to load nurse profile image:', this.currentSrc || this.src);this.onerror=null;this.src='/images/default-avatar.png';"
               data-preview-image="<%= profileImage %>"
               data-preview-label="<%= fullName %> profile photo"
               role="button"
@@ -488,19 +493,15 @@ const unifiedAssetsRedirectTo = String(
               <% if (hasAadhaarFront) { %>
                 <a
                   class="np-doc-link"
-                  href="<%= isPreviewableImage(aadhaarFrontUrl) || isPdfDocument(aadhaarFrontUrl) ? 'javascript:void(0)' : aadhaarFrontUrl %>"
-                  <% if (!(isPreviewableImage(aadhaarFrontUrl) || isPdfDocument(aadhaarFrontUrl))) { %>
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  <% } %>
+                  href="<%= aadhaarFrontUrl %>"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open Aadhaar front document"
                   <% if (isPreviewableImage(aadhaarFrontUrl)) { %>
                     data-preview-image="<%= aadhaarFrontUrl %>"
                     data-preview-label="Aadhaar front"
                   <% } %>
-                  <% if (isPreviewableImage(aadhaarFrontUrl) || isPdfDocument(aadhaarFrontUrl)) { %>
-                    onclick='return openImagePreview(<%- JSON.stringify(aadhaarFrontUrl) %>, "Aadhaar front")'
-                  <% } %>
-                >View</a>
+                ><%= getDocumentLinkLabel(aadhaarFrontUrl) %></a>
               <% } %>
               <% if (canEditProfile) { %>
                 <button type="button" class="np-doc-button" data-asset-trigger="aadhaarFront">Upload / Replace</button>
@@ -519,19 +520,15 @@ const unifiedAssetsRedirectTo = String(
               <% if (hasAadhaarBack) { %>
                 <a
                   class="np-doc-link"
-                  href="<%= isPreviewableImage(aadhaarBackUrl) || isPdfDocument(aadhaarBackUrl) ? 'javascript:void(0)' : aadhaarBackUrl %>"
-                  <% if (!(isPreviewableImage(aadhaarBackUrl) || isPdfDocument(aadhaarBackUrl))) { %>
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  <% } %>
+                  href="<%= aadhaarBackUrl %>"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open Aadhaar back document"
                   <% if (isPreviewableImage(aadhaarBackUrl)) { %>
                     data-preview-image="<%= aadhaarBackUrl %>"
                     data-preview-label="Aadhaar back"
                   <% } %>
-                  <% if (isPreviewableImage(aadhaarBackUrl) || isPdfDocument(aadhaarBackUrl)) { %>
-                    onclick='return openImagePreview(<%- JSON.stringify(aadhaarBackUrl) %>, "Aadhaar back")'
-                  <% } %>
-                >View</a>
+                ><%= getDocumentLinkLabel(aadhaarBackUrl) %></a>
               <% } %>
               <% if (canEditProfile) { %>
                 <button type="button" class="np-doc-button" data-asset-trigger="aadhaarBack">Upload / Replace</button>
@@ -742,19 +739,15 @@ const unifiedAssetsRedirectTo = String(
                   <% if (item.certificateUrl) { %>
                     <a
                       class="np-doc-link"
-                      href="<%= isPreviewableImage(item.certificateUrl) || isPdfDocument(item.certificateUrl) ? 'javascript:void(0)' : item.certificateUrl %>"
-                      <% if (!(isPreviewableImage(item.certificateUrl) || isPdfDocument(item.certificateUrl))) { %>
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      <% } %>
+                      href="<%= item.certificateUrl %>"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Open <%= item.name %> certificate"
                       <% if (isPreviewableImage(item.certificateUrl)) { %>
                         data-preview-image="<%= item.certificateUrl %>"
                         data-preview-label="<%= item.name %> certificate"
                       <% } %>
-                      <% if (isPreviewableImage(item.certificateUrl) || isPdfDocument(item.certificateUrl)) { %>
-                        onclick='return openImagePreview(<%- JSON.stringify(item.certificateUrl) %>, <%- JSON.stringify(`${item.name} certificate`) %>)'
-                      <% } %>
-                    >View Document</a>
+                    ><%= getDocumentLinkLabel(item.certificateUrl) %></a>
                   <% } %>
                   <% if (canEditProfile) { %>
                     <button

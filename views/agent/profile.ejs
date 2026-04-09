@@ -6,6 +6,9 @@
   const agentAadhaarDoc = String((agent && (agent.aadhaarDocUrl || agent.aadhaarUrl)) || "").trim();
   const agentAadhaarDocIsImage = /\.(png|jpe?g|webp)(\?.*)?$/i.test(agentAadhaarDoc);
   const agentAadhaarDocIsPdf = /\.pdf(\?.*)?$/i.test(agentAadhaarDoc);
+  const agentAadhaarDocLabel = agentAadhaarDocIsImage
+    ? "View Image"
+    : (agentAadhaarDocIsPdf ? "View PDF" : "Download Document");
 
   function icon(name, className = "") {
     const cls = className ? ` class="${className}"` : "";
@@ -46,7 +49,14 @@
 
   <div class="profile-header" data-reveal>
     <button type="button" class="avatar avatar--editable" data-file-trigger="profileImageInput" data-agent-avatar-trigger aria-label="Change profile image">
-      <img src="<%= agentProfileImage %>" alt="Agent avatar" data-agent-avatar />
+      <img
+        src="<%= agentProfileImage %>"
+        alt="Agent avatar"
+        data-agent-avatar
+        data-preview-image="<%= agentProfileImage %>"
+        data-preview-label="Agent profile photo"
+        onerror="console.error('Failed to load agent profile image:', this.currentSrc || this.src);this.onerror=null;this.src='/images/default-avatar.png';"
+      />
       <span class="avatar__edit-badge">
         <%- icon("upload") %>
       </span>
@@ -134,8 +144,10 @@
               src="<%= agentProfileImage %>"
               alt="Agent profile preview"
               class="agent-upload-preview__image"
-              data-preview-image="profileImage"
+              data-preview-image="<%= agentProfileImage %>"
+              data-preview-label="Agent profile photo"
               data-agent-avatar
+              onerror="console.error('Failed to load agent profile preview:', this.currentSrc || this.src);this.onerror=null;this.src='/images/default-avatar.png';"
             />
             <span class="agent-upload-preview__tap-hint">Tap to change</span>
           </div>
@@ -181,15 +193,19 @@
                 src="<%= agentAadhaarDoc %>"
                 alt="Uploaded Aadhaar document"
                 class="agent-upload-preview__image agent-upload-preview__image--document"
-                data-preview-image="aadhaarDoc"
+                data-preview-image="<%= agentAadhaarDoc %>"
+                data-preview-label="Uploaded Aadhaar document"
+                onerror="console.error('Failed to load agent document image:', this.currentSrc || this.src);this.onerror=null;"
               />
-            <% } else if (agentAadhaarDoc && agentAadhaarDocIsPdf) { %>
-              <iframe
-                src="<%= agentAadhaarDoc %>"
-                title="Uploaded Aadhaar document preview"
-                class="agent-upload-preview__frame"
-                data-preview-frame="aadhaarDoc"
-              ></iframe>
+            <% } else if (agentAadhaarDoc) { %>
+              <div class="agent-upload-preview__empty">
+                <strong><%= agentAadhaarDocIsPdf ? "PDF uploaded" : "Document uploaded" %></strong>
+                <span>
+                  <a href="<%= agentAadhaarDoc %>" target="_blank" rel="noopener noreferrer">
+                    <%= agentAadhaarDocLabel %>
+                  </a>
+                </span>
+              </div>
             <% } else { %>
               <div class="agent-upload-preview__empty" data-preview-empty="aadhaarDoc">
                 <strong>No document uploaded</strong>
@@ -208,7 +224,7 @@
               <%= agentAadhaarDoc ? "Edit Document" : "Upload Document" %>
             </button>
             <% if (agentAadhaarDoc) { %>
-              <a class="btn btn-secondary" href="<%= agentAadhaarDoc %>" target="_blank" rel="noopener noreferrer">View Current</a>
+              <a class="btn btn-secondary" href="<%= agentAadhaarDoc %>" target="_blank" rel="noopener noreferrer"><%= agentAadhaarDocLabel %></a>
             <% } %>
             <span class="agent-upload-card__status" data-file-name="aadhaarDoc">
               <%= agentAadhaarDoc ? "Current document uploaded." : "No document uploaded yet." %>

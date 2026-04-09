@@ -848,7 +848,7 @@ function createNurseSupportController() {
         console.log("FINAL PROFILE IMAGE USED:", finalProfileImageUrl);
         await client.query(
           `UPDATE nurses
-         SET profile_image_url = $1,
+         SET profile_image_url = COALESCE($1, profile_image_url),
              aadhar_image_url = CASE
                WHEN $2::text IS NOT NULL THEN $2::text
                WHEN COALESCE(NULLIF(BTRIM(COALESCE(aadhar_image_url, '')), ''), NULL) IS NULL AND $3::text IS NOT NULL THEN $3::text
