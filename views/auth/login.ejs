@@ -1,53 +1,65 @@
 <%- include("../partials/head", { title }) %>
 
-<section class="form-section narrow">
-  <h1>Login</h1>
-  <p>Login using mobile number, unique ID, or email with your password.</p>
-  <form method="POST" action="/login" class="form-grid" id="loginForm">
-    <label>
-      Phone, Unique ID, or Email <span class="required-indicator" title="Required"></span>
-      <input name="identifier" type="text" placeholder="Enter phone / ID / email" required />
-    </label>
-    <label>
-      Password <span class="required-indicator" title="Required"></span>
-      <div class="password-input-wrapper">
-        <input name="password" type="password" id="passwordInput" required />
-        <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Toggle password visibility">
-          <span id="eyeIcon">👁️</span>
-        </button>
-      </div>
-    </label>
-    <button type="submit" class="btn primary full-width">Login</button>
-  </form>
-  <div class="form-footer-links">
-    <a href="/forgot-password" class="forgot-password-link">Forgot Password?</a>
+<section class="login-shell">
+  <div class="form-section narrow login-card">
+    <div class="login-card-header">
+      <p class="section-kicker">Secure Access</p>
+      <h1>Login</h1>
+      <p>Login using mobile number, unique ID, or email with your password.</p>
+    </div>
+
+    <form method="POST" action="/login" class="form-grid login-form" id="loginForm">
+      <label class="full-width">
+        Phone, Unique ID, or Email <span class="required-indicator" title="Required"></span>
+        <input name="identifier" type="text" placeholder="Enter phone / ID / email" required />
+      </label>
+      <label class="full-width">
+        Password <span class="required-indicator" title="Required"></span>
+        <div class="password-input-wrapper">
+          <input name="password" type="password" id="passwordInput" required />
+          <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Toggle password visibility">
+            <span id="eyeIcon">Show</span>
+          </button>
+        </div>
+      </label>
+      <button type="submit" class="btn primary full-width">Login</button>
+    </form>
+
+    <div class="login-helper-row">
+      <a href="/forgot-password" class="forgot-password-link">Forgot Password?</a>
+    </div>
+
+    <div class="login-divider">or continue with</div>
+
+    <div class="login-actions">
+      <a href="/nurse-signup" class="login-action-card">
+        <span class="login-action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+            <circle cx="9.5" cy="7" r="4" />
+            <path d="M19 8v6" />
+            <path d="M16 11h6" />
+          </svg>
+        </span>
+        <span class="login-action-title">Register as Staff</span>
+        <span class="login-action-copy">Create your staff account and join our care network.</span>
+        <span class="login-action-cta">Register Now</span>
+      </a>
+      <a href="/agent-registration" class="login-action-card">
+        <span class="login-action-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+            <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+            <path d="M8 5V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+            <path d="M3 11h18" />
+          </svg>
+        </span>
+        <span class="login-action-title">Join as Agent</span>
+        <span class="login-action-copy">Partner with Prisha Home Care and grow local care referrals.</span>
+        <span class="login-action-cta">Join Now</span>
+      </a>
+    </div>
   </div>
 </section>
-
-<style>
-.password-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.password-input-wrapper input {
-  flex: 1;
-  padding-right: 40px;
-}
-.password-toggle {
-  position: absolute;
-  right: 10px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.1rem;
-  padding: 4px;
-  color: #666;
-}
-.password-toggle:hover {
-  color: #333;
-}
-</style>
 
 <script>
 function togglePassword() {
@@ -55,10 +67,10 @@ function togglePassword() {
   const eyeIcon = document.getElementById('eyeIcon');
   if (passwordInput.type === 'password') {
     passwordInput.type = 'text';
-    eyeIcon.textContent = '🙈';
+    eyeIcon.textContent = 'Hide';
   } else {
     passwordInput.type = 'password';
-    eyeIcon.textContent = '👁️';
+    eyeIcon.textContent = 'Show';
   }
 }
 </script>

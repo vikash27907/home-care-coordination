@@ -437,13 +437,52 @@ window.submitQualification = (input) => {
   form.submit();
 };
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      // Service worker is optional for this pilot build.
-    });
+async function setupServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  const environment = document.body && document.body.dataset
+    ? document.body.dataset.env
+    : "development";
+  const assetVersion = document.body && document.body.dataset
+    ? document.body.dataset.assetVersion
+    : "1";
+
+  if (environment !== "production") {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+
+    if ("caches" in window) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+    }
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(assetVersion)}`);
+
+  if (registration.waiting) {
+    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+  }
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (window.__prishaSwReloaded) {
+      return;
+    }
+
+    window.__prishaSwReloaded = true;
+    window.location.reload();
   });
+
+  await registration.update();
 }
+
+window.addEventListener("load", () => {
+  setupServiceWorker().catch(() => {
+    // Service worker stays optional and should never block the app.
+  });
+});
 
 setupRevealAnimations();
 setupHeroRotator();

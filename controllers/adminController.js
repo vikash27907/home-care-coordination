@@ -329,7 +329,12 @@ function createAdminController() {
         : normalizeCurrentStatusInput(currentStatusInput);
       const profileStatusInput = hasField("profileStatus") ? String(req.body.profileStatus || "").trim() : undefined;
       const referralCode = hasField("referralCode")
-        ? String(req.body.referralCode || "").trim().toUpperCase()
+        ? (
+          (() => {
+            const normalizedReferralCode = String(req.body.referralCode || "").trim().toUpperCase();
+            return normalizedReferralCode || null;
+          })()
+        )
         : undefined;
       const aadharNumber = hasField("aadharNumber")
         ? String(req.body.aadharNumber || "").replace(/\D/g, "").slice(0, 12)
@@ -500,6 +505,20 @@ function createAdminController() {
         client = await pool.connect();
         await client.query("BEGIN");
 
+        if (typeof referralCode !== "undefined" && referralCode) {
+          const duplicateReferralResult = await client.query(
+            `SELECT 1
+             FROM nurses
+             WHERE referral_code = $1
+               AND id <> $2
+             LIMIT 1`,
+            [referralCode, nurseId]
+          );
+          if (duplicateReferralResult.rowCount > 0) {
+            throw new Error("That referral code is already assigned to another nurse.");
+          }
+        }
+
         if (nurseSetClauses.length > 0) {
           nurseValues.push(nurseId);
           const nurseUpdateResult = await client.query(
@@ -542,7 +561,16 @@ function createAdminController() {
       return res.redirect(redirectTarget);
     } catch (error) {
       console.error("Admin nurse update error:", error);
-      setFlash(req, "error", error && error.message ? error.message : "Unable to update nurse profile right now.");
+      const isDuplicateReferralCodeError = error
+        && error.code === "23505"
+        && /referral/i.test(String(error.constraint || error.message || ""));
+      setFlash(
+        req,
+        "error",
+        isDuplicateReferralCodeError
+          ? "That referral code is already assigned to another nurse."
+          : (error && error.message ? error.message : "Unable to update nurse profile right now.")
+      );
       return res.redirect(redirectTarget);
     }
   });

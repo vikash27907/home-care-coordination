@@ -806,14 +806,32 @@ const unifiedAssetsRedirectTo = String(
           >
         <% } %>
 
-        <% if (isAdmin && userId) { %>
+<% if (isAdmin && userId) { %>
           <div class="np-security-actions">
             <button type="submit" class="btn warning" formaction="/admin/user/<%= userId %>/reset-password" formmethod="POST">
               Reset Password
             </button>
 
             <div class="np-pass-form">
-              <input type="password" name="newPassword" placeholder="New password">
+              <div class="np-password-input">
+                <input
+                  type="password"
+                  name="newPassword"
+                  id="adminNursePasswordInput"
+                  placeholder="New password"
+                  autocomplete="new-password"
+                >
+                <button
+                  type="button"
+                  class="np-password-toggle"
+                  data-password-toggle="#adminNursePasswordInput"
+                  aria-controls="adminNursePasswordInput"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  Show
+                </button>
+              </div>
               <button type="submit" class="btn primary" formaction="/admin/user/<%= userId %>/change-password" formmethod="POST">
                 Change Password
               </button>
@@ -1367,11 +1385,31 @@ const unifiedAssetsRedirectTo = String(
   gap: 0.55rem;
 }
 
+.np-password-input {
+  position: relative;
+  grid-column: span 3;
+}
+
 .np-pass-form input {
+  width: 100%;
   min-height: 42px;
   border: 1px solid #c6dae8;
   border-radius: 10px;
-  padding: 0.55rem 0.65rem;
+  padding: 0.55rem 3.8rem 0.55rem 0.65rem;
+}
+
+.np-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #0f5d9b;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
 }
 
 .np-multi-select {
@@ -1656,6 +1694,10 @@ const unifiedAssetsRedirectTo = String(
     grid-template-columns: 1fr;
   }
 
+  .np-password-input {
+    grid-column: auto;
+  }
+
   .np-header-actions {
     width: 100%;
   }
@@ -1741,6 +1783,21 @@ const unifiedAssetsRedirectTo = String(
   const assetAadhaarBackInput = document.getElementById("npAadhaarBackAssetInput");
   const qualificationNameInput = document.getElementById("npQualificationNameInput");
   const assetTriggers = shell.querySelectorAll("[data-asset-trigger]");
+  const passwordToggleButtons = shell.querySelectorAll("[data-password-toggle]");
+
+  passwordToggleButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    const selector = String(button.getAttribute("data-password-toggle") || "").trim();
+    const input = selector ? shell.querySelector(selector) : null;
+    if (!(input instanceof HTMLInputElement)) return;
+    button.addEventListener("click", () => {
+      const shouldShow = input.type === "password";
+      input.type = shouldShow ? "text" : "password";
+      button.textContent = shouldShow ? "Hide" : "Show";
+      button.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
+      button.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+    });
+  });
 
   let selectedSkills = new Set();
   let selectedAvailability = new Set();

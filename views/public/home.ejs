@@ -6,124 +6,103 @@
 }) %>
 
 <section class="hero-shell">
-  <div class="orb orb-a"></div>
-  <div class="orb orb-b"></div>
-  <div class="hero-center reveal" data-reveal>
-    <span class="hero-icon" aria-hidden="true">&#10084;</span>
-    <p class="hero-eyebrow">Prisha Home Care</p>
-    <h1>Compassionate Care at Your Doorstep</h1>
-    <p class="hero-copy">
-      Prisha Home Care provides trusted home nursing, patient support, and coordinated care services
-      delivered safely and professionally.
-    </p>
-    <div class="hero-role-grid">
-      <a href="/request-care#requestForm" class="hero-role hero-patient">
-        <span class="hero-role-title">🧑‍⚕️ Request for Staff</span>
-        <span class="hero-role-desc">(Need Nurse / Attendant at Home)</span>
-      </a>
-      <a href="/nurse-signup" class="hero-role hero-nurse">
-        <span class="hero-role-title">👩‍⚕️ Register as Staff</span>
-        <span class="hero-role-desc">(Nurse / Attendant Job Registration)</span>
-      </a>
-      <a href="/agent-registration" class="hero-role hero-agent">
-        <span class="hero-role-title">🤝 Join as Agent</span>
-        <span class="hero-role-desc">(Agent / Partner Registration)</span>
-      </a>
+  <div class="hero-heartbeat" aria-hidden="true">
+    <svg viewBox="0 0 320 140" role="presentation" focusable="false">
+      <path d="M10 78h58l18-24 24 52 38-82 24 54h138" />
+    </svg>
+  </div>
+  <div class="hero-grid reveal" data-reveal>
+    <div class="hero-media">
+      <div class="hero-image">
+        <img
+          src="/images/hero.jpg?v=<%= assetVersion %>"
+          alt="Prisha Home Care professional supporting a patient at home"
+        />
+      </div>
     </div>
-  </div>
-  <div class="hero-tagline reveal" data-reveal data-hero-rotator>
-    <p class="hero-tagline-item is-active" data-rotator-item>Dedicated Home Nursing Care for Your Loved Ones</p>
-    <p class="hero-tagline-item" data-rotator-item>One Platform. Complete Care Coordination.</p>
-    <p class="hero-tagline-item" data-rotator-item>Empowering Nurses. Supporting Families.</p>
-  </div>
-  <div class="trust-bar reveal" data-reveal>
-    <div class="trust-item">🏥 500+ Home Care Requests</div>
-    <div class="trust-item">👩‍⚕️ Verified Nurses &amp; Attendants</div>
-    <div class="trust-item">⭐ Trusted by Families</div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">
+        <span class="hero-eyebrow-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+            <path d="M12 20.2s-6.7-4.3-8.6-8C2 9.6 3 6.6 5.7 5.4c2-.9 4.1-.2 5.3 1.4 1.2-1.6 3.4-2.3 5.3-1.4 2.7 1.2 3.7 4.2 2.3 6.8-1.9 3.7-8.6 8-8.6 8Z" />
+            <path d="M7.2 12h2.1l1.1-2.2 1.8 4.5 1.2-2.3h3" />
+          </svg>
+        </span>
+        PRISHA HOME CARE
+      </p>
+      <h1>Care That Comes Home</h1>
+      <p class="hero-copy">Trusted nurses and attendants for safe and reliable home care.</p>
+      <div class="hero-actions">
+        <a href="/nurses" class="btn primary hero-primary-btn">Find a Nurse</a>
+        <a href="/request-care" class="btn light hero-secondary-btn">Need help? Request Care</a>
+      </div>
+    </div>
   </div>
 </section>
 
-<section class="content-section">
-  <h2 class="reveal" data-reveal>Our Services</h2>
-  <p class="section-lead reveal" data-reveal>
-    Patient-first home care support designed for comfort, safety, and continuity.
-  </p>
-  <div class="cards-grid services-grid">
-    <article class="card reveal" data-reveal>
-      <h3>Home Nursing Care</h3>
-      <p>Skilled nursing support delivered in the comfort of your home.</p>
+<section class="content-section staff-cta-section">
+  <div class="section-heading reveal" data-reveal>
+    <p class="section-kicker">Career &amp; Partnership</p>
+    <h2>Grow with our care network</h2>
+    <p class="section-lead">Join Prisha Home Care as a trusted staff member or referral partner and help more families access dependable support.</p>
+  </div>
+  <div class="staff-cta-grid reveal" data-reveal>
+    <article class="staff-cta-card">
+      <span class="staff-cta-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+          <circle cx="9.5" cy="7" r="4" />
+          <path d="M19 8v6" />
+          <path d="M16 11h6" />
+        </svg>
+      </span>
+      <h3>Register as Staff</h3>
+      <p>Apply as a nurse or care professional and get discovered by families who need reliable home support.</p>
+      <a href="/nurse-signup" class="btn primary">Register as Staff</a>
     </article>
-    <article class="card reveal" data-reveal>
-      <h3>Post-Surgery Support</h3>
-      <p>Structured monitoring and recovery-focused assistance after procedures.</p>
+    <article class="staff-cta-card">
+      <span class="staff-cta-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+          <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+          <path d="M8 5V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" />
+          <path d="M3 11h18" />
+        </svg>
+      </span>
+      <h3>Join as Agent</h3>
+      <p>Partner with us to refer and coordinate care opportunities while building a trusted local network.</p>
+      <a href="/agent-registration" class="btn primary">Join as Agent</a>
     </article>
-    <article class="card reveal" data-reveal>
-      <h3>Elderly Care Assistance</h3>
-      <p>Compassionate day-to-day care to support dignity, comfort, and safety.</p>
-    </article>
-    <article class="card reveal" data-reveal>
-      <h3>Long-Term Care Coordination</h3>
-      <p>Continuous care planning for chronic needs and extended home support.</p>
-    </article>
-    <article class="card reveal" data-reveal>
-      <h3>Regional Agent Support</h3>
-      <p>Local assistance that helps families and care teams stay connected.</p>
-    </article>
-    <article class="card reveal" data-reveal>
-      <h3>Family-Focused Communication</h3>
-      <p>Clear updates so families stay informed throughout the care journey.</p>
-    </article>
+  </div>
+</section>
+
+<section class="content-section customer-action-section">
+  <div class="customer-action-panel reveal" data-reveal>
+    <div class="section-heading">
+      <p class="section-kicker">For families and patients</p>
+      <h2>Find the right care quickly</h2>
+      <p class="section-lead">Choose a verified professional or submit a request and our team will help you.</p>
+    </div>
+    <div class="customer-actions">
+      <a href="/nurses" class="btn primary">Find a Nurse</a>
+      <a href="/request-care" class="btn light">Request Care</a>
+    </div>
   </div>
 </section>
 
 <section class="content-section trust-section">
-  <h2 class="reveal" data-reveal>Why Families Trust Us</h2>
-  <div class="cards-grid trust-grid">
-    <article class="card reveal" data-reveal>
-      <h3>Verified Professionals</h3>
-      <p>Care is delivered by qualified and reviewed nursing professionals.</p>
+  <div class="trust-strip reveal" data-reveal>
+    <article class="trust-pill">
+      <span class="trust-icon" aria-hidden="true">&#10003;</span>
+      <span class="trust-label">Verified Staff</span>
     </article>
-    <article class="card reveal" data-reveal>
-      <h3>Secure Patient Data</h3>
-      <p>Patient details are handled responsibly with privacy in mind.</p>
+    <article class="trust-pill">
+      <span class="trust-icon" aria-hidden="true">&#10010;</span>
+      <span class="trust-label">Professional Care</span>
     </article>
-    <article class="card reveal" data-reveal>
-      <h3>Dedicated Coordination Team</h3>
-      <p>Our team supports smooth communication between families and caregivers.</p>
+    <article class="trust-pill">
+      <span class="trust-icon" aria-hidden="true">&#9733;</span>
+      <span class="trust-label">Trusted by Families</span>
     </article>
-    <article class="card reveal" data-reveal>
-      <h3>Transparent Communication</h3>
-      <p>Clear, timely updates to help families make confident care decisions.</p>
-    </article>
-  </div>
-</section>
-
-<section class="content-section">
-  <h2 class="reveal" data-reveal>Built for Every Care Partner</h2>
-  <div class="cards-grid audience-grid">
-    <article class="card reveal" data-reveal>
-      <h3>Request for Staff</h3>
-      <p>Need Nurse / Attendant at Home</p>
-      <a href="/request-care#requestForm" class="btn primary stretched-link">Request Now</a>
-    </article>
-    <article class="card reveal" data-reveal>
-      <h3>Register as Staff</h3>
-      <p>Nurse / Attendant Job Registration</p>
-      <a href="/nurse-signup" class="btn light stretched-link">Register</a>
-    </article>
-    <article class="card reveal" data-reveal>
-      <h3>Join as Agent</h3>
-      <p>Agent / Partner Registration</p>
-      <a href="/agent-registration" class="btn light stretched-link">Join Now</a>
-    </article>
-  </div>
-</section>
-
-<section class="content-section">
-  <div class="cta-panel reveal" data-reveal>
-    <h2>Need Care Today?</h2>
-    <p>Submit your request and our team will contact you shortly.</p>
-    <a class="btn primary" href="/request-care">Request Care</a>
   </div>
 </section>
 

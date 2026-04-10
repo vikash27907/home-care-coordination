@@ -2648,13 +2648,19 @@ function configureApp(app) {
   app.use(express.static("public", {
     maxAge: 0,
     etag: false,
-    lastModified: false
+    lastModified: false,
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
   }));
 
   app.use((req, res, next) => {
     const assetVersion = process.env.NODE_ENV === "production" ? "1.0.0" : Date.now();
     res.locals.version = assetVersion;
     res.locals.assetVersion = assetVersion;
+    res.locals.environment = process.env.NODE_ENV === "production" ? "production" : "development";
     res.locals.extraStylesheets = [];
     res.locals.extraScripts = [];
     next();
@@ -2669,14 +2675,9 @@ function configureApp(app) {
     if (!req.accepts("html")) return next();
 
     res.vary("Cookie");
-
-    if (req.session && req.session.user) {
-      res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-      res.set("Pragma", "no-cache");
-      res.set("Expires", "0");
-    } else {
-      res.set("Cache-Control", "private, no-cache, must-revalidate");
-    }
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
 
     return next();
   });
@@ -2900,5 +2901,4 @@ module.exports = {
   validateRequest,
   validateServiceSchedule,
 };
-
 

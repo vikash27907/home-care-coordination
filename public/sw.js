@@ -1,35 +1,43 @@
-const CACHE_NAME = "homecare-pilot-v1";
-const OFFLINE_URLS = ["/", "/styles.css", "/app.js"];
+async function clearCaches() {
+  const keys = await caches.keys();
+  await Promise.all(keys.map((key) => caches.delete(key)));
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(OFFLINE_URLS);
-    })
+    clearCaches().then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => {
-            return caches.delete(key);
-          })
-      )
-    )
+    clearCaches().then(() => self.clients.claim())
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") {
+    return;
+  }
+
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    fetch(event.request, { cache: "no-store" }).catch(async () => {
+      const cached = await caches.match(event.request);
       if (cached) {
         return cached;
       }
-      return fetch(event.request);
+      throw new Error("Network request failed");
     })
   );
 });

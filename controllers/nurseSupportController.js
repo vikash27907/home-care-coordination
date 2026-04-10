@@ -2076,7 +2076,7 @@ END,
       return res.redirect(redirectTo || "/admin/nurses");
     }
 
-    setFlash(req, "success", "Password reset complete.");
+    setFlash(req, "success", `Password reset complete. Temporary password: ${tempPassword}`);
     if (redirectTo) {
       return res.redirect(redirectTo);
     }

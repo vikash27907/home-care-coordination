@@ -11,6 +11,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>
       <%= (typeof metaTitle !== 'undefined' && metaTitle) ? metaTitle : (title ? `${title} | Prisha Home Care` : "Prisha Home Care | Professional Home Nursing Services") %>
     </title>
@@ -23,7 +26,7 @@
       content="<%= (typeof metaDescription !== 'undefined' && metaDescription) ? metaDescription : 'Prisha Home Care provides trusted home nursing and coordinated care services for patients and families.' %>"
     />
     <meta name="theme-color" content="#1E88E5" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.webmanifest?v=<%= assetVersion %>" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -39,7 +42,7 @@
     <link rel="stylesheet" href="<%= href %>?v=<%= assetVersion %>" />
     <% }) %>
   </head>
-  <body>
+  <body data-asset-version="<%= assetVersion %>" data-env="<%= process.env.NODE_ENV === 'production' ? 'production' : 'development' %>">
     <header class="site-header">
       <div class="wrap nav-wrap">
         <nav class="navbar">
@@ -54,6 +57,9 @@
             <a href="<%= homeLink %>" class="<%= isHomeActive ? 'active' : '' %>">Home</a>
             <a href="/nurses" class="<%= currentPath.startsWith('/nurses') ? 'active' : '' %>">Find Nurses</a>
             <a href="/request-care" class="<%= currentPath === '/request-care' ? 'active' : '' %>">Request Care</a>
+            <% if (!(session && session.user)) { %>
+            <a href="/login" class="nav-mobile-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
+            <% } %>
           </div>
           <div class="nav-right">
             <% if (session && session.user) { %>
@@ -118,7 +124,7 @@
               </div>
             </div>
             <% } else { %>
-            <a href="/login" class="btn-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
+            <a href="/login" class="btn-login desktop-login <%= currentPath === '/login' ? 'active' : '' %>">Login</a>
             <button
               type="button"
               class="hamburger"
