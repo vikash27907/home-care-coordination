@@ -1980,7 +1980,7 @@ async function loadAgentProfile(req, res, next) {
   }
 
   const agentRecord = await getAgentRecordForUser(req.currentUser.id);
-  if (!agentRecord || agentRecord.status === "rejected" || agentRecord.status === "deleted") {
+  if (!agentRecord || !isApprovedAgentStatus(agentRecord.status)) {
     return res.status(403).render("shared/forbidden", { title: "Access Restricted" });
   }
 
@@ -2612,7 +2612,6 @@ async function stagePublicAgentRegistration(req, res, failRedirect) {
 
 function configureApp(app) {
   app.locals.version = Date.now();
-  app.use(validateRequest);
 
   app.set("view engine", "ejs");
   app.set("views", path.join(process.cwd(), "views"));
@@ -2626,6 +2625,7 @@ function configureApp(app) {
 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
+  app.use(validateRequest);
   // app.use("/webhook/whatsapp", require("../routes/whatsapp"));
 
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -2901,4 +2901,3 @@ module.exports = {
   validateRequest,
   validateServiceSchedule,
 };
-

@@ -414,7 +414,7 @@ function createAgentPortalController() {
       .filter(Boolean);
   }
 
-  router.get("/agent", requireRole("agent"), (req, res) => {
+  router.get("/agent", requireRole("agent"), loadAgentProfile, (req, res) => {
     return res.redirect("/agent/dashboard");
   });
 

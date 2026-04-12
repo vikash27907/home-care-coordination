@@ -1175,6 +1175,25 @@ async function initializeDatabase() {
     `);
 
     await pool.query(`
+      WITH counter_targets AS (
+        SELECT 'user'::varchar(50) AS key_name, COALESCE(MAX(id), 0) + 1 AS current_value FROM users
+        UNION ALL
+        SELECT 'nurse'::varchar(50), COALESCE(MAX(id), 0) + 1 FROM nurses
+        UNION ALL
+        SELECT 'patient'::varchar(50), COALESCE(MAX(id), 0) + 1 FROM patients
+        UNION ALL
+        SELECT 'agent'::varchar(50), COALESCE(MAX(id), 0) + 1 FROM agents
+        UNION ALL
+        SELECT 'concern'::varchar(50), COALESCE(MAX(id), 0) + 1 FROM concerns
+      )
+      INSERT INTO counters (key_name, current_value)
+      SELECT key_name, current_value
+      FROM counter_targets
+      ON CONFLICT (key_name) DO UPDATE
+      SET current_value = GREATEST(counters.current_value, EXCLUDED.current_value)
+    `);
+
+    await pool.query(`
       WITH nurse_seed AS (
         SELECT COALESCE(MAX(CAST(REGEXP_REPLACE(unique_id, '^PHCN-?', '') AS INTEGER)), 0) AS current_value
         FROM nurses

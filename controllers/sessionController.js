@@ -472,6 +472,13 @@ function createSessionController() {
         return res.send("Registration error");
       }
 
+      delete req.session.agentRegistration;
+
+      if (!isApprovedAgentStatus(createdAgent.status)) {
+        setFlash(req, "success", "Registration submitted successfully. Admin approval is required before login.");
+        return res.redirect("/login");
+      }
+
       req.session.userId = createdUser.id;
       req.session.role = "agent";
       req.session.user = {
@@ -484,8 +491,6 @@ function createSessionController() {
         phoneNumber: data.phoneNumber,
         phone_number: data.phoneNumber
       };
-
-      delete req.session.agentRegistration;
 
       return res.redirect("/agent/dashboard");
     } catch (error) {
@@ -526,6 +531,14 @@ function createSessionController() {
     if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
       setFlash(req, "error", "Invalid credentials.");
       return res.redirect("/login");
+    }
+
+    if (user.role === "agent") {
+      const agentRecord = await getAgentRecordForUser(user.id);
+      if (!agentRecord || !isApprovedAgentStatus(agentRecord.status)) {
+        setFlash(req, "error", "Your agent account is awaiting admin approval.");
+        return res.redirect("/login");
+      }
     }
 
     req.session.userId = user.id;
@@ -739,7 +752,9 @@ function createSessionController() {
             ])
             : Promise.resolve(),
           nextAadhaarDocUrl && previousAadhaarDocUrl && previousAadhaarDocUrl !== nextAadhaarDocUrl
-            ? deleteLocalAsset(previousAadhaarDocUrl)
+            ? (/^https?:\/\//i.test(previousAadhaarDocUrl)
+              ? deleteCloudinaryAssetByUrl(previousAadhaarDocUrl)
+              : deleteLocalAsset(previousAadhaarDocUrl))
             : Promise.resolve()
         ]);
       } catch (cleanupError) {

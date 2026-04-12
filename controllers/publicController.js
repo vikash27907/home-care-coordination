@@ -336,6 +336,49 @@ function createPublicController() {
     );
   }
 
+  function buildCareRequestLifecycleActor(req, fallbackRole = "system") {
+    return {
+      userId: req && req.currentUser && Number.isInteger(req.currentUser.id) ? req.currentUser.id : null,
+      role: req && req.currentUser && req.currentUser.role ? req.currentUser.role : fallbackRole
+    };
+  }
+
+  async function insertCareRequestLifecycleLog(client, payload) {
+    const metadata = payload && typeof payload.metadata === "object" && payload.metadata !== null
+      ? payload.metadata
+      : {};
+
+    await client.query(
+      `INSERT INTO care_request_lifecycle_logs (
+        request_id,
+        event_type,
+        previous_status,
+        next_status,
+        previous_payment_status,
+        next_payment_status,
+        assigned_nurse_id,
+        comment,
+        changed_by_user_id,
+        changed_by_role,
+        metadata
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,
+      [
+        payload.requestId,
+        payload.eventType || "status_update",
+        payload.previousStatus || null,
+        payload.nextStatus || null,
+        payload.previousPaymentStatus || null,
+        payload.nextPaymentStatus || null,
+        typeof payload.assignedNurseId === "number" ? payload.assignedNurseId : null,
+        payload.comment || null,
+        typeof payload.changedByUserId === "number" ? payload.changedByUserId : null,
+        payload.changedByRole || "system",
+        JSON.stringify(metadata)
+      ]
+    );
+  }
+
   router.get("/health", (req, res) => {
     res.status(200).json({ ok: true, service: "home-care-coordination", ts: now() });
   });
