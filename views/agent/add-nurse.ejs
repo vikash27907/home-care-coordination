@@ -1,42 +1,47 @@
-<%- include("../partials/head", { title, extraStylesheets: ["/css/agent-dashboard-tabs.css"] }) %>
+<%- include("../partials/head", { title, extraStylesheets: ["/css/agent-dashboard-tabs.css", "/css/agent-add-nurse.css"] }) %>
 
-<section class="agent-job-shell container py-4">
-  <div class="agent-job-shell__header" data-reveal>
+<section class="agent-add-nurse-page container">
+  <div class="agent-add-nurse-page__header" data-reveal>
     <div>
-      <p class="agent-hub__eyebrow">Nurse Management</p>
+      <p class="agent-hub__eyebrow">Agent Panel</p>
       <h1>Add Nurse</h1>
       <p class="agent-hub__intro">
-        Create a nurse profile under your account. New submissions stay pending until the admin approval flow is completed.
+        Create a nurse in under a minute. Bio, skills, and the rest of the profile can be completed later after login.
       </p>
     </div>
-    <a href="/agent/dashboard?tab=staff" class="btn btn-secondary">Back to Staff</a>
+    <a href="/agent/dashboard?tab=staff" class="btn btn-secondary agent-add-nurse-page__back">Back to Staff</a>
   </div>
 
-  <% if (referralNurses && referralNurses.length) { %>
-    <div class="agent-banner agent-banner--warning" data-reveal>
-      Use an approved referral code if this nurse joined through an existing caregiver in your network.
+  <form
+    method="POST"
+    action="/agent/nurses/new"
+    enctype="multipart/form-data"
+    class="agent-add-nurse-form card shadow-sm"
+    id="agentAddNurseForm"
+    data-reveal
+  >
+    <div class="agent-add-nurse-form__top">
+      <div>
+        <h2>Quick Nurse Entry</h2>
+        <p>Only the essentials for now. A temporary password will be generated automatically.</p>
+      </div>
+      <span class="agent-add-nurse-form__badge">Mobile Fast</span>
     </div>
-  <% } %>
 
-  <form method="POST" action="/agent/nurses/new" class="agent-job-form card shadow-sm agent-nurse-form" id="agentAddNurseForm" data-reveal>
-    <div class="agent-job-form__grid">
-      <label>
-        Full Name
-        <input name="fullName" type="text" autocomplete="name" required />
-      </label>
-
-      <label>
-        Email
+    <div class="agent-add-nurse-form__fields">
+      <label class="agent-add-nurse-form__field">
+        <span>First Name</span>
         <input
-          name="email"
-          type="email"
-          autocomplete="email"
-          placeholder="Optional for now, useful later for verified login"
+          name="fullName"
+          type="text"
+          autocomplete="given-name"
+          placeholder="Enter first name"
+          required
         />
       </label>
 
-      <label>
-        Phone Number
+      <label class="agent-add-nurse-form__field">
+        <span>Phone Number</span>
         <input
           name="phoneNumber"
           type="tel"
@@ -49,29 +54,37 @@
         />
       </label>
 
-      <label>
-        City
-        <input name="city" type="text" autocomplete="address-level2" required />
+      <label class="agent-add-nurse-form__field">
+        <span>Location</span>
+        <input
+          name="city"
+          type="text"
+          autocomplete="address-level2"
+          placeholder="City or area"
+          required
+        />
       </label>
 
-      <label>
-        Gender
-        <select name="gender" required>
-          <option value="">Select gender</option>
-          <option value="Female">Female</option>
-          <option value="Male">Male</option>
-        </select>
+      <label class="agent-add-nurse-form__field">
+        <span>Experience</span>
+        <div class="agent-add-nurse-form__inline-input">
+          <input
+            name="experienceYears"
+            type="number"
+            min="0"
+            max="60"
+            inputmode="numeric"
+            placeholder="Years"
+            required
+          />
+          <small>Years</small>
+        </div>
       </label>
 
-      <label>
-        Experience (Years)
-        <input name="experienceYears" type="number" min="0" max="60" required />
-      </label>
-
-      <label class="agent-job-form__span-2">
-        Current Status
-        <select name="current_status" required>
-          <option value="">Select current status</option>
+      <label class="agent-add-nurse-form__field">
+        <span>Availability</span>
+        <select name="availability" required>
+          <option value="">Select availability</option>
           <option value="Available for Work">Available for Work</option>
           <option value="Currently Working">Currently Working</option>
           <option value="Open to Opportunities">Open to Opportunities</option>
@@ -79,101 +92,30 @@
         </select>
       </label>
 
-      <label>
-        Password
-        <div class="agent-password-field">
+      <div class="agent-add-nurse-form__field">
+        <span>Profile Photo</span>
+        <label class="agent-add-nurse-upload" for="profileImageInput">
           <input
-            name="password"
-            type="password"
-            id="nursePasswordInput"
-            minlength="6"
-            autocomplete="new-password"
-            placeholder="Set password for nurse login"
-            required
+            id="profileImageInput"
+            name="profileImage"
+            type="file"
+            accept="image/*"
           />
-          <button type="button" class="agent-password-toggle" id="togglePasswordBtn" aria-controls="nursePasswordInput" aria-pressed="false">
-            Show
-          </button>
+          <span class="agent-add-nurse-upload__label">Upload image</span>
+          <span class="agent-add-nurse-upload__meta" id="profileImageFileName">Camera or gallery supported</span>
+        </label>
+        <div class="agent-add-nurse-upload__preview" id="profileImagePreviewShell" hidden>
+          <img id="profileImagePreview" alt="Selected nurse profile preview" />
         </div>
-        <small class="agent-nurse-form__helper">This password will be used by the nurse to sign in.</small>
-      </label>
-
-      <label>
-        Confirm Password
-        <input
-          name="confirm_password"
-          type="password"
-          minlength="6"
-          autocomplete="new-password"
-          placeholder="Re-enter the same password"
-          required
-        />
-      </label>
-
-      <label class="agent-job-form__span-2">
-        Referral Code
-        <input
-          name="referredByCode"
-          type="text"
-          value="<%= prefilledReferralCode || '' %>"
-          placeholder="Optional referral code, for example NABC123"
-        />
-      </label>
-
-      <label class="agent-job-form__span-2">
-        Profile Image URL
-        <input name="profileImageUrl" type="url" placeholder="Optional image URL" />
-      </label>
-
-      <label class="agent-job-form__span-2">
-        Public Bio
-        <textarea name="publicBio" rows="4" placeholder="Add a short public introduction for this nurse"></textarea>
-      </label>
-
-      <fieldset class="agent-job-form__span-2 agent-form-fieldset">
-        <legend>Skills</legend>
-        <div class="agent-option-grid">
-          <% skillsOptions.forEach((skill) => { %>
-            <label class="agent-option-chip">
-              <input type="checkbox" name="skills" value="<%= skill %>" />
-              <span><%= skill %></span>
-            </label>
-          <% }) %>
-        </div>
-      </fieldset>
-
-      <fieldset class="agent-job-form__span-2 agent-form-fieldset">
-        <legend>Availability</legend>
-        <div class="agent-option-grid">
-          <% availabilityOptions.forEach((slot) => { %>
-            <label class="agent-option-chip">
-              <input type="checkbox" name="availability" value="<%= slot %>" />
-              <span><%= slot %></span>
-            </label>
-          <% }) %>
-        </div>
-      </fieldset>
-
-      <fieldset class="agent-job-form__span-2 agent-form-fieldset">
-        <legend>Public Visibility</legend>
-        <div class="agent-option-grid agent-option-grid--compact">
-          <label class="agent-option-chip">
-            <input type="checkbox" name="isAvailable" checked />
-            <span>Visible as available</span>
-          </label>
-          <label class="agent-option-chip">
-            <input type="checkbox" name="publicShowCity" checked />
-            <span>Show city publicly</span>
-          </label>
-          <label class="agent-option-chip">
-            <input type="checkbox" name="publicShowExperience" checked />
-            <span>Show experience publicly</span>
-          </label>
-        </div>
-      </fieldset>
+      </div>
     </div>
 
-    <div class="agent-job-form__actions">
+    <div class="agent-add-nurse-form__notes">
+      <p>Nurse login access is created automatically with a temporary password.</p>
+      <p>Bio, skills, and other profile details can be updated later after account creation.</p>
+    </div>
+
+    <div class="agent-add-nurse-form__sticky-bar">
       <a href="/agent/dashboard?tab=staff" class="btn btn-secondary">Cancel</a>
       <button type="submit" class="btn btn-primary" id="agentAddNurseSubmitBtn">
         <span class="btn-text">Add Nurse</span>
@@ -181,42 +123,43 @@
       </button>
     </div>
   </form>
-
-  <% if (referralNurses && referralNurses.length) { %>
-    <section class="agent-referral-panel card shadow-sm" data-reveal>
-      <div class="agent-section-head">
-        <div>
-          <h2>Approved Referral Codes</h2>
-          <p class="agent-hub__intro">Pick a code from your approved roster when a referral needs to be credited.</p>
-        </div>
-      </div>
-
-      <div class="agent-referral-grid">
-        <% referralNurses.forEach((nurse) => { %>
-          <article class="agent-referral-card">
-            <strong><%= nurse.fullName %></strong>
-            <code><%= nurse.referralCode %></code>
-          </article>
-        <% }) %>
-      </div>
-    </section>
-  <% } %>
 </section>
 
 <script>
   (() => {
     const form = document.getElementById("agentAddNurseForm");
     const submitButton = document.getElementById("agentAddNurseSubmitBtn");
-    const passwordInput = document.getElementById("nursePasswordInput");
-    const toggleButton = document.getElementById("togglePasswordBtn");
+    const fileInput = document.getElementById("profileImageInput");
+    const fileNameLabel = document.getElementById("profileImageFileName");
+    const previewShell = document.getElementById("profileImagePreviewShell");
+    const previewImage = document.getElementById("profileImagePreview");
+    let activePreviewUrl = "";
 
-    if (toggleButton && passwordInput) {
-      toggleButton.addEventListener("click", () => {
-        const nextType = passwordInput.type === "password" ? "text" : "password";
-        const isVisible = nextType === "text";
-        passwordInput.type = nextType;
-        toggleButton.textContent = isVisible ? "Hide" : "Show";
-        toggleButton.setAttribute("aria-pressed", isVisible ? "true" : "false");
+    if (fileInput && fileNameLabel && previewShell && previewImage) {
+      fileInput.addEventListener("change", () => {
+        if (activePreviewUrl) {
+          URL.revokeObjectURL(activePreviewUrl);
+          activePreviewUrl = "";
+        }
+
+        const [file] = Array.from(fileInput.files || []);
+        if (!file) {
+          fileNameLabel.textContent = "Camera or gallery supported";
+          previewShell.hidden = true;
+          previewImage.removeAttribute("src");
+          return;
+        }
+
+        fileNameLabel.textContent = file.name;
+        if (!String(file.type || "").startsWith("image/")) {
+          previewShell.hidden = true;
+          previewImage.removeAttribute("src");
+          return;
+        }
+
+        activePreviewUrl = URL.createObjectURL(file);
+        previewImage.src = activePreviewUrl;
+        previewShell.hidden = false;
       });
     }
 

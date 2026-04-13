@@ -60,6 +60,7 @@ const NURSE_UPDATE_FIELD_MAP = {
   currentStatus: 'current_status',
   availabilityLabel: 'availability_label',
   availability: 'availability',
+  isAvailable: 'is_available',
   workLocations: 'work_locations',
   workCity: 'work_city',
   currentAddress: 'current_address',

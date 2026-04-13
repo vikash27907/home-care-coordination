@@ -1,0 +1,239 @@
+.agent-add-nurse-page {
+  width: min(100%, 720px);
+  padding: 1rem 0 6.5rem;
+}
+
+.agent-add-nurse-page__header {
+  display: grid;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.agent-add-nurse-page__header h1 {
+  margin: 0;
+}
+
+.agent-add-nurse-page__back {
+  width: 100%;
+  justify-content: center;
+}
+
+.agent-add-nurse-form {
+  padding: 1rem;
+  border-radius: 24px;
+}
+
+.agent-add-nurse-form__top {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.agent-add-nurse-form__top h2 {
+  margin: 0;
+  color: #163a5e;
+  font-size: 1.15rem;
+}
+
+.agent-add-nurse-form__top p {
+  margin: 0.35rem 0 0;
+  color: #597189;
+}
+
+.agent-add-nurse-form__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: #e8f4ff;
+  color: #0f609f;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-add-nurse-form__fields {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.agent-add-nurse-form__field {
+  display: grid;
+  gap: 0.45rem;
+  color: #1d3954;
+  font-weight: 700;
+}
+
+.agent-add-nurse-form__field > span {
+  font-size: 0.95rem;
+}
+
+.agent-add-nurse-form__field input,
+.agent-add-nurse-form__field select {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid #c9d9e7;
+  border-radius: 16px;
+  background: #f9fbfd;
+  padding: 0.9rem 1rem;
+  color: #14334d;
+  font: inherit;
+}
+
+.agent-add-nurse-form__field input:focus,
+.agent-add-nurse-form__field select:focus {
+  outline: none;
+  border-color: #0f7fcf;
+  box-shadow: 0 0 0 3px rgba(15, 127, 207, 0.14);
+  background: #fff;
+}
+
+.agent-add-nurse-form__inline-input {
+  position: relative;
+}
+
+.agent-add-nurse-form__inline-input input {
+  padding-right: 4.5rem;
+}
+
+.agent-add-nurse-form__inline-input small {
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
+  color: #5c738b;
+  font-size: 0.85rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.agent-add-nurse-upload {
+  display: grid;
+  gap: 0.25rem;
+  min-height: 88px;
+  padding: 0.95rem 1rem;
+  border: 1px dashed #9ab8d2;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fbfdff, #f3f8fd);
+  cursor: pointer;
+}
+
+.agent-add-nurse-upload input {
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  z-index: -1;
+}
+
+.agent-add-nurse-upload__label {
+  color: #143a5d;
+  font-weight: 800;
+}
+
+.agent-add-nurse-upload__meta {
+  color: #5f7790;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.agent-add-nurse-upload__preview {
+  margin-top: 0.65rem;
+  overflow: hidden;
+  width: 100%;
+  max-width: 140px;
+  aspect-ratio: 1;
+  border-radius: 18px;
+  border: 1px solid #d3e2ef;
+  background: #eef5fb;
+}
+
+.agent-add-nurse-upload__preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.agent-add-nurse-form__notes {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.95rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid #d8e7f3;
+  border-radius: 18px;
+  background: #f8fbfe;
+}
+
+.agent-add-nurse-form__notes p {
+  margin: 0;
+  color: #4d677f;
+  font-size: 0.92rem;
+}
+
+.agent-add-nurse-form__sticky-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(191, 209, 226, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 36px rgba(15, 42, 71, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.agent-add-nurse-form__sticky-bar .btn {
+  width: 100%;
+  min-height: 54px;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+@media (min-width: 768px) {
+  .agent-add-nurse-page {
+    padding-bottom: 2rem;
+  }
+
+  .agent-add-nurse-page__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .agent-add-nurse-page__back {
+    width: auto;
+  }
+
+  .agent-add-nurse-form {
+    padding: 1.2rem;
+  }
+
+  .agent-add-nurse-form__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-add-nurse-form__field:last-child,
+  .agent-add-nurse-form__notes,
+  .agent-add-nurse-form__top {
+    grid-column: 1 / -1;
+  }
+
+  .agent-add-nurse-form__top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .agent-add-nurse-form__sticky-bar {
+    grid-template-columns: 180px minmax(0, 1fr);
+    align-items: center;
+    bottom: 1rem;
+  }
+}

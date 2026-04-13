@@ -201,12 +201,13 @@ const forgotPasswordRateLimiter = rateLimit({
 });
 
 const PROFILE_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
-const PROFILE_UPLOAD_ALLOWED_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png"]);
+const PROFILE_UPLOAD_ALLOWED_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp"]);
 const PROFILE_UPLOAD_ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpg",
   "image/jpeg",
-  "image/png"
+  "image/png",
+  "image/webp"
 ]);
 
 const uploadNurseProfileFiles = multer({
@@ -252,6 +253,56 @@ function uploadBufferToCloudinary(file, folder) {
     );
     upload.end(file.buffer);
   });
+}
+
+const AGENT_NURSE_IMAGE_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const AGENT_NURSE_IMAGE_ALLOWED_MIME_TYPES = new Set([
+  "image/jpg",
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+]);
+
+function getAgentNurseImageExtension(file) {
+  const originalExtension = path.extname(String(file && file.originalname ? file.originalname : "")).toLowerCase();
+  if (AGENT_NURSE_IMAGE_ALLOWED_EXTENSIONS.has(originalExtension)) {
+    return originalExtension;
+  }
+
+  const mimeType = String(file && file.mimetype ? file.mimetype : "").toLowerCase();
+  if (mimeType === "image/jpeg" || mimeType === "image/jpg") return ".jpg";
+  if (mimeType === "image/png") return ".png";
+  if (mimeType === "image/webp") return ".webp";
+  return "";
+}
+
+function validateAgentNurseImageFile(file) {
+  if (!file) {
+    return { valid: true };
+  }
+
+  const mimeType = String(file.mimetype || "").toLowerCase();
+  const extension = getAgentNurseImageExtension(file);
+  if (!AGENT_NURSE_IMAGE_ALLOWED_MIME_TYPES.has(mimeType) || !extension) {
+    return { valid: false, error: "Upload a JPG, PNG, or WebP image for the nurse photo." };
+  }
+
+  return { valid: true, extension };
+}
+
+async function saveAgentNurseImageFile(file) {
+  const validation = validateAgentNurseImageFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error || "Invalid nurse profile image.");
+  }
+
+  const directory = path.join(UPLOAD_DIR, "agent-nurse-docs");
+  await fs.promises.mkdir(directory, { recursive: true });
+
+  const filename = `nurse-profile-${Date.now()}-${crypto.randomInt(100000000, 999999999)}${validation.extension}`;
+  const absolutePath = path.join(directory, filename);
+  await fs.promises.writeFile(absolutePath, file.buffer);
+  return `/uploads/agent-nurse-docs/${filename}`;
 }
 
 
@@ -2203,23 +2254,57 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     return res.redirect(failRedirect);
   }
 
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  const isMultipartRequest = contentType.includes("multipart/form-data");
+  if (isMultipartRequest) {
+    try {
+      await runMulterMiddleware(uploadNurseProfileFiles, req, res);
+    } catch (error) {
+      const uploadError = error && error.code === "LIMIT_FILE_SIZE"
+        ? "Profile photo must be 2 MB or smaller."
+        : (error && error.message ? error.message : "Unable to upload the nurse photo right now.");
+      setFlash(req, "error", uploadError);
+      return res.redirect(failRedirect);
+    }
+  }
+
   const creatorAgentEmail = agentLinkContext.agentEmail;
+  const isAgentManagedRegistration = Number.isInteger(agentLinkContext.agentUserId)
+    && agentLinkContext.agentUserId > 0;
   const fullName = String(req.body.fullName || "").trim();
   const emailInput = String(req.body.email || "").trim();
-  const password = String(req.body.password || "");
-  const confirmPassword = String(req.body.confirm_password || "");
   const phoneNumber = String(req.body.phoneNumber || "").trim();
-  const city = String(req.body.city || "").trim();
-  const gender = String(req.body.gender || "").trim();
-  const currentStatusInput = String(
-    req.body.current_status
+  const city = String(req.body.city || req.body.location || "").trim();
+  const experienceYears = Number.parseInt(req.body.experienceYears, 10);
+  const availabilityInput = String(
+    req.body.availability
+    || req.body.current_status
     || req.body.currentStatus
     || ""
   ).trim();
-  const currentStatus = normalizeCurrentStatusInput(currentStatusInput);
+  const availabilityValue = normalizeCurrentStatusInput(availabilityInput);
+  const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+  const profileImageFile = uploadedFiles.find((file) => file && file.fieldname === "profileImage") || null;
+  const imageValidation = validateAgentNurseImageFile(profileImageFile);
+  if (!imageValidation.valid) {
+    setFlash(req, "error", imageValidation.error);
+    return res.redirect(failRedirect);
+  }
+
+  const generatedPassword = isAgentManagedRegistration ? generateTempPassword() : "";
+  const password = String(req.body.password || generatedPassword);
+  const confirmPassword = String(req.body.confirm_password || password);
+  const gender = isAgentManagedRegistration
+    ? "Not Specified"
+    : String(req.body.gender || "").trim();
+  const currentStatusInput = String(
+    req.body.current_status
+    || req.body.currentStatus
+    || availabilityInput
+    || ""
+  ).trim();
+  const currentStatus = normalizeCurrentStatusInput(currentStatusInput) || availabilityValue;
   const hasEmail = Boolean(emailInput);
-  const isAgentManagedRegistration = Number.isInteger(agentLinkContext.agentUserId)
-    && agentLinkContext.agentUserId > 0;
   const registrationApprovalStatus = isAgentManagedRegistration ? "Approved" : "Pending";
   const requiresOtpVerification = !creatorAgentEmail
     && hasEmail
@@ -2227,7 +2312,12 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     && typeof otpExpiry === "object";
 
   // Validate required fields
-  if (!fullName || !phoneNumber || !city || !gender || !password) {
+  if (isAgentManagedRegistration) {
+    if (!fullName || !phoneNumber || !city || Number.isNaN(experienceYears) || !availabilityValue) {
+      setFlash(req, "error", "Please complete first name, phone number, location, experience, and availability.");
+      return res.redirect(failRedirect);
+    }
+  } else if (!fullName || !phoneNumber || !city || !gender || !password) {
     setFlash(req, "error", "Please complete all required nurse details.");
     return res.redirect(failRedirect);
   }
@@ -2241,8 +2331,16 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   }
 
   // Validate gender must be Male or Female
-  if (!["Male", "Female"].includes(gender)) {
+  if (!isAgentManagedRegistration && !["Male", "Female"].includes(gender)) {
     setFlash(req, "error", "Please select a valid gender.");
+    return res.redirect(failRedirect);
+  }
+  if (isAgentManagedRegistration && (Number.isNaN(experienceYears) || experienceYears < 0 || experienceYears > 60)) {
+    setFlash(req, "error", "Experience should be between 0 and 60 years.");
+    return res.redirect(failRedirect);
+  }
+  if (isAgentManagedRegistration && !availabilityValue) {
+    setFlash(req, "error", "Please select a valid availability.");
     return res.redirect(failRedirect);
   }
   if (currentStatusInput && !currentStatus) {
@@ -2312,6 +2410,8 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   };
 
   let createdUser = null;
+  let createdNurse = null;
+  let uploadedProfileImagePath = "";
 
   createdUser = await createUser(user);
 
@@ -2337,11 +2437,46 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     createdAt: now()
   };
 
-  const createdNurse = await createNurse(nurse);
+  createdNurse = await createNurse(nurse);
   if (!createdNurse) {
     await deleteUser(createdUser.id);
     setFlash(req, "error", "Unable to create nurse profile. Please try again.");
     return res.redirect(failRedirect);
+  }
+
+  if (isAgentManagedRegistration) {
+    const nurseUpdates = {
+      experienceYears,
+      currentStatus: availabilityValue,
+      availabilityLabel: availabilityValue,
+      availability: [availabilityValue],
+      isAvailable: availabilityValue !== "Not Available"
+    };
+
+    if (profileImageFile) {
+      try {
+        uploadedProfileImagePath = await saveAgentNurseImageFile(profileImageFile);
+        nurseUpdates.profileImagePath = uploadedProfileImagePath;
+      } catch (error) {
+        await deleteNurse(createdNurse.id);
+        await deleteUser(createdUser.id);
+        setFlash(req, "error", error.message || "Unable to save the nurse photo right now.");
+        return res.redirect(failRedirect);
+      }
+    }
+
+    const updatedNurse = await updateNurse(createdNurse.id, nurseUpdates);
+    if (!updatedNurse) {
+      if (uploadedProfileImagePath) {
+        await deleteLocalAsset(uploadedProfileImagePath);
+      }
+      await deleteNurse(createdNurse.id);
+      await deleteUser(createdUser.id);
+      setFlash(req, "error", "Unable to finish creating this nurse right now.");
+      return res.redirect(failRedirect);
+    }
+
+    createdNurse = updatedNurse;
   }
 
   if (agentLinkContext.agentUserId) {
@@ -2349,6 +2484,9 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
       await linkNurseToAgent(agentLinkContext.agentUserId, createdNurse.id, creatorAgentEmail);
     } catch (error) {
       console.error("Agent nurse roster link failed:", error);
+      if (uploadedProfileImagePath) {
+        await deleteLocalAsset(uploadedProfileImagePath);
+      }
       await deleteNurse(createdNurse.id);
       await deleteUser(createdUser.id);
       setFlash(req, "error", "Unable to link this nurse to your staff roster right now.");
@@ -2386,9 +2524,14 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   }
 
   if (creatorAgentEmail) {
-    const successMessage = email
-      ? "Nurse profile created successfully. They can use phone or unique ID now, and email login will work after verification."
-      : "Nurse profile created successfully. They can log in with phone number or unique ID.";
+    const successMessage = [
+      `Nurse added successfully.`,
+      createdNurse && createdNurse.uniqueId ? `Login ID: ${createdNurse.uniqueId}.` : "",
+      isAgentManagedRegistration ? `Temporary password: ${password}.` : "",
+      "More profile details can be completed later after login."
+    ]
+      .filter(Boolean)
+      .join(" ");
     setFlash(req, "success", successMessage);
     return res.redirect("/agent/dashboard?tab=staff");
   }
