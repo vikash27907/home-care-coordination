@@ -94,12 +94,18 @@
     }
   }
 
-  function buildShareMessage(intro, name, url) {
+  function buildShareMessage(name, url) {
+    const safeName = String(name || "Nurse").trim() || "Nurse";
+    const safeUrl = String(url || "").trim();
+
     return [
-      String(intro || "This is my profile").trim() || "This is my profile",
-      String(name || "Nurse").trim() || "Nurse",
-      String(url || "").trim()
-    ].filter(Boolean).join("\n");
+      `This is staff name: ${safeName}`,
+      "",
+      "Please check their profile card below 👇",
+      "",
+      "Click here to view full details, Aadhar & documents:",
+      safeUrl
+    ].join("\n");
   }
 
   function openWhatsAppShare(message) {
@@ -167,8 +173,6 @@
     const card = getCardNode(trigger.getAttribute("data-card-share"));
     const shareUrl = resolveAbsoluteUrl(trigger.getAttribute("data-share-url"));
     const shareName = String(trigger.getAttribute("data-share-name") || "Nurse").trim() || "Nurse";
-    const shareIntro = String(trigger.getAttribute("data-share-intro") || "This is my profile").trim() || "This is my profile";
-
     if (!card) {
       showToast("Card preview is not available right now.", "error");
       return;
@@ -183,14 +187,14 @@
     try {
       const blob = await exportCardBlob(card);
       const fileName = getCardFileName(card);
-      const message = buildShareMessage(shareIntro, shareName, shareUrl);
+      const message = buildShareMessage(shareName, shareUrl);
 
       if (typeof File !== "undefined" && typeof navigator.share === "function") {
         const file = new File([blob], fileName, { type: "image/png" });
         if (!navigator.canShare || navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: `${shareName} | Nurse Card`,
+            title: `${shareName} | Staff Card`,
             text: message
           });
           return;
@@ -199,7 +203,7 @@
 
       openWhatsAppShare(message);
       downloadBlob(blob, fileName);
-      showToast("WhatsApp opened with the public link. The card image was downloaded because this browser cannot attach files directly.", "info");
+      showToast("WhatsApp opened with the staff message, and the card image was downloaded because this browser cannot attach files directly.", "info");
     } catch (error) {
       if (error && error.name === "AbortError") return;
       showToast("Unable to share the card image right now.", "error");
