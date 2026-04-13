@@ -94,18 +94,19 @@
 
       <div class="agent-add-nurse-form__field">
         <span>Profile Photo</span>
-        <label class="agent-add-nurse-upload" for="profileImageInput">
+        <label class="agent-add-nurse-upload" for="profilePhotoInput">
           <input
-            id="profileImageInput"
-            name="profileImage"
+            id="profilePhotoInput"
+            name="profilePhoto"
             type="file"
             accept="image/*"
+            capture="environment"
           />
           <span class="agent-add-nurse-upload__label">Upload image</span>
-          <span class="agent-add-nurse-upload__meta" id="profileImageFileName">Camera or gallery supported</span>
+          <span class="agent-add-nurse-upload__meta" id="profilePhotoFileName">Camera or gallery supported</span>
         </label>
-        <div class="agent-add-nurse-upload__preview" id="profileImagePreviewShell" hidden>
-          <img id="profileImagePreview" alt="Selected nurse profile preview" />
+        <div class="agent-add-nurse-upload__preview" id="profilePhotoPreviewShell" hidden>
+          <img id="profilePhotoPreview" alt="Selected nurse profile preview" />
         </div>
       </div>
     </div>
@@ -129,10 +130,10 @@
   (() => {
     const form = document.getElementById("agentAddNurseForm");
     const submitButton = document.getElementById("agentAddNurseSubmitBtn");
-    const fileInput = document.getElementById("profileImageInput");
-    const fileNameLabel = document.getElementById("profileImageFileName");
-    const previewShell = document.getElementById("profileImagePreviewShell");
-    const previewImage = document.getElementById("profileImagePreview");
+    const fileInput = document.getElementById("profilePhotoInput");
+    const fileNameLabel = document.getElementById("profilePhotoFileName");
+    const previewShell = document.getElementById("profilePhotoPreviewShell");
+    const previewImage = document.getElementById("profilePhotoPreview");
     let activePreviewUrl = "";
 
     if (fileInput && fileNameLabel && previewShell && previewImage) {

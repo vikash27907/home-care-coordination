@@ -198,6 +198,42 @@ function createAgentPortalController() {
     return "open";
   }
 
+  const AGENT_NURSE_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+  const AGENT_NURSE_PHOTO_MIME_TYPES = new Set([
+    "image/jpg",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ]);
+
+  const agentNursePhotoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: AGENT_NURSE_PHOTO_MAX_BYTES },
+    fileFilter: (req, file, cb) => {
+      const mimeType = String(file && file.mimetype ? file.mimetype : "").toLowerCase();
+      if (file && file.fieldname === "profilePhoto" && AGENT_NURSE_PHOTO_MIME_TYPES.has(mimeType)) {
+        return cb(null, true);
+      }
+      return cb(new Error("Upload a JPG, PNG, or WebP image for the nurse photo."));
+    }
+  }).single("profilePhoto");
+
+  function agentNursePhotoUploadMiddleware(req, res, next) {
+    agentNursePhotoUpload(req, res, (error) => {
+      if (!error) {
+        return next();
+      }
+
+      if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+        setFlash(req, "error", "Profile photo must be 2 MB or smaller.");
+      } else {
+        setFlash(req, "error", error.message || "Unable to upload the nurse photo right now.");
+      }
+
+      return res.redirect("/agent/nurses/new");
+    });
+  }
+
   function getAgentStoreSlice(agentEmail) {
     const store = readNormalizedStore();
     const patients = store.patients
@@ -2010,7 +2046,7 @@ function createAgentPortalController() {
     });
   });
 
-  router.post("/agent/nurses/new", requireRole("agent"), requireApprovedAgent, async (req, res) => {
+  router.post("/agent/nurses/new", requireRole("agent"), requireApprovedAgent, agentNursePhotoUploadMiddleware, async (req, res) => {
     return createNurseUnderAgent(req, res, "/agent/nurses/new");
   });
 

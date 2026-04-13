@@ -255,59 +255,6 @@ function uploadBufferToCloudinary(file, folder) {
   });
 }
 
-const AGENT_NURSE_IMAGE_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
-const AGENT_NURSE_IMAGE_ALLOWED_MIME_TYPES = new Set([
-  "image/jpg",
-  "image/jpeg",
-  "image/png",
-  "image/webp"
-]);
-
-function getAgentNurseImageExtension(file) {
-  const originalExtension = path.extname(String(file && file.originalname ? file.originalname : "")).toLowerCase();
-  if (AGENT_NURSE_IMAGE_ALLOWED_EXTENSIONS.has(originalExtension)) {
-    return originalExtension;
-  }
-
-  const mimeType = String(file && file.mimetype ? file.mimetype : "").toLowerCase();
-  if (mimeType === "image/jpeg" || mimeType === "image/jpg") return ".jpg";
-  if (mimeType === "image/png") return ".png";
-  if (mimeType === "image/webp") return ".webp";
-  return "";
-}
-
-function validateAgentNurseImageFile(file) {
-  if (!file) {
-    return { valid: true };
-  }
-
-  const mimeType = String(file.mimetype || "").toLowerCase();
-  const extension = getAgentNurseImageExtension(file);
-  if (!AGENT_NURSE_IMAGE_ALLOWED_MIME_TYPES.has(mimeType) || !extension) {
-    return { valid: false, error: "Upload a JPG, PNG, or WebP image for the nurse photo." };
-  }
-
-  return { valid: true, extension };
-}
-
-async function saveAgentNurseImageFile(file) {
-  const validation = validateAgentNurseImageFile(file);
-  if (!validation.valid) {
-    throw new Error(validation.error || "Invalid nurse profile image.");
-  }
-
-  const directory = path.join(UPLOAD_DIR, "agent-nurse-docs");
-  await fs.promises.mkdir(directory, { recursive: true });
-
-  const filename = `nurse-profile-${Date.now()}-${crypto.randomInt(100000000, 999999999)}${validation.extension}`;
-  const absolutePath = path.join(directory, filename);
-  await fs.promises.writeFile(absolutePath, file.buffer);
-  return `/uploads/agent-nurse-docs/${filename}`;
-}
-
-
-
-
 const PORT = process.env.PORT || 10000;
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -2254,20 +2201,6 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     return res.redirect(failRedirect);
   }
 
-  const contentType = String(req.headers["content-type"] || "").toLowerCase();
-  const isMultipartRequest = contentType.includes("multipart/form-data");
-  if (isMultipartRequest) {
-    try {
-      await runMulterMiddleware(uploadNurseProfileFiles, req, res);
-    } catch (error) {
-      const uploadError = error && error.code === "LIMIT_FILE_SIZE"
-        ? "Profile photo must be 2 MB or smaller."
-        : (error && error.message ? error.message : "Unable to upload the nurse photo right now.");
-      setFlash(req, "error", uploadError);
-      return res.redirect(failRedirect);
-    }
-  }
-
   const creatorAgentEmail = agentLinkContext.agentEmail;
   const isAgentManagedRegistration = Number.isInteger(agentLinkContext.agentUserId)
     && agentLinkContext.agentUserId > 0;
@@ -2283,13 +2216,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
     || ""
   ).trim();
   const availabilityValue = normalizeCurrentStatusInput(availabilityInput);
-  const uploadedFiles = Array.isArray(req.files) ? req.files : [];
-  const profileImageFile = uploadedFiles.find((file) => file && file.fieldname === "profileImage") || null;
-  const imageValidation = validateAgentNurseImageFile(profileImageFile);
-  if (!imageValidation.valid) {
-    setFlash(req, "error", imageValidation.error);
-    return res.redirect(failRedirect);
-  }
+  const profilePhotoFile = req.file || null;
 
   const generatedPassword = isAgentManagedRegistration ? generateTempPassword() : "";
   const password = String(req.body.password || generatedPassword);
@@ -2392,7 +2319,9 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
   }
 
   // Default avatar based on gender
-  const defaultAvatar = gender === "Male" ? "/images/default-male.png" : "/images/default-female.png";
+  const defaultAvatar = gender === "Male"
+    ? "/images/default-male.png"
+    : (gender === "Female" ? "/images/default-female.png" : "/images/default-avatar.png");
 
   // ============================================================
   // STEP 1: Insert into USERS table (authentication)
@@ -2411,7 +2340,7 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
 
   let createdUser = null;
   let createdNurse = null;
-  let uploadedProfileImagePath = "";
+  let uploadedProfileImageUrl = "";
 
   createdUser = await createUser(user);
 
@@ -2453,22 +2382,26 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
       isAvailable: availabilityValue !== "Not Available"
     };
 
-    if (profileImageFile) {
+    if (profilePhotoFile) {
       try {
-        uploadedProfileImagePath = await saveAgentNurseImageFile(profileImageFile);
-        nurseUpdates.profileImagePath = uploadedProfileImagePath;
+        const uploadedProfileImage = await uploadBufferToCloudinary(profilePhotoFile, "home-care/nurses/profile");
+        uploadedProfileImageUrl = String(uploadedProfileImage && uploadedProfileImage.secure_url ? uploadedProfileImage.secure_url : "").trim();
+        if (!uploadedProfileImageUrl) {
+          throw new Error("Cloud upload did not return a secure URL.");
+        }
+        nurseUpdates.profileImageUrl = uploadedProfileImageUrl;
       } catch (error) {
         await deleteNurse(createdNurse.id);
         await deleteUser(createdUser.id);
-        setFlash(req, "error", error.message || "Unable to save the nurse photo right now.");
+        setFlash(req, "error", error.message || "Unable to upload the nurse photo right now.");
         return res.redirect(failRedirect);
       }
     }
 
     const updatedNurse = await updateNurse(createdNurse.id, nurseUpdates);
     if (!updatedNurse) {
-      if (uploadedProfileImagePath) {
-        await deleteLocalAsset(uploadedProfileImagePath);
+      if (uploadedProfileImageUrl) {
+        await deleteCloudinaryAssetByUrl(uploadedProfileImageUrl);
       }
       await deleteNurse(createdNurse.id);
       await deleteUser(createdUser.id);
@@ -2484,8 +2417,8 @@ async function createNurseUnderAgent(req, res, failRedirect, generatedOtp, otpEx
       await linkNurseToAgent(agentLinkContext.agentUserId, createdNurse.id, creatorAgentEmail);
     } catch (error) {
       console.error("Agent nurse roster link failed:", error);
-      if (uploadedProfileImagePath) {
-        await deleteLocalAsset(uploadedProfileImagePath);
+      if (uploadedProfileImageUrl) {
+        await deleteCloudinaryAssetByUrl(uploadedProfileImageUrl);
       }
       await deleteNurse(createdNurse.id);
       await deleteUser(createdUser.id);
